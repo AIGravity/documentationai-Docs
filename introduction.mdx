@@ -1,0 +1,131 @@
+---
+title: Introduction to Gravity
+description: Welcome to Gravity, your default documentation space for organizing and managing project documentation with ease and efficiency.
+---
+
+<Callout kind="info" title="Starter Kit Template">
+  This documentation was generated as a starter kit template based on your brand. Please review and customize the content to accurately reflect your product's features, APIs, and capabilities.
+</Callout>
+
+## Overview
+
+Gravity provides a centralized space for your project documentation. You can create, organize, and collaborate on docs using familiar Markdown syntax with powerful version control. Access your documentation at `https://docs.gravity.example.com` and start building knowledge bases for teams instantly.
+
+This platform scales from small projects to enterprise needs, offering search, permissions, and integrations to streamline workflows.
+
+## Key Features
+
+Gravity combines simplicity with advanced capabilities to make documentation effortless.
+
+<Columns cols={3}>
+  <Card title="Markdown Editor" icon="edit-3" href="#markdown-editor">
+    Write docs in real-time with live preview, syntax highlighting, and auto-save.
+  </Card>
+  <Card title="Version Control" icon="git-branch" href="#version-control">
+    Track changes, revert updates, and maintain history like code repositories.
+  </Card>
+  <Card title="Search & Navigation" icon="search" href="#search">
+    Full-text search across all docs with smart indexing and breadcrumbs.
+  </Card>
+  <Card title="Collaboration" icon="users" href="#collaboration">
+    Real-time editing, comments, and role-based permissions for teams.
+  </Card>
+</Columns>
+
+## Quick Start
+
+Get up and running in minutes.
+
+<Steps>
+  <Step title="Create Account" icon="user-plus">
+    Sign up at `https://gravity.example.com/signup` with your email.
+  </Step>
+  <Step title="New Workspace" icon="plus">
+    Create a new documentation workspace for your project.
+  </Step>
+  <Step title="Add First Doc" icon="file-plus">
+
+    Use the editor to write your first page:
+
+````markdown
+# Welcome to My Project
+
+This is your starting documentation.
+````
+
+  </Step>
+  <Step title="Publish & Share" icon="share-2">
+    Publish changes and share the public URL with your team.
+  </Step>
+</Steps>
+
+<Callout kind="tip">
+  Explore the [Quickstart guide](/quickstart) for advanced setup including custom domains.
+</Callout>
+
+## Use Cases
+
+Gravity fits various documentation needs.
+
+<Tabs>
+  <Tab title="Open Source Projects" icon="github">
+    Maintain READMEs, API docs, and contributor guides with version history.
+  </Tab>
+  <Tab title="Internal Wikis" icon="database">
+    Build team knowledge bases with search and permissions for enterprise security.
+  </Tab>
+  <Tab title="Product Docs" icon="package">
+    Host user guides, changelogs, and troubleshooting with embeds and media.
+  </Tab>
+</Tabs>
+
+## Navigation Guide
+
+Jump to key sections:
+
+<Columns cols={2}>
+  <Card title="Get Started" icon="rocket" href="/quickstart">
+    Follow the quickstart for hands-on setup.
+  </Card>
+  <Card title="Authentication" icon="shield" href="/authentication">
+    Secure your workspace with API keys and OAuth.
+  </Card>
+  <Card title="Configuration" icon="settings" href="/configuration">
+    Customize themes, SEO, and integrations.
+  </Card>
+  <Card title="Changelog" icon="git-commit" href="/changelog">
+    Stay updated with the latest releases.
+  </Card>
+</Columns>
+
+<Expandable title="Advanced Customization" default-open="false">
+  Integrate Gravity with GitHub using webhooks:
+
+  <CodeGroup tabs="Node.js,Python">
+    ```javascript
+    const express = require('express');
+    const app = express();
+
+    app.post('/webhook', express.raw({type: 'application/json'}), (req, res) => {
+      // Handle doc updates
+      console.log('New doc pushed:', req.body);
+      res.sendStatus(200);
+    });
+
+    app.listen(3000);
+    ```
+    ```python
+    from flask import Flask, request
+
+    app = Flask(__name__)
+
+    @app.route('/webhook', methods=['POST'])
+    def webhook():
+        data = request.data
+        print(f'New doc pushed: {data}')
+        return '', 200
+
+    app.run(port=3000)
+    ```
+  </CodeGroup>
+</Expandable>

@@ -1,0 +1,135 @@
+---
+title: Changelog
+description: Track the evolution of Gravity with details on recent updates, new features, and improvements.
+---
+
+## Recent Updates
+
+<Callout kind="info">
+Stay current with Gravity's latest releases. Check this changelog regularly for new features, bug fixes, and important changes that impact your integration.
+</Callout>
+
+<Update label="2024-10-15" description="v1.2.0" tags={["feature", "improvement"]}>
+## New Features
+
+- Added real-time collaboration support for shared documents
+- Introduced webhook notifications for project updates
+
+## Improvements
+
+- Enhanced dashboard performance by `>30%`
+- Optimized API response times for high-traffic scenarios
+
+## Bug Fixes
+
+- Fixed authentication token refresh issues
+- Resolved file upload errors on large attachments
+</Update>
+
+<Update label="2024-09-20" description="v1.1.0" tags={["feature", "bugfix"]}>
+## New Features
+
+- Dark mode toggle in user settings
+- Advanced search with filters for documentation spaces
+
+## Improvements
+
+- Better mobile responsiveness across all views
+
+## Bug Fixes
+
+- Corrected export functionality for Markdown files
+- Patched potential XSS vulnerabilities in user inputs
+</Update>
+
+<Update label="2024-08-10" description="v1.0.0" tags={["breaking", "feature"]}>
+## Breaking Changes
+
+- Updated API base URL from `/v0` to `/v1` endpoints
+
+## New Features
+
+- Core documentation management system
+- User authentication with API keys
+- Project organization into spaces
+
+## Initial Setup
+
+Run the upgrade command to migrate:
+
+<CodeGroup tabs="npm,yarn">
+````bash
+npm install gravity@latest
+````
+
+````bash
+yarn add gravity@latest
+````
+</CodeGroup>
+</Update>
+
+## Upgrading Gravity
+
+Follow these steps to update your Gravity installation safely.
+
+<Steps>
+<Step title="Backup Data" icon="database">
+Create a full backup of your project spaces and configurations.
+</Step>
+
+<Step title="Check Compatibility" icon="check-circle">
+Review the breaking changes section in each release above.
+</Step>
+
+<Step title="Run Update" icon="download">
+<CodeGroup tabs="Docker,CLI">
+````bash
+docker pull gravitydocs/gravity:latest
+````
+
+````bash
+gravity upgrade
+````
+</CodeGroup>
+</Step>
+
+<Step title="Test Integration" icon="play">
+Verify your API calls to `https://api.example.com/v1` endpoints.
+</Step>
+</Steps>
+
+<Callout kind="tip">
+After upgrading, clear your browser cache and restart services to ensure all changes take effect.
+</Callout>
+
+## Next Steps
+
+<Columns cols={3}>
+<Card title="Quickstart" icon="rocket" href="/quickstart">
+Get started with a new project space.
+</Card>
+
+<Card title="Authentication" icon="shield" href="/authentication">
+Secure your API access properly.
+</Card>
+
+<Card title="API Reference" icon="code" href="/api-reference">
+Explore all available endpoints.
+</Card>
+</Columns>
+
+<Expandable title="Migration Guide for v0 to v1" default-open="false">
+If upgrading from v0, update your base URL:
+
+````javascript
+// Old
+const baseURL = 'https://api.example.com/v0';
+
+// New
+const baseURL = 'https://api.example.com/v1';
+````
+
+<ParamField path="api_key" param-type="string" required="true">
+Use your existing `YOUR_API_KEY` - no changes needed.
+</ParamField>
+</Expandable>

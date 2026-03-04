@@ -1,0 +1,136 @@
+---
+title: Getting Started with Gravity
+description: Quickly set up your Gravity account and create your first documentation space to begin organizing your projects.
+---
+
+## Prerequisites
+
+<Callout kind="info" title="Before You Begin">
+Ensure you have:
+- A modern web browser like Chrome, Firefox, or Safari
+- An email address for account creation
+- Optional: Google account for SSO login
+</Callout>
+
+Gravity requires no downloads. Access everything through your browser at `https://app.gravity.com`.
+
+## Sign Up and Log In
+
+Begin by creating your account. Gravity supports multiple authentication methods for flexibility.
+
+<Tabs>
+  <Tab title="Email Signup" icon="mail">
+    Visit `https://app.gravity.com/signup` and follow these steps:
+    
+    1. Enter your email and create a password.
+    2. Verify your email via the confirmation link.
+    3. Log in with your credentials.
+  </Tab>
+  
+  <Tab title="Google SSO" icon="apple">
+    Click "Continue with Google" on the login page.
+    
+    Gravity securely handles OAuth flow without storing your Google password.
+  </Tab>
+</Tabs>
+
+<Callout kind="tip">
+Save your login details securely. Use a password manager for strong passwords.
+</Callout>
+
+## Create Your Workspace
+
+Workspaces organize your project documentation. Set up your first one in minutes.
+
+<Steps>
+  <Step title="Navigate to Workspaces" icon="home">
+    After login, click the **Workspaces** icon in the left sidebar.
+  </Step>
+  
+  <Step title="Create New Workspace" icon="plus">
+    Select **New Workspace** and enter a name like "My Project Docs".
+    
+    Choose a description: "Documentation for my latest project".
+  </Step>
+  
+  <Step title="Customize Settings" icon="settings">
+    Set visibility to **Private** or **Public**. Add team members if needed.
+    
+    Click **Create** to finish.
+  </Step>
+</Steps>
+
+## Create Your First Document
+
+Documents are MDX-powered pages. Start with a quick example.
+
+<Steps>
+  <Step title="Add Document" icon="file-plus">
+    In your workspace, click **New Document**.
+    
+    Name it "Introduction".
+  </Step>
+  
+  <Step title="Edit Content" icon="edit-3">
+    Use the editor to add frontmatter and content. Here's a starter template:
+    
+    <CodeGroup tabs="MDX">
+    ````mdx
+    ---
+    title: Introduction
+    description: Welcome to my project
+    ---
+    
+    ## Overview
+    
+    This is your first document.
+    ````
+    </CodeGroup>
+  </Step>
+  
+  <Step title="Preview and Publish" icon="eye">
+    Toggle preview mode. Click **Publish** to make it live.
+  </Step>
+</Steps>
+
+## Interface Tour
+
+Gravity's interface is intuitive. Key areas include:
+
+<Columns cols={3}>
+  <Card title="Sidebar" icon="menu">
+    Access workspaces, documents, and settings.
+  </Card>
+  
+  <Card title="Editor" icon="edit">
+    Real-time MDX editing with live preview.
+  </Card>
+  
+  <Card title="Preview" icon="monitor">
+    Responsive view of your published docs.
+  </Card>
+</Columns>
+
+<Expandable title="Advanced Editor Features" default-open="false">
+  - Syntax highlighting for MDX, JS, and more
+  - Component auto-complete
+  - Version history and collaboration
+</Expandable>
+
+## Next Steps
+
+Congratulations! You've set up Gravity basics.
+
+<Columns cols={2}>
+  <Card title="Explore Features" icon="star" href="/introduction">
+    Dive into advanced capabilities.
+  </Card>
+  
+  <Card title="Customize Docs" icon="settings" href="#">
+    Learn configuration options.
+  </Card>
+</Columns>
+
+<Callout kind="success">
+Ready to organize more projects? Create additional workspaces and invite your team.
+</Callout>
