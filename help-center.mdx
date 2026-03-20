@@ -1,29 +1,57 @@
 ---
 title: Help Center
+description: Find answers for the Gravity monorepo starter, including quickstart, core concepts, integrations, changelog, and API reference links.
 ---
 
+<Callout kind="info">
+
+Use this help center to troubleshoot issues, answer common questions, and navigate core docs for the Gravity monorepo starter (web, app, api, ai-service). Content focuses on the starter codebase, not a hosted SaaS dashboard.
+
+</Callout>
+
 <Columns cols={2}>
-  <Card title="FAQs" icon="help-circle" href="/help-center/faq/how-to-create-project" horizontal>
-    Find answers to common Gravity questions.
+  <Card title="Quickstart" icon="zap" href="/quickstart" horizontal>
+    Get the Gravity monorepo running locally and confirm all services are healthy.
   </Card>
-  <Card title="Troubleshooting" icon="alert-triangle" href="/help-center/troubleshooting/cannot-invite-team" horizontal>
-    Resolve issues fast.
+  <Card title="Core features" icon="book-open" href="/features" horizontal>
+    Understand the web, app, api, and ai-service layers and how they fit together.
   </Card>
-  <Card title="Guides" icon="book-open" href="/help-center/guides/add-project-docs" horizontal>
-    Quick project tutorials.
+  <Card title="Integrations" icon="plug" href="/integrations" horizontal>
+    Connect Gravity with external services and extend the starter to your stack.
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference" horizontal>
+    Explore available endpoints and payloads defined in the OpenAPI spec.
   </Card>
   <Card title="Changelog" icon="clock" href="/changelog" horizontal>
-    See product updates.
+    Track updates to the starter, including breaking changes and new examples.
   </Card>
 </Columns>
 
-## Contact Support
+## Help center articles for the starter
+
+Use these help center articles when you want walkthroughs and troubleshooting that are specific to the monorepo layout and codebase, rather than a hosted UI.
 
 <Columns cols={2}>
-  <Card title="Email Support" icon="mail" href="mailto:support@gravitydocs.com">
-    Reach us any time for help.
+  <Card title="FAQs" icon="help-circle" href="/help-center/faq/how-to-create-project" horizontal>
+    Answer common questions about creating and structuring projects inside the monorepo.
   </Card>
-  <Card title="Community" icon="users" href="https://community.gravitydocs.com" target="_blank">
-    Join discussions & share.
+  <Card title="Troubleshooting" icon="alert-triangle" href="/help-center/troubleshooting/cannot-invite-team" horizontal>
+    Fix typical local development issues, dependency problems, and service startup errors.
+  </Card>
+  <Card title="Guides" icon="book-open" href="/help-center/guides/add-project-docs" horizontal>
+    Follow focused walkthroughs, like wiring in project docs or updating the docs section.
+  </Card>
+</Columns>
+
+## When to use the help center vs core docs
+
+Use the core docs when you want conceptual understanding or complete API details. Use the help center when you are unblocked by concrete issues or tasks in the starter.
+
+<Columns cols={2}>
+  <Card title="Use core docs when…" icon="info" href="/introduction" horizontal>
+    You are learning what Gravity includes, exploring architecture, or reading endpoint reference.
+  </Card>
+  <Card title="Use help center when…" icon="alert-triangle" href="/help-center/faq/how-to-create-project" horizontal>
+    You hit an error, need a targeted fix, or want a step-by-step guide rooted in the monorepo code.
   </Card>
 </Columns>

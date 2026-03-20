@@ -1,136 +1,244 @@
 ---
-title: Getting Started with Gravity
-description: Quickly set up your Gravity account and create your first documentation space to begin organizing your projects.
+title: Run Gravity locally
+description: Spin up the Gravity monorepo locally with pnpm, Bun, and uv, then verify the web, API, and AI services are healthy.
 ---
 
 ## Prerequisites
 
-<Callout kind="info" title="Before You Begin">
-Ensure you have:
-- A modern web browser like Chrome, Firefox, or Safari
-- An email address for account creation
-- Optional: Google account for SSO login
+<Callout kind="info" title="Prerequisites">
+
+Set up your local environment before you run the Gravity monorepo:
+
+- Node.js 18 or later
+- `pnpm` installed globally
+- Bun installed and on your `PATH`
+- Python 3.11+ and `uv` installed and on your `PATH`
+- Git access to the `AIGravity/core` repository
+
 </Callout>
 
-Gravity requires no downloads. Access everything through your browser at `https://app.gravity.com`.
+## Start all services
 
-## Sign Up and Log In
+Run the full stack locally: web app, API, and AI service.
 
-Begin by creating your account. Gravity supports multiple authentication methods for flexibility.
+<Steps>
+  <Step title="Clone the repository" icon="download">
+
+    Use Git to clone the core monorepo and move into it:
+
+    ```bash
+    git clone git@github.com:AIGravity/core.git
+    cd core
+    ```
+
+    You should now see `apps/` and `packages/` directories in the repo root.
+
+  </Step>
+
+  <Step title="Bootstrap dependencies" icon="package">
+
+    Install all workspace dependencies for Node, Bun, and Python in one step.
+
+    <CodeGroup tabs="pnpm setup,Shell script">
+    ```bash
+    pnpm setup
+    ```
+    ```bash
+    ./scripts/bootstrap.sh
+    ```
+    </CodeGroup>
+
+    Use `pnpm setup` during day‑to‑day development. The bootstrap script is equivalent and useful for CI or fresh environments.
+
+  </Step>
+
+  <Step title="Run the dev environment" icon="play-circle">
+
+    Start all services via Turborepo from the repo root:
+
+    ```bash
+    pnpm dev
+    ```
+
+    This command runs the web app, API, and AI service concurrently. Wait until the logs show each service listening on its port with no errors.
+
+  </Step>
+
+  <Step title="Verify each service" icon="check-circle">
+
+    Confirm that every service is up by hitting its health endpoint.
+
+    ```bash
+    # Web (browser)
+    open http://localhost:3000
+
+    # API health
+    curl -i http://localhost:3001/api/health
+
+    # AI service health
+    curl -i http://localhost:8001/health
+    ```
+
+    Expect `200 OK` responses from `/api/health` and `/health`, and a usable UI at `http://localhost:3000`.
+
+  </Step>
+</Steps>
+
+## Run services individually
+
+Run a single service when you do focused development or debugging.
 
 <Tabs>
-  <Tab title="Email Signup" icon="mail">
-    Visit `https://app.gravity.com/signup` and follow these steps:
-    
-    1. Enter your email and create a password.
-    2. Verify your email via the confirmation link.
-    3. Log in with your credentials.
+  <Tab title="Web app only" icon="monitor">
+
+    From the repo root, start the web app:
+
+    ```bash
+    pnpm --filter @repo/web dev
+    ```
+
+    - URL: `http://localhost:3000`
+    - Use this when working on the frontend only, assuming the API and AI service are already running elsewhere.
+
   </Tab>
-  
-  <Tab title="Google SSO" icon="apple">
-    Click "Continue with Google" on the login page.
-    
-    Gravity securely handles OAuth flow without storing your Google password.
+
+  <Tab title="API only" icon="code">
+
+    Start the API service:
+
+    ```bash
+    pnpm --filter @repo/api dev
+    ```
+
+    - Base URL: `http://localhost:3001`
+    - Health endpoint: `GET http://localhost:3001/api/health`
+
+    The API is configured with CORS to allow origin `http://localhost:3000` with credentials enabled, so you can call it directly from the local web app.
+
+  </Tab>
+
+  <Tab title="AI service only" icon="terminal">
+
+    Start the Python AI service:
+
+    ```bash
+    pnpm --filter @repo/py-service dev
+    ```
+
+    - Base URL: `http://localhost:8001`
+    - Health endpoint: `GET http://localhost:8001/health`
+
+    Use this when iterating on AI logic or Python dependencies.
+
   </Tab>
 </Tabs>
 
-<Callout kind="tip">
-Save your login details securely. Use a password manager for strong passwords.
-</Callout>
+## Service map and health checks
 
-## Create Your Workspace
+Use this as a quick reference for what runs where and how to confirm it works.
 
-Workspaces organize your project documentation. Set up your first one in minutes.
+| Service    | Purpose      | URL / Port                 | Health endpoint                     |
+|-----------:|--------------|----------------------------|-------------------------------------|
+| Web        | UI/frontend  | `http://localhost:3000`    | Load root page in a browser         |
+| API        | Backend API  | `http://localhost:3001`    | `GET http://localhost:3001/api/health` |
+| AI service | AI features  | `http://localhost:8001`    | `GET http://localhost:8001/health`  |
 
-<Steps>
-  <Step title="Navigate to Workspaces" icon="home">
-    After login, click the **Workspaces** icon in the left sidebar.
-  </Step>
+If any health endpoint returns a non‑200 status or times out, check the corresponding dev process logs in your terminal.
+
+## Troubleshooting
+
+<ExpandableGroup>
+
+  <Expandable title="Port already in use (EADDRINUSE)" default-open="false">
+
+  **Symptom**
+
+  - `pnpm dev` or an individual service fails with `EADDRINUSE` or a message like `address already in use` for port `3000`, `3001`, or `8001`.
+
+  **Fix**
+
+  - Stop any existing dev servers using those ports (browser dev tools, other app instances, or orphaned node/python processes).
+  - On Unix‑like systems, identify and kill the process:
+
+    ```bash
+    lsof -i :3000
+    kill <pid>
+    ```
+
+  - Restart the relevant command, for example:
+
+    ```bash
+    pnpm --filter @repo/web dev
+    ```
+
+  </Expandable>
+
+  <Expandable title="Command not found: bun or uv" default-open="false">
+
+  **Symptom**
+
+  - Bootstrap or dev scripts exit with errors such as `bun: command not found` or `uv: command not found`.
+
+  **Fix**
+
+  - Install Bun following the official instructions and ensure `bun` is on your `PATH`.
+  - Install `uv` for Python dependency management and confirm `uv --version` works.
+  - Re-run:
+
+    ```bash
+    pnpm setup
+    ```
+
+  </Expandable>
+
+  <Expandable title="API requests blocked by CORS" default-open="false">
+
+  **Symptom**
+
+  - Browser console shows CORS errors when calling the API from the web app.
+
+  **Details**
+
+  - The API enables CORS for origin `http://localhost:3000` with credentials.
+
+  **Fix**
+
+  - Ensure you run the web app from `http://localhost:3000`, not a different port.
+  - If you are calling the API from another origin (for example, a separate app), proxy requests through the web app or run your client on `http://localhost:3000`.
+
+  </Expandable>
+
+  <Expandable title="Health endpoints return 500 or timeout" default-open="false">
+
+  **Symptom**
+
+  - `curl http://localhost:3001/api/health` or `curl http://localhost:8001/health` hangs or returns `5xx`.
+
+  **Fix**
+
+  - Confirm the service process is running and not crashing on startup.
+  - Stop the dev command with `<kbd>Ctrl</kbd>+<kbd>C</kbd>` and restart:
   
-  <Step title="Create New Workspace" icon="plus">
-    Select **New Workspace** and enter a name like "My Project Docs".
-    
-    Choose a description: "Documentation for my latest project".
-  </Step>
-  
-  <Step title="Customize Settings" icon="settings">
-    Set visibility to **Private** or **Public**. Add team members if needed.
-    
-    Click **Create** to finish.
-  </Step>
-</Steps>
+    ```bash
+    pnpm dev
+    ```
 
-## Create Your First Document
+  - Watch the logs for stack traces or missing configuration; address the underlying error, then retry the health check.
 
-Documents are MDX-powered pages. Start with a quick example.
+  </Expandable>
 
-<Steps>
-  <Step title="Add Document" icon="file-plus">
-    In your workspace, click **New Document**.
-    
-    Name it "Introduction".
-  </Step>
-  
-  <Step title="Edit Content" icon="edit-3">
-    Use the editor to add frontmatter and content. Here's a starter template:
-    
-    <CodeGroup tabs="MDX">
-    ````mdx
-    ---
-    title: Introduction
-    description: Welcome to my project
-    ---
-    
-    ## Overview
-    
-    This is your first document.
-    ````
-    </CodeGroup>
-  </Step>
-  
-  <Step title="Preview and Publish" icon="eye">
-    Toggle preview mode. Click **Publish** to make it live.
-  </Step>
-</Steps>
+</ExpandableGroup>
 
-## Interface Tour
+## Next steps
 
-Gravity's interface is intuitive. Key areas include:
-
-<Columns cols={3}>
-  <Card title="Sidebar" icon="menu">
-    Access workspaces, documents, and settings.
-  </Card>
-  
-  <Card title="Editor" icon="edit">
-    Real-time MDX editing with live preview.
-  </Card>
-  
-  <Card title="Preview" icon="monitor">
-    Responsive view of your published docs.
-  </Card>
-</Columns>
-
-<Expandable title="Advanced Editor Features" default-open="false">
-  - Syntax highlighting for MDX, JS, and more
-  - Component auto-complete
-  - Version history and collaboration
-</Expandable>
-
-## Next Steps
-
-Congratulations! You've set up Gravity basics.
+Once your local stack is healthy, start building against it:
 
 <Columns cols={2}>
-  <Card title="Explore Features" icon="star" href="/introduction">
-    Dive into advanced capabilities.
+  <Card title="Review core concepts" icon="book-open" href="/introduction">
+    Understand how the Gravity stack is organized and how services interact.
   </Card>
-  
-  <Card title="Customize Docs" icon="settings" href="#">
-    Learn configuration options.
+
+  <Card title="Explore features" icon="zap" href="/features">
+    See which capabilities are available in the web and API layers.
   </Card>
 </Columns>
-
-<Callout kind="success">
-Ready to organize more projects? Create additional workspaces and invite your team.
-</Callout>

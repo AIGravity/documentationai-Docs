@@ -1,135 +1,71 @@
 ---
 title: Changelog
-description: Track the evolution of Gravity with details on recent updates, new features, and improvements.
+description: Track the AIGravity core monorepo as a starter kit, with dated updates tied to main branch commits and infrastructure changes.
 ---
 
-## Recent Updates
+## Repository status
 
 <Callout kind="info">
-Stay current with Gravity's latest releases. Check this changelog regularly for new features, bug fixes, and important changes that impact your integration.
+AIGravity/core is a pre-1.0 monorepo starter kit. The Remix web app, NestJS API on Bun, and FastAPI AI service are under active development, and only basic health-check endpoints are documented. Each service is independently versioned through VERSION files in its directory.
 </Callout>
 
-<Update label="2024-10-15" description="v1.2.0" tags={["feature", "improvement"]}>
-## New Features
+## Recent updates
 
-- Added real-time collaboration support for shared documents
-- Introduced webhook notifications for project updates
+<Update label="2026-03-15" description="Minor API service change" tags={["improvement"]}>
+## Changes
 
-## Improvements
+- Updated `apps/api/src/main.ts` with a minor test comment change to validate CI and formatting flows
+- Confirmed NestJS API service continues to build and start correctly on Bun after the change
 
-- Enhanced dashboard performance by `>30%`
-- Optimized API response times for high-traffic scenarios
-
-## Bug Fixes
-
-- Fixed authentication token refresh issues
-- Resolved file upload errors on large attachments
 </Update>
 
-<Update label="2024-09-20" description="v1.1.0" tags={["feature", "bugfix"]}>
-## New Features
+<Update label="2026-03-07" description="CI, versioning, and container updates" tags={["feature", "improvement"]}>
+## Continuous integration and workflows
 
-- Dark mode toggle in user settings
-- Advanced search with filters for documentation spaces
+- Added and refined GitHub Actions workflows for monorepo builds and checks
+- Integrated version bump scripts to keep service VERSION files aligned with changes on main
+- Ensured workflows run on pushes and pull requests targeting the main branch
 
-## Improvements
+## Containerization and tooling
 
-- Better mobile responsiveness across all views
+- Refactored Dockerfiles across services to streamline build steps and reduce duplication
+- Added a `tsconfig` copy step where needed to make container builds consistent with local development
+- Merged the first feature branch through PR `#1` from `dev` into `main` as the baseline for future work
 
-## Bug Fixes
-
-- Corrected export functionality for Markdown files
-- Patched potential XSS vulnerabilities in user inputs
 </Update>
 
-<Update label="2024-08-10" description="v1.0.0" tags={["breaking", "feature"]}>
-## Breaking Changes
+<Update label="2026-03-01" description="Initial repository setup" tags={["feature"]}>
+## Initial monorepo layout
 
-- Updated API base URL from `/v0` to `/v1` endpoints
+- Created the core monorepo structure for a full-stack starter kit
+- Added a Remix-based web application, a NestJS API running on Bun, and a FastAPI AI service using uv
+- Defined basic health-check endpoints for services to verify wiring and deployment
 
-## New Features
+## Tooling and configuration
 
-- Core documentation management system
-- User authentication with API keys
-- Project organization into spaces
+- Initialized TypeScript configuration shared across services
+- Set up base project scripts for local development and testing
 
-## Initial Setup
-
-Run the upgrade command to migrate:
-
-<CodeGroup tabs="npm,yarn">
-````bash
-npm install gravity@latest
-````
-
-````bash
-yarn add gravity@latest
-````
-</CodeGroup>
 </Update>
 
-## Upgrading Gravity
+## Weekly update process
 
-Follow these steps to update your Gravity installation safely.
+Use this process to keep the changelog aligned with work landing on the main branch.
 
 <Steps>
-<Step title="Backup Data" icon="database">
-Create a full backup of your project spaces and configurations.
+<Step title="Review recent commits" icon="terminal">
+List commits on the `main` branch from the last 7 days and group them by theme, such as CI, API, web, or AI service changes.
 </Step>
 
-<Step title="Check Compatibility" icon="check-circle">
-Review the breaking changes section in each release above.
+<Step title="Summarize meaningful changes" icon="edit">
+For each theme, write 2–5 concise bullets that describe what changed and why it matters at a starter-kit level, avoiding implementation detail noise.
 </Step>
 
-<Step title="Run Update" icon="download">
-<CodeGroup tabs="Docker,CLI">
-````bash
-docker pull gravitydocs/gravity:latest
-````
-
-````bash
-gravity upgrade
-````
-</CodeGroup>
+<Step title="Add or update an entry" icon="plus">
+Create a new `<Update>` entry with the latest date and a short description, or append to the most recent entry when changes are closely related.
 </Step>
 
-<Step title="Test Integration" icon="play">
-Verify your API calls to `https://api.example.com/v1` endpoints.
+<Step title="Verify scope and status" icon="check-circle">
+Confirm that the entry does not claim features beyond the current implementation, and that it reflects the pre-1.0, independently versioned services model.
 </Step>
 </Steps>
-
-<Callout kind="tip">
-After upgrading, clear your browser cache and restart services to ensure all changes take effect.
-</Callout>
-
-## Next Steps
-
-<Columns cols={3}>
-<Card title="Quickstart" icon="rocket" href="/quickstart">
-Get started with a new project space.
-</Card>
-
-<Card title="Authentication" icon="shield" href="/authentication">
-Secure your API access properly.
-</Card>
-
-<Card title="API Reference" icon="code" href="/api-reference">
-Explore all available endpoints.
-</Card>
-</Columns>
-
-<Expandable title="Migration Guide for v0 to v1" default-open="false">
-If upgrading from v0, update your base URL:
-
-````javascript
-// Old
-const baseURL = 'https://api.example.com/v0';
-
-// New
-const baseURL = 'https://api.example.com/v1';
-````
-
-<ParamField path="api_key" param-type="string" required="true">
-Use your existing `YOUR_API_KEY` - no changes needed.
-</ParamField>
-</Expandable>

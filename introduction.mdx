@@ -1,131 +1,220 @@
 ---
 title: Introduction to Gravity
-description: Welcome to Gravity, your default documentation space for organizing and managing project documentation with ease and efficiency.
+description: Explore Gravity, a polyglot monorepo starter with Remix web, NestJS API on Bun, and a FastAPI AI service orchestrated by pnpm and Turborepo.
 ---
 
-<Callout kind="info" title="Starter Kit Template">
-  This documentation was generated as a starter kit template based on your brand. Please review and customize the content to accurately reflect your product's features, APIs, and capabilities.
+<Callout kind="info">
+
+Gravity is a polyglot monorepo starter kit, not a hosted SaaS. Clone the repo, run it locally, and customize the services, CI, and infra to match your stack.
+
 </Callout>
 
-## Overview
+## What Gravity is
 
-Gravity provides a centralized space for your project documentation. You can create, organize, and collaborate on docs using familiar Markdown syntax with powerful version control. Access your documentation at `https://docs.gravity.example.com` and start building knowledge bases for teams instantly.
+Gravity is a monorepo that gives you a working full-stack baseline:
 
-This platform scales from small projects to enterprise needs, offering search, permissions, and integrations to streamline workflows.
+- **apps/web**: Remix (React + Tailwind + Vite) on port `3000`
+- **apps/api**: NestJS running on Bun with CORS for `http://localhost:3000` on port `3001`
+- **apps/ai-service**: FastAPI (Python) on port `8001`
 
-## Key Features
+The repo uses **pnpm workspaces** and **Turborepo** to orchestrate installs, builds, and dev workflows across all services.
 
-Gravity combines simplicity with advanced capabilities to make documentation effortless.
+<Callout kind="tip">
+
+Start with this page to understand the architecture, then move to the [Quickstart](/quickstart) to run Gravity locally and the [Features](/features) page to explore capabilities in depth.
+
+</Callout>
+
+## Core services
+
+Each service is pre-wired to work together in local development.
 
 <Columns cols={3}>
-  <Card title="Markdown Editor" icon="edit-3" href="#markdown-editor">
-    Write docs in real-time with live preview, syntax highlighting, and auto-save.
+  <Card title="apps/web (Remix)" icon="monitor" href="#web-app">
+
+    User-facing web app built with Remix, React, Tailwind, and Vite. Connects to the API and AI service and runs on `http://localhost:3000`.
+
   </Card>
-  <Card title="Version Control" icon="git-branch" href="#version-control">
-    Track changes, revert updates, and maintain history like code repositories.
+  <Card title="apps/api (NestJS on Bun)" icon="terminal" href="#api-service">
+
+    JSON API powered by NestJS running on Bun. Exposes `/api` routes, health check, and integration points for the web and AI services on `http://localhost:3001`.
+
   </Card>
-  <Card title="Search & Navigation" icon="search" href="#search">
-    Full-text search across all docs with smart indexing and breadcrumbs.
+  <Card title="apps/ai-service (FastAPI)" icon="cpu" href="#ai-service">
+
+    Python-based AI microservice using FastAPI. Listens on `http://localhost:8001` with a `/health` endpoint and space for model-backed endpoints.
+
   </Card>
-  <Card title="Collaboration" icon="users" href="#collaboration">
-    Real-time editing, comments, and role-based permissions for teams.
+  <Card title="Monorepo tooling" icon="package" href="#monorepo-tooling">
+
+    Shared tooling with pnpm workspaces, Turborepo pipelines, linting/formatting, and common scripts for install, dev, and CI.
+
+  </Card>
+  <Card title="Versioning & CI/CD" icon="git-branch" href="#versioning-ci">
+
+    Per-service semantic versioning via `VERSION` files plus GitHub Actions to build and publish Docker images to GitHub Container Registry on merges to `main`.
+
+  </Card>
+  <Card title="Integrations" icon="plug" href="/integrations">
+
+    Hooks and structure for wiring in external APIs, observability, and deployment targets. See the Integrations page for patterns and examples.
+
   </Card>
 </Columns>
 
-## Quick Start
-
-Get up and running in minutes.
-
-<Steps>
-  <Step title="Create Account" icon="user-plus">
-    Sign up at `https://gravity.example.com/signup` with your email.
-  </Step>
-  <Step title="New Workspace" icon="plus">
-    Create a new documentation workspace for your project.
-  </Step>
-  <Step title="Add First Doc" icon="file-plus">
-
-    Use the editor to write your first page:
-
-````markdown
-# Welcome to My Project
-
-This is your starting documentation.
-````
-
-  </Step>
-  <Step title="Publish & Share" icon="share-2">
-    Publish changes and share the public URL with your team.
-  </Step>
-</Steps>
-
-<Callout kind="tip">
-  Explore the [Quickstart guide](/quickstart) for advanced setup including custom domains.
-</Callout>
-
-## Use Cases
-
-Gravity fits various documentation needs.
+## Architecture at a glance
 
 <Tabs>
-  <Tab title="Open Source Projects" icon="github">
-    Maintain READMEs, API docs, and contributor guides with version history.
+  <Tab title="Web app" icon="monitor">
+
+    ### Web app: apps/web {#web-app}
+
+    The web app is a Remix project using React and Tailwind, with local dev served on `http://localhost:3000`.
+
+    - Talks to the API at `http://localhost:3001/api/...`
+    - Can call AI routes indirectly via the API or directly to `http://localhost:8001` during development
+    - Uses the shared monorepo toolchain for linting, build, and tests
+
   </Tab>
-  <Tab title="Internal Wikis" icon="database">
-    Build team knowledge bases with search and permissions for enterprise security.
+  <Tab title="API service" icon="terminal">
+
+    ### API service: apps/api {#api-service}
+
+    The API service is a NestJS application running on Bun, exposed on `http://localhost:3001`.
+
+    - CORS is enabled for origin `http://localhost:3000`
+    - Health check: `GET /api/health` returns JSON like `{"status":"ok","service":"api"}`
+    - Acts as the central backend for web, and as an integration layer to the AI service and external systems
+
   </Tab>
-  <Tab title="Product Docs" icon="package">
-    Host user guides, changelogs, and troubleshooting with embeds and media.
+  <Tab title="AI service" icon="cpu">
+
+    ### AI service: apps/ai-service {#ai-service}
+
+    The AI service is a FastAPI app running on `http://localhost:8001`.
+
+    - Health check: `GET /health` returns JSON like `{"status":"ok"}`
+    - Designed for model-backed endpoints, embeddings, or other Python-centric workloads
+    - Can be called from the API or directly from local tools during experimentation
+
+  </Tab>
+  <Tab title="Tooling & workflows" icon="settings">
+
+    ### Monorepo tooling {#monorepo-tooling}
+
+    Gravity uses pnpm workspaces and Turborepo to standardize workflows:
+
+    - `pnpm setup` bootstraps the workspace
+    - `pnpm dev` runs all core services concurrently via Turborepo
+    - Shared scripts keep CI and local workflows aligned
+
   </Tab>
 </Tabs>
 
-## Navigation Guide
+## Run Gravity locally
 
-Jump to key sections:
+Use these steps to clone the repository and bring all services up for local development.
+
+<Steps>
+  <Step title="Clone the repo" icon="download">
+
+    Clone `AIGravity/core` to your local machine.
+
+    ```bash
+    git clone git@github.com:AIGravity/core.git
+    cd core
+    ```
+
+  </Step>
+
+  <Step title="Bootstrap dependencies" icon="package">
+
+    Install dependencies and prepare the workspace with pnpm.
+
+    <CodeGroup tabs="pnpm,Shell script">
+      ```bash
+      pnpm setup
+      ```
+      ```bash
+      ./scripts/bootstrap.sh
+      ```
+    </CodeGroup>
+
+  </Step>
+
+  <Step title="Start all services" icon="play-circle">
+
+    Run all core apps (web, API, AI service) in dev mode using Turborepo.
+
+    ```bash
+    pnpm dev
+    ```
+
+    Successful startup shows log output for each service with ports:
+
+    - Web: `http://localhost:3000`
+    - API: `http://localhost:3001`
+    - AI service: `http://localhost:8001`
+
+  </Step>
+
+  <Step title="Verify health checks" icon="check-circle">
+
+    Confirm each service is responding.
+
+    <CodeGroup tabs="API health,AI service health">
+      ```bash
+      curl http://localhost:3001/api/health
+      # {"status":"ok","service":"api"}
+      ```
+      ```bash
+      curl http://localhost:8001/health
+      # {"status":"ok"}
+      ```
+    </CodeGroup>
+
+  </Step>
+</Steps>
+
+<Callout kind="info">
+
+Gravity expects pnpm, Bun, and Python with uv-compatible tooling installed on your machine. See [Quickstart](/quickstart) for exact version recommendations and troubleshooting tips.
+
+</Callout>
+
+## Versioning and CI/CD {#versioning-ci}
+
+Gravity tracks versions per service and ships Docker images via GitHub Actions.
+
+- Each app has a `VERSION` file that defines its semantic version.
+- CI pipelines read these versions, build Docker images on merges to `main`, and publish to GitHub Container Registry (GHCR).
+- You can extend the workflows to push to your own registries or deployment targets.
+
+This structure keeps service-level changes isolated while still benefiting from a shared monorepo.
+
+## Where to go next
+
+Use these docs to move from exploration to customization.
 
 <Columns cols={2}>
-  <Card title="Get Started" icon="rocket" href="/quickstart">
-    Follow the quickstart for hands-on setup.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+
+    Follow a focused path to run Gravity locally, inspect the services, and make your first code changes.
+
   </Card>
-  <Card title="Authentication" icon="shield" href="/authentication">
-    Secure your workspace with API keys and OAuth.
+  <Card title="Features" icon="book-open" href="/features">
+
+    Review the core capabilities of the web app, API, AI service, and monorepo tooling.
+
   </Card>
-  <Card title="Configuration" icon="settings" href="/configuration">
-    Customize themes, SEO, and integrations.
+  <Card title="Integrations" icon="plug" href="/integrations">
+
+    Learn how to connect third-party APIs, add observability, and adapt Gravity to your deployment stack.
+
   </Card>
-  <Card title="Changelog" icon="git-commit" href="/changelog">
-    Stay updated with the latest releases.
+  <Card title="Changelog" icon="clock" href="/changelog">
+
+    Track updates to the starter kit, including service changes, tooling upgrades, and CI improvements.
+
   </Card>
 </Columns>
-
-<Expandable title="Advanced Customization" default-open="false">
-  Integrate Gravity with GitHub using webhooks:
-
-  <CodeGroup tabs="Node.js,Python">
-    ```javascript
-    const express = require('express');
-    const app = express();
-
-    app.post('/webhook', express.raw({type: 'application/json'}), (req, res) => {
-      // Handle doc updates
-      console.log('New doc pushed:', req.body);
-      res.sendStatus(200);
-    });
-
-    app.listen(3000);
-    ```
-    ```python
-    from flask import Flask, request
-
-    app = Flask(__name__)
-
-    @app.route('/webhook', methods=['POST'])
-    def webhook():
-        data = request.data
-        print(f'New doc pushed: {data}')
-        return '', 200
-
-    app.run(port=3000)
-    ```
-  </CodeGroup>
-</Expandable>

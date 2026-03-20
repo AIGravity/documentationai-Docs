@@ -1,154 +1,364 @@
 ---
 title: Integrations with Gravity
-description: Learn how to connect Gravity with external tools to streamline your documentation workflow and enhance productivity.
+description: Use the Gravity monorepo starter to integrate CI/CD, Docker-based deployments, and internal services safely and consistently.
 ---
 
 ## Overview
 
-Gravity supports seamless integrations with popular third-party tools, allowing you to automate documentation workflows, sync content, and extend functionality. Connect to version control systems, communication apps, and CI/CD pipelines to keep your docs up-to-date automatically.
+Gravity ships as a monorepo starter that already wires together CI/CD, containerization, and local services. Use these patterns to connect new services, extend pipelines, and keep secrets isolated from source control.
 
-Use webhooks for real-time updates, import/export data in multiple formats, or leverage the API for custom integrations.
-
-<Columns cols={3}>
-  <Card title="GitHub" icon="github" href="https://github.com">
-    Sync repositories with your docs.
-  </Card>
-  <Card title="Slack" icon="message-circle" href="https://slack.com">
-    Get notifications for doc changes.
-  </Card>
-  <Card title="Zapier" icon="zap" href="https://zapier.com">
-    Automate workflows across 5000+ apps.
-  </Card>
-</Columns>
-
-## Third-party App Connections
-
-Set up connections via the Gravity dashboard at `https://dashboard.example.com/integrations`.
+This page focuses on how integrations work inside the repo, not how to configure individual cloud providers or third-party SaaS tools.
 
 <Tabs>
-  <Tab title="GitHub" icon="github">
-    Authorize Gravity to access your repositories.
+  <Tab title="CI/CD (GitHub Actions)" icon="github">
 
-    <Steps>
-      <Step title="Create App" icon="settings">
-        Go to GitHub Settings > Developer settings > GitHub Apps.
-      </Step>
-      <Step title="Configure Permissions">
-        Grant `contents:read` and `pull_requests:write`.
-      </Step>
-      <Step title="Paste Webhook URL">
-        Use `https://api.example.com/v1/webhooks/github`.
-      </Step>
-    </Steps>
+  GitHub Actions workflows in `.github/workflows` build, test, and publish your apps whenever you push to `main`.
+
+  - Use the existing workflows as templates for new apps or services.
+  - Rely on the shared Turborepo and pnpm setup to avoid duplicated logic.
+  - Publish Docker images to GitHub Container Registry (GHCR) for consistent deployments.
+
   </Tab>
-  <Tab title="Slack" icon="message-circle">
-    Install the Gravity Slack app.
+  <Tab title="Docker & GHCR" icon="package">
 
-    ```bash
-    /invite @GravityBot
-    ```
+  Each app can define its own Dockerfile, which the workflows build and push to GHCR.
 
-    Configure channels for notifications.
+  - Tag images per app and git SHA so you can trace each deployment back to a commit.
+  - Use the same image in staging and production to reduce drift.
+  - Pull images from GHCR in your deployment platform of choice.
+
+  </Tab>
+  <Tab title="Service-to-service" icon="cloud">
+
+  The monorepo includes multiple services that talk to each other locally:
+
+  - **Web app** on `http://localhost:3000`
+  - **API service** on `http://localhost:3001`
+  - **AI service** on `http://localhost:8001`
+
+  The API enables CORS for `http://localhost:3000` with credentials so the web app can call it directly.
+
+  </Tab>
+  <Tab title="External APIs" icon="external-link">
+
+  When you call third-party APIs from inside the monorepo:
+
+  - Keep credentials in environment variables, not in code.
+  - Encapsulate integrations behind clear modules or services.
+  - Add lightweight health checks or diagnostics where it helps debugging.
+
   </Tab>
 </Tabs>
 
-<Callout kind="tip">
-  Test connections in the dashboard before enabling production workflows.
+<Callout kind="info">
+  Treat the existing workflows and service wiring as the reference pattern. Mirror those patterns for new integrations instead of inventing one-off solutions per service.
 </Callout>
 
-## Import and Export Formats
+## CI/CD integration with GitHub Actions
 
-Gravity supports Markdown, HTML, and JSON for imports/exports.
+GitHub Actions workflows per app (for example, `.github/workflows/api.yml`) orchestrate build, test, and publish for that app when you push to `main`. They use Turborepo and pnpm so each job runs only what is necessary.
 
-<CodeGroup tabs="Import,Export">
-  ```bash
-  curl -X POST https://api.example.com/v1/import \
-    -H "Authorization: Bearer YOUR_API_KEY" \
-    -F "file=@docs.md"
+A typical workflow:
+
+- Checks out the monorepo.
+- Installs pnpm and dependencies.
+- Runs `pnpm turbo` targets like `lint`, `test`, and `build` filtered to the app.
+- Builds a Docker image and pushes it to GHCR.
+
+<CodeGroup tabs="Workflow excerpt,Local verification">
+  ```yaml
+  # .github/workflows/api.yml
+  name: API CI
+
+  on:
+    push:
+      branches:
+        - main
+
+  jobs:
+    build-and-publish:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout
+          uses: actions/checkout@v4
+
+        - name: Setup pnpm
+          uses: pnpm/action-setup@v4
+          with:
+            version: 9
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        - name: Build API
+          run: pnpm turbo build --filter=apps/api
+
+        - name: Build Docker image
+          run: docker build -t ghcr.io/my-org/gravity-api:${{ github.sha }} apps/api
+
+        - name: Push Docker image
+          run: docker push ghcr.io/my-org/gravity-api:${{ github.sha }}
   ```
   ```bash
-  curl -X GET https://api.example.com/v1/export/docs.md \
-    -H "Authorization: Bearer YOUR_API_KEY" \
-    -o exported-docs.md
+  # Run the same tasks locally before pushing
+
+  # Install dependencies
+  pnpm install
+
+  # Build only the API app via Turborepo
+  pnpm turbo build --filter=apps/api
+
+  # Optionally run tests just for the API
+  pnpm turbo test --filter=apps/api
   ```
 </CodeGroup>
 
-## Webhook Configurations
+<Callout kind="tip">
+  Keep workflow changes minimal and reusable. When you add a new app, start by copying an existing workflow and update only the app name, Docker path, and image tags.
+</Callout>
 
-Configure webhooks to trigger actions on events like doc updates.
+## Docker and GHCR integration
 
-```mermaid
-sequenceDiagram
-    GitHub->>Gravity: Push Event
-    Gravity->>YourServer: POST /webhook
-    YourServer->>Gravity: 200 OK
-    Note over GitHub,YourServer: Sync complete
+The monorepo uses Docker as the unit of deployment. Each app defines a Dockerfile and the GitHub Actions workflows build and push images to GitHub Container Registry.
+
+A typical API Dockerfile:
+
+```dockerfile
+# apps/api/Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm and copy repo files
+RUN corepack enable
+COPY . .
+
+# Install dependencies and build only the API app
+RUN pnpm install --frozen-lockfile
+RUN pnpm turbo build --filter=apps/api
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy built API and any runtime assets
+COPY --from=builder /app/apps/api ./
+
+EXPOSE 3001
+
+CMD ["node", "dist/index.js"]
 ```
 
+Once built and pushed, you pull the image from GHCR in your deployment platform:
+
+```bash
+docker pull ghcr.io/my-org/gravity-api:9c2ad6f2e4c7a2b8f6d1
+docker run -p 3001:3001 ghcr.io/my-org/gravity-api:9c2ad6f2e4c7a2b8f6d1
+```
+
+<Callout kind="alert">
+  Authenticate with GHCR using a scoped GitHub token in your deployment environment. Store the token as a secret in your platform, not in the repository or Docker image.
+</Callout>
+
+## Local service-to-service integration
+
+The starter includes at least three cooperating services:
+
+- **Web app** (frontend) on `http://localhost:3000`
+- **API service** (backend) on `http://localhost:3001`
+- **AI service** on `http://localhost:8001`
+
+Run them together through Turborepo:
+
+```bash
+# From the repo root
+pnpm dev
+```
+
+You should see logs for each app, and the following health endpoints should return `200 OK` when services are running:
+
+- Web app: open `http://localhost:3000` in a browser.
+- API health: `GET http://localhost:3001/api/health`.
+- AI service health: `GET http://localhost:8001/health`.
+
+<CodeGroup tabs="API health,AI health">
+  ```bash
+  curl -i http://localhost:3001/api/health
+  ```
+  ```bash
+  curl -i http://localhost:8001/health
+  ```
+</CodeGroup>
+
+### CORS configuration between web and API
+
+The API service is configured to accept cross-origin requests from the local web app with credentials. That means the browser can send cookies or auth headers from `http://localhost:3000` to the API.
+
+A typical CORS configuration inside `apps/api` looks like this:
+
+```typescript
+// apps/api/src/cors.ts
+import cors from "cors";
+
+export const corsMiddleware = cors({
+  origin: "http://localhost:3000",
+  credentials: true,
+});
+```
+
+Attach this middleware early in your API app setup so all relevant routes inherit the CORS policy.
+
+<Callout kind="danger">
+  Update the allowed `origin` when you introduce custom domains or additional frontends. Avoid using a wildcard origin in production, especially when sending credentials.
+</Callout>
+
+### API calls to the AI service
+
+The API service is the only component that talks directly to the AI service. Keep this integration internal so your frontend never needs the AI service credentials.
+
+```typescript
+// apps/api/src/ai-client.ts
+import fetch from "node-fetch";
+
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL ?? "http://localhost:8001";
+
+export async function generateSummary(input: string) {
+  const response = await fetch(`${AI_SERVICE_URL}/summaries`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ text: input }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI service error: ${response.status}`);
+  }
+
+  return response.json();
+}
+```
+
+<Callout kind="tip">
+  Keep AI service URLs and credentials in environment variables. When you add new AI endpoints, centralize them in a single client module instead of scattering direct `fetch` calls across your API routes.
+</Callout>
+
+## Integrating external APIs
+
+When you connect to third-party APIs from within the monorepo, treat them like any other internal service boundary:
+
+- **Isolate integration code** in a dedicated module (for example, `apps/api/src/integrations/payments.ts`).
+- **Pass configuration via environment** (base URLs, keys, timeouts).
+- **Log failures with context**, but never log raw credentials or sensitive payloads.
+- **Wrap responses** in your own domain-specific types before returning them to the frontend.
+
+<CodeGroup tabs="Client module,Usage">
+  ```typescript
+  // apps/api/src/integrations/my-service.ts
+  import fetch from "node-fetch";
+
+  const SERVICE_BASE_URL =
+    process.env.MY_SERVICE_BASE_URL ?? "https://api.my-service.com";
+  const SERVICE_API_KEY = process.env.MY_SERVICE_API_KEY;
+
+  export async function fetchWorkspace(workspaceId: string) {
+    if (!SERVICE_API_KEY) {
+      throw new Error("Missing MY_SERVICE_API_KEY");
+    }
+
+    const response = await fetch(
+      `${SERVICE_BASE_URL}/v1/workspaces/${workspaceId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${SERVICE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(
+        `My Service error ${response.status}: ${body.slice(0, 200)}`
+      );
+    }
+
+    return response.json();
+  }
+  ```
+  ```typescript
+  // apps/api/src/routes/workspaces.ts
+  import { Router } from "express";
+  import { fetchWorkspace } from "../integrations/my-service";
+
+  const router = Router();
+
+  router.get("/workspaces/:workspaceId", async (req, res, next) => {
+    try {
+      const workspace = await fetchWorkspace(req.params.workspaceId);
+      res.json({ workspace });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  export default router;
+  ```
+</CodeGroup>
+
+<Callout kind="alert">
+  Do not call external APIs directly from the frontend when they require secrets or elevated permissions. Route those calls through the API service so you retain control over authentication, retries, and error handling.
+</Callout>
+
+## Add a new integration safely
+
+Use this flow whenever you add a new internal or external integration so it fits cleanly into the monorepo and CI/CD setup.
+
 <Steps>
-  <Step title="Generate Webhook URL">
-    In dashboard: Integrations > Webhooks > Create.
+  <Step title="Define configuration and env vars" icon="settings">
+
+  Decide what configuration the integration needs (base URL, keys, feature flags). Add environment variable names to your documentation and `.env.example`, but never commit actual values.
+
   </Step>
-  <Step title="Add Secret">
-    Use `YOUR_WEBHOOK_SECRET` for signature verification.
+  <Step title="Create an integration module" icon="code">
+
+  Add a dedicated module under the owning app (for example, `apps/api/src/integrations/new-service.ts`). Encapsulate all HTTP calls and mapping logic here so the rest of the codebase imports a single, well-defined interface.
+
   </Step>
-  <Step title="Subscribe to Events">
-    Select `doc.updated`, `doc.published`.
+  <Step title="Wire into services and pipelines" icon="cloud">
+
+  Connect the integration module to routes, jobs, or background workers. If the integration runs in CI (for example, end-to-end tests or sync jobs), extend the relevant GitHub Actions workflow so any new env vars or permissions are available there as well.
+
+  </Step>
+  <Step title="Configure secrets per environment" icon="lock">
+
+  Store secrets in your secret manager or CI settings (for example, GitHub Actions secrets). Reference them via environment variables in Docker and workflows. Verify that no secret values appear in logs, Docker images, or committed files.
+
   </Step>
 </Steps>
 
-<ParamField header="X-Grav-Signature" param-type="string" required="true">
-  HMAC SHA256 signature.
-</ParamField>
+<Callout kind="danger">
+  Never commit real `.env` files, API keys, tokens, or private certificates. Use `.gitignore` to exclude local environment files and rely on platform-level secret stores for production values.
+</Callout>
 
-## API Usage Basics
+## Where to put configuration and secrets
 
-Integrate programmatically with Gravity's REST API.
+Organize integration-related configuration in a consistent way so it remains discoverable and safe.
 
-<Request tabs="cURL,JavaScript">
-  ```bash
-  curl -X POST https://api.example.com/v1/docs \
-    -H "Authorization: Bearer YOUR_API_KEY" \
-    -H "Content-Type: application/json" \
-    -d '{"title": "New Doc", "content": "Hello World"}'
-  ```
-  ```javascript
-  const response = await fetch('https://api.example.com/v1/docs', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer YOUR_API_KEY',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      title: 'New Doc',
-      content: 'Hello World'
-    })
-  });
-  ```
-</Request>
+- **Runtime configuration**
+  - App-level config files under `apps/<app>/src/config` or `apps/<app>/src/integrations`.
+  - Use environment variables for anything that changes between environments.
 
-<Response tabs="201,401">
-```json
-{
-  "id": "doc_123",
-  "title": "New Doc",
-  "status": "published"
-}
-```
-```json
-{
-  "error": "Unauthorized",
-  "message": "Invalid API key"
-}
-```
-</Response>
+- **CI/CD configuration**
+  - Workflow logic in `.github/workflows/*.yml`.
+  - Sensitive values (tokens, registry credentials, API keys) in GitHub Actions secrets.
+  - Non-sensitive defaults (timeouts, flags) as workflow `env` values or repository-level variables.
 
-<ResponseField name="id" field-type="string" required="true">
-  Unique document identifier.
-</ResponseField>
+- **Local development**
+  - Keep `.env.local` files on your machine only.
+  - Copy keys from your secret manager, do not paste them into the repo.
+  - Use `.env.example` to document required variables without values.
 
-<Expandable title="Advanced Payload Options">
-  Customize with `tags={["internal"]}` and metadata.
-</Expandable>
-
-For more, see [Quickstart](/quickstart) or [Authentication](/authentication).
+Following these patterns keeps integrations aligned with the rest of the starter, while giving you room to add new services and deployment targets without rewriting core plumbing.
