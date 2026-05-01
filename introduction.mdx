@@ -82,7 +82,7 @@ Each service is pre-wired to work together in local development.
 
     The API service is a NestJS application running on Bun, exposed on `http://localhost:3001`.
 
-    - Health check: `GET /health` returns JSON like `{"status":"ok"}`
+    - Health check: `GET /health` returns a simple JSON status response such as `status: ok`
     - Acts as the central backend for the web app and the integration layer for the AI service
     - Shares the repo's local development and CI workflows with the other services
 
@@ -93,7 +93,7 @@ Each service is pre-wired to work together in local development.
 
     The AI service is a FastAPI app running on `http://localhost:8001`.
 
-    - Health check: `GET /health` returns JSON like `{"status":"ok"}`
+    - Health check: `GET /health` returns a simple JSON status response such as `status: ok`
     - Designed for Python-based AI endpoints and other model-driven workloads
     - Can be called from the API or directly from local tools during experimentation
 
