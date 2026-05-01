@@ -1,149 +1,68 @@
 openapi: '3.0.0'
 info:
   version: 1.0.0
-  title: Gravity API
+  title: AIGravity Core API Service
+  description: |
+    This specification documents the API service for the AIGravity/core monorepo.
+
+    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+
+    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
     name: MIT
+    url: https://opensource.org/licenses/MIT
+  contact:
+    name: AIGravity
+    url: https://aigravity.dev
+    email: support@aigravity.dev
 servers:
-  - url: http://petstore.swagger.io/v1
+  - url: http://localhost:3000
+    description: API service local development server
+tags:
+  - name: Health
+    description: Service health and readiness operations for the API service
 paths:
-  /documents:
+  /health:
     get:
-      summary: List all documents
-      operationId: listDocuments
-      parameters:
-        - name: limit
-          in: query
-          description: How many items to return at one time (max 100)
-          required: false
-          schema:
-            type: integer
-            format: int32
+      tags:
+        - Health
+      summary: Get API service health
+      description: Returns a simple health response for the AIGravity/core API service.
+      operationId: getHealth
+      security: []
       responses:
-        200:
-          description: An paged array of documents
-          headers:
-            x-next:
-              description: A link to the next page of responses
-              schema:
-                type: string
+        '200':
+          description: API service is reachable and healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Documents'
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    post:
-      summary: Create document
-      operationId: createDocument
-      responses:
-        201:
-          description: Null response
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /documents/{docId}:
-    get:
-      summary: Get document info
-      operationId: showDocumentById
-      parameters:
-        - name: docId
-          in: path
-          required: true
-          description: The id of the document to retrieve
-          schema:
-            type: string
-      responses:
-        200:
-          description: Expected response to a valid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Documents'
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /projects:
-    get:
-      summary: List all projects
-      operationId: listProjects
-      parameters:
-        - name: limit
-          in: query
-          description: How many items to return at one time (max 100)
-          required: false
-          schema:
-            type: integer
-            format: int32
-      responses:
-        200:
-          description: An paged array of projects
-          headers:
-            x-next:
-              description: A link to the next page of responses
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Projects'
-        default:
-          description: unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
+  responses:
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
-    Document:
-      required:
-        - id
-        - title
-      properties:
-        id:
-          type: integer
-          format: int64
-        title:
-          type: string
-        content:
-          type: string
-    Documents:
-      type: array
-      items:
-        $ref: '#/components/schemas/Document'
-    Project:
-      required:
-        - id
-        - name
-      properties:
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        description:
-          type: string
-    Projects:
-      type: array
-      items:
-        $ref: '#/components/schemas/Project'
+    HealthResponse:
+      type: object
+      description: Permissive health response payload for the API service.
+      additionalProperties: true
+      example:
+        status: ok
     Error:
+      type: object
+      description: Generic error response.
       required:
-        - code
         - message
       properties:
-        code:
-          type: integer
-          format: int32
         message:
           type: string
+          description: Human-readable error message.
+          example: Internal server error
