@@ -1,0 +1,171 @@
+---
+title: Quickstart
+description: Bootstrap the AIGravity/core monorepo, start the local services, and verify the web app and health endpoints.
+---
+
+## Prerequisites
+
+<Callout kind="info">
+
+Set up your local environment before you bootstrap the monorepo:
+
+- Node.js 18 or later
+- `pnpm` installed globally
+- Bun installed and on your `PATH`
+- Python 3.11 or later with `uv` installed and on your `PATH`
+- Git access to the `AIGravity/core` repository
+
+</Callout>
+
+## Bootstrap the monorepo
+
+Clone the repository and install the workspace dependencies before you start any services.
+
+<Steps>
+  <Step title="Clone the repository" icon="download">
+
+    Use Git to clone the monorepo and move into it:
+
+    ```bash
+    git clone git@github.com:AIGravity/core.git
+    cd core
+    ```
+
+    You should now be in the repository root with the workspace files available.
+
+  </Step>
+
+  <Step title="Install dependencies" icon="package">
+
+    Run the repository bootstrap command from the root of the monorepo:
+
+    <CodeGroup tabs="pnpm setup">
+    ```bash
+    pnpm setup
+    ```
+    </CodeGroup>
+
+    Use this command to install the workspace dependencies required by the web app, API, and AI service.
+
+  </Step>
+</Steps>
+
+## Start the services
+
+Run the full stack from the repository root with Turborepo.
+
+<Steps>
+  <Step title="Start the development environment" icon="play-circle">
+
+    Start all workspace services together:
+
+    <CodeGroup tabs="pnpm dev">
+    ```bash
+    pnpm dev
+    ```
+    </CodeGroup>
+
+    The command starts the web app, API, and AI service. Wait for each process to finish starting before you test the app.
+
+  </Step>
+
+  <Step title="Verify the web app loads" icon="monitor">
+
+    Open the web app in your browser:
+
+    ```bash
+    http://localhost:3000
+    ```
+
+    The page should load without errors in the browser. If the app does not load, check the terminal output for the web process first.
+
+  </Step>
+
+  <Step title="Verify the health endpoints" icon="check-circle">
+
+    Confirm that the API and AI service are responding:
+
+    <CodeGroup tabs="API,AI service">
+    ```bash
+    curl -i http://localhost:3001/api/health
+    ```
+    ```bash
+    curl -i http://localhost:8001/health
+    ```
+    </CodeGroup>
+
+    Both endpoints should return `200 OK` when the services are healthy.
+
+  </Step>
+</Steps>
+
+## Verify service status
+
+Use these URLs to confirm each part of the stack is running.
+
+| Service | URL | Check |
+| --- | --- | --- |
+| Web app | `http://localhost:3000` | Load the page in a browser |
+| API | `http://localhost:3001` | `GET http://localhost:3001/api/health` |
+| AI service | `http://localhost:8001` | `GET http://localhost:8001/health` |
+
+If a check fails, review the corresponding terminal output and restart the service if needed.
+
+## Troubleshooting
+
+<ExpandableGroup>
+
+  <Expandable title="Port already in use" default-open="false">
+
+  If `pnpm dev` or `pnpm setup` fails because a port is already in use, stop the process that is holding the port and try again.
+
+  - Check for existing processes using the local ports `3000`, `3001`, or `8001`.
+  - Stop any duplicate dev servers or orphaned terminal sessions.
+  - Restart the command after the port is free.
+
+  </Expandable>
+
+  <Expandable title="pnpm setup fails" default-open="false">
+
+  If the bootstrap step fails, confirm that Node.js, `pnpm`, Bun, Python 3.11 or later, and `uv` are installed and available on your `PATH`.
+
+  - Re-run `pnpm setup` from the repository root.
+  - Check the terminal output for the first missing tool or workspace error.
+
+  </Expandable>
+
+  <Expandable title="Health endpoints do not return 200 OK" default-open="false">
+
+  If `GET http://localhost:3001/api/health` or `GET http://localhost:8001/health` times out or returns an error, the service process is not healthy.
+
+  - Confirm `pnpm dev` is still running.
+  - Review the logs for the API or AI service.
+  - Restart the development environment after fixing the underlying issue.
+
+  </Expandable>
+
+  <Expandable title="The web app does not load" default-open="false">
+
+  If `http://localhost:3000` does not open, check the web app process first.
+
+  - Confirm the web service started successfully in the terminal.
+  - Refresh the browser after the process is healthy.
+  - If the app still fails, restart `pnpm dev` and watch for the first error in the logs.
+
+  </Expandable>
+
+</ExpandableGroup>
+
+## Next steps
+
+Once the local stack is running, keep the terminal open and start working in the area you need.
+
+<Columns cols={2}>
+  <Card title="Review core concepts" icon="book-open" href="/introduction">
+    Learn how the Gravity stack is organized before you make changes.
+  </Card>
+
+  <Card title="Explore features" icon="zap" href="/features">
+    See which parts of the app and API you can work with next.
+  </Card>
+</Columns>
