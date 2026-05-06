@@ -1,0 +1,130 @@
+---
+title: Cannot Invite Team
+description: Troubleshoot invite failures when adding teammates to a documentation project.
+---
+
+## Problem
+
+You cannot invite a teammate to a documentation project, or the invitation never reaches the recipient.
+
+- The invite action fails with a validation message.
+- The invite button appears to do nothing.
+- The recipient never receives the invitation email.
+- The team member is already associated with the project or workspace.
+- The invite works for some people but fails for specific email addresses or domains.
+
+<Callout kind="info">
+
+Use the troubleshooting flow below when invite failures are not tied to a single obvious typo or temporary outage.
+
+</Callout>
+
+<Callout kind="alert">
+
+Check permissions, the recipient email address, and network access before changing configuration. Invite failures often come from access rules rather than the invite flow itself.
+
+</Callout>
+
+## Prerequisites and assumptions
+
+<Callout kind="info">
+
+Assume that you have permission to manage team members, that you are using the correct email address for the recipient, and that your network can reach the documentation project service without interruption.
+
+</Callout>
+
+## Troubleshoot the failure
+
+<Steps>
+  <Step title="Check role and permissions">
+
+  Confirm that your account can manage team invitations. If your role does not allow adding teammates, the invite request may fail or the invite controls may be hidden.
+
+  If your permissions were recently updated, sign out and sign back in before trying again. A fresh session often picks up the new access scope.
+
+  </Step>
+
+  <Step title="Verify the email address and domain">
+
+  Confirm that the recipient email is spelled correctly and uses the domain you expect. A small typo, an alias that is not monitored, or a blocked domain can prevent delivery.
+
+  If the recipient should already have access through an existing account, verify that the email is not already linked to another member record.
+
+  </Step>
+
+  <Step title="Retry after updating permissions">
+
+  If permissions were corrected, retry the invite from a new session or after refreshing the page. This helps rule out stale authorization state.
+
+  If the second attempt fails in the same way, capture the exact message and continue to the next check.
+
+  </Step>
+
+  <Step title="Confirm build or config is not blocking access">
+
+  Check whether a recent build, environment change, or configuration update changed who can access the project. Access rules, allowlists, or account settings can block invitations even when the invite form looks normal.
+
+  If the failure started after a deployment, compare the current configuration with the last known working version.
+
+  </Step>
+</Steps>
+
+## What to check in logs and config
+
+Search your logs and configuration for the invite path, invite event, or access-rule entries that mention the word `invite`.
+
+<CodeGroup tabs="Shell,JavaScript">
+```bash
+# Search application logs for invite-related entries
+grep -Rni "invite" ./logs ./server ./app
+```
+
+```javascript
+// Search structured logs or config objects for invite-related messages
+const matches = entries.filter((entry) =>
+  String(entry.message || entry.event || entry.action || "").toLowerCase().includes("invite")
+);
+
+console.log(matches);
+```
+</CodeGroup>
+
+Look for these signals:
+
+- Permission denials tied to member management.
+- Validation failures for the recipient address.
+- Domain or allowlist rejections.
+- Missing or stale configuration after a deployment.
+- Network errors that prevent the request from completing.
+
+## If it still fails
+
+<ExpandableGroup>
+  <Expandable title="Maintain a clean escalation checklist">
+
+  Before escalating, collect the information a maintainer needs to reproduce the issue:
+
+  - The exact error message or UI behavior.
+  - The recipient email address, including domain.
+  - Your role or permission level in the project.
+  - The timestamp of the failed attempt.
+  - Any request, trace, or correlation identifier from logs.
+  - Whether the failure started after a build, config change, or permission update.
+  - Whether the invite fails for one recipient or for all recipients.
+
+  </Expandable>
+</ExpandableGroup>
+
+## What to do next
+
+If the invite still fails after you confirm permissions, address accuracy, and configuration, hand the issue to a maintainer with the logs and reproduction details.
+
+<Columns cols={2}>
+  <Card title="Help Center" href="/help-center" icon="book-open">
+    Return to the Help Center home page for related troubleshooting guides.
+  </Card>
+
+  <Card title="Add project docs" href="/help-center/guides/add-project-docs" icon="arrow-right">
+    Review the project documentation setup if invite behavior depends on missing or outdated configuration.
+  </Card>
+</Columns>

@@ -24,13 +24,11 @@
             "pages": [
               {
                 "title": "Introduction",
-                "path": "introduction",
-                "icon": "home"
+                "path": "introduction"
               },
               {
                 "title": "Quickstart",
-                "path": "quickstart",
-                "icon": "zap"
+                "path": "quickstart"
               }
             ]
           },
@@ -40,8 +38,7 @@
             "pages": [
               {
                 "title": "Features",
-                "path": "features",
-                "icon": "file-text"
+                "path": "features"
               }
             ]
           },
@@ -51,8 +48,7 @@
             "pages": [
               {
                 "title": "Integrations",
-                "path": "integrations",
-                "icon": "plug"
+                "path": "integrations"
               }
             ]
           }
@@ -74,8 +70,7 @@
         "pages": [
           {
             "title": "Help Center",
-            "path": "help-center",
-            "icon": "home"
+            "path": "help-center"
           },
           {
             "group": "FAQs",
@@ -83,7 +78,7 @@
             "expandable": false,
             "pages": [
               {
-                "title": "How to Create a Project",
+                "title": "How to Create Project",
                 "path": "help-center/faq/how-to-create-project"
               }
             ]
@@ -117,9 +112,13 @@
         "icon": "clock",
         "pages": [
           {
-            "title": "Release History",
-            "path": "changelog",
-            "icon": "history"
+            "group": "Release History",
+            "pages": [
+              {
+                "title": "Changelog",
+                "path": "changelog"
+              }
+            ]
           }
         ]
       }

@@ -1,0 +1,164 @@
+---
+title: Integrations
+description: Connect documentation content and tooling workflows to your development process.
+---
+
+## Why integrations matter
+
+Documentation works better when it connects to the systems that already run your workflow. Git repositories, CI jobs, event handlers, and content tooling keep docs closer to the code they describe and make changes easier to verify.
+
+## Integration categories
+
+<Callout kind="info">
+
+The categories below are intentionally generic. Exact integration names, providers, and setup steps are not sourced here, so treat them as patterns rather than product-specific instructions.
+
+</Callout>
+
+Use integrations to:
+
+- sync content from Git-based sources
+- verify documentation builds in CI
+- react to events from publishing or content pipelines
+- connect Markdown and MDX files to local editor and build tooling
+
+## Git-based content sync
+
+Git-based sync keeps documentation in the same review and versioning flow as application code. In practice, that means docs live in a repository, changes move through pull requests, and merges become the source of truth for published content.
+
+This pattern works well when you want review history, branch-based editing, and traceable rollbacks. It also keeps documentation changes visible to the same people who already review code and release work.
+
+### Typical workflow
+
+<Steps>
+
+<Step title="Edit content in the repository" icon="edit">
+
+Update Markdown or MDX files in the branch you are already using for the change.
+
+</Step>
+
+<Step title="Review the diff" icon="check">
+
+Confirm the content change, metadata, and links before merge. The review should show the exact files that changed.
+
+</Step>
+
+<Step title="Publish from the approved branch" icon="upload">
+
+Merge the branch into the publishing branch or trigger your normal release flow. The published docs should reflect the reviewed commit.
+
+</Step>
+
+</Steps>
+
+## CI build verification
+
+CI verification catches broken documentation before it reaches readers. A docs build usually checks parsing, component usage, link integrity, and any site-specific transforms that your toolchain applies.
+
+<Callout kind="tip">
+
+If your docs rely on custom MDX components, keep the build check close to the editor workflow so syntax errors surface before merge.
+
+</Callout>
+
+### Example setup
+
+Use the same source content for local preview and CI validation, but run them in different places for different reasons.
+
+<Tabs>
+  <Tab title="Local preview" icon="monitor">
+
+Local preview helps you catch layout problems, MDX syntax issues, and broken links while you edit.
+
+<CodeGroup tabs="npm,pnpm" show-lines={true}>
+
+```bash
+npm run docs:dev
+```
+
+```bash
+pnpm docs:dev
+```
+
+</CodeGroup>
+
+  </Tab>
+  <Tab title="CI check" icon="shield">
+
+CI verification runs the docs build after install and before deployment.
+
+<CodeGroup tabs="npm,pnpm" show-lines={true}>
+
+```bash
+npm run docs:build
+```
+
+```bash
+pnpm docs:build
+```
+
+</CodeGroup>
+
+  </Tab>
+</Tabs>
+
+## Webhooks and events
+
+Webhook and event integrations connect documentation workflows to other systems when something changes. Common uses include notifying a build system, triggering a sync job, or handing off a publishing event to another service.
+
+Because exact event names are not sourced here, define your own event contract around the actions you already need, such as content updated, page published, or build completed. Keep the payload stable and small so downstream automation stays predictable.
+
+### What to keep in the payload
+
+- the content identifier
+- the action that occurred
+- a timestamp
+- the source branch or environment, when relevant
+
+## Markdown and MDX toolchain integration
+
+Markdown and MDX usually fit into the same editing stack as the rest of a documentation site. Editors, formatters, linters, and site builds can all work from the same files as long as they agree on syntax and component support.
+
+Use the toolchain to enforce consistency, not to add complexity. A good setup catches malformed frontmatter, invalid component usage, and broken links before a page is published.
+
+### Toolchain checks to enable
+
+- frontmatter parsing
+- MDX syntax validation
+- markdown formatting
+- link checking
+- component availability checks
+
+## Troubleshooting
+
+<ExpandableGroup>
+  <Expandable title="Build fails during docs validation">
+
+Build failures usually come from invalid MDX, missing component imports in a custom pipeline, or a link that points to a page that does not exist. Start with the first error in the build log, then fix one issue at a time.
+
+Check that any page path used in navigation or links matches a file that exists in the repository. If the build fails after a content change, compare the failing file against the last known good commit.
+
+  </Expandable>
+  <Expandable title="A page is missing after sync">
+
+A missing page usually means the file did not sync, the route path does not match the filename, or the page was excluded by your build rules. Confirm that the source file exists, the route is still wired correctly, and the page is included in the publish step.
+
+If the page moved, update every internal link that still points to the old path so readers do not hit a dead end.
+
+  </Expandable>
+</ExpandableGroup>
+
+## Next steps
+
+<Columns cols={2}>
+
+<Card title="Docs workflow" href="/docs" icon="book-open" horizontal={true}>
+See how documentation pages fit into the broader documentation workflow.
+</Card>
+
+<Card title="Content tooling" href="/docs/tooling" icon="settings" horizontal={true}>
+Review the editor and build patterns that support docs authoring.
+</Card>
+
+</Columns>

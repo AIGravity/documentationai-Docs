@@ -1,0 +1,89 @@
+---
+title: How to Create a Project
+description: Learn how to create a new project in the documentation workflow.
+---
+
+## How to create a project
+
+Create a project by choosing a source folder, linking the pages you want to publish, and confirming that the build or preview renders as expected.
+
+<Callout kind="info">
+
+**Prerequisites**
+
+- You have access to the repository or workspace where the project will live.
+- You have permission to add or update project content.
+- The repository contains the source folder you want to use for the project.
+
+</Callout>
+
+## Steps
+
+<Steps>
+  <Step title="Create the project">
+
+  Start a new project in the documentation workflow used by your repository. Use the repository's existing naming and setup pattern, and adjust the wording to match the repo's UI if it differs from the labels described here.
+
+  </Step>
+
+  <Step title="Choose the documentation source folder">
+
+  Select the folder that contains the content you want the project to publish. Use the folder that already holds the pages, guides, or reference files for that project.
+
+  </Step>
+
+  <Step title="Link the content pages">
+
+  Connect the pages you want included in the project so they are available in the generated documentation structure. Verify that the pages you expect are part of the source set before continuing.
+
+  </Step>
+
+  <Step title="Confirm the build and preview">
+
+  Run the build or preview process used by your documentation workflow, then check that the project loads without errors and that the expected content appears.
+
+  </Step>
+</Steps>
+
+## Verify it worked
+
+A successful setup shows the project pages in the preview and the navigation for those pages in the published structure.
+
+<Callout kind="success">
+
+Success looks like this: the project pages render, the expected navigation entries appear, and the preview matches the content in your source folder.
+
+</Callout>
+
+## Common mistakes
+
+<ExpandableGroup>
+  <Expandable title="Pages are not visible">
+
+  Check that the pages are inside the selected source folder and that the project includes them in its content set.
+
+  </Expandable>
+
+  <Expandable title="Wrong folder was selected">
+
+  Repoint the project to the folder that contains the intended documentation files. If the wrong folder is selected, the preview usually shows incomplete or unrelated content.
+
+  </Expandable>
+
+  <Expandable title="Navigation was not updated">
+
+  Confirm that the linked pages are included in the project structure and that the navigation source picks up the new pages. If needed, update the repository's navigation source so it matches the content you added.
+
+  </Expandable>
+</ExpandableGroup>
+
+## Next steps
+
+<Columns cols={2}>
+  <Card title="Add project docs" href="/help-center/guides/add-project-docs" icon="book-open">
+    Add content and structure after the project is created.
+  </Card>
+  <Card title="Troubleshooting: project content" href="/help-center/faq/how-to-create-project" icon="help-circle">
+    Review the setup flow again if the project does not render as expected.
+  </Card>
+</Columns>

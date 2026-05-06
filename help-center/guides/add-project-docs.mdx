@@ -1,0 +1,64 @@
+---
+title: Add Project Docs
+description: Add documents to a Gravity project using the documented workflow.
+---
+
+## Add Project Docs
+
+Add project docs as MDX in the repository-backed docs tree, then make sure the page is reachable from the site navigation.
+
+<Callout kind="info">
+
+This guide assumes the project follows the Quickstart prerequisites. If the repository documents additional setup for your project, follow that guidance first.
+
+</Callout>
+
+## Prerequisites
+
+<Callout kind="tip">
+
+Before you start, confirm that the project already has a docs folder and that you are using the same naming and folder conventions as nearby pages.
+
+</Callout>
+
+## Workflow
+
+<Steps>
+  <Step title="Identify the docs location">
+
+    Find the existing docs folder for the project you are documenting. Keep related pages together so file paths, links, and navigation stay consistent with the rest of the repository.
+
+  </Step>
+  <Step title="Add or update the MDX content">
+
+    Create the page as MDX with valid frontmatter at the top of the file. Use a clear title, a concise description, and the same heading style used by nearby docs.
+
+  </Step>
+  <Step title="Confirm the page is reachable">
+
+    Update the navigation entry if the repository uses one, then verify that the page appears in the site and resolves at the expected path.
+
+  </Step>
+</Steps>
+
+## Structure recommendations
+
+Use a small, focused page structure that helps readers scan the content and find the next step.
+
+<Columns cols={3}>
+  <Card title="Overview" href="/help-center/guides/add-project-docs" icon="book-open">
+    State what the page covers, who it is for, and what the reader should be able to do after reading it.
+  </Card>
+  <Card title="Prerequisites" href="/help-center/guides/add-project-docs" icon="shield">
+    List only the setup the reader needs before they can add or update project docs.
+  </Card>
+  <Card title="Troubleshooting" href="/help-center/guides/cannot-invite-team-troubleshooting" icon="help-circle">
+    Link to the most relevant fix when the page does not render, the path is wrong, or navigation is missing.
+  </Card>
+</Columns>
+
+## Verify your changes
+
+Check that the page lives in the expected folder and appears in the site navigation. If the repository documents a local preview or validation command, run it before you finish so you can confirm the page renders correctly.
+
+For path or render problems, see [Troubleshooting: Cannot Invite Team](/help-center/guides/cannot-invite-team-troubleshooting).

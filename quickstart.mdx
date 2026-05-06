@@ -1,171 +1,153 @@
 ---
 title: Quickstart
-description: Bootstrap the AIGravity/core monorepo, start the local services, and verify the web app and health endpoints.
+description: Get a docs site running fast: create pages, add MDX content, and verify navigation.
 ---
 
-## Prerequisites
+## Get the site running
+
+Create a basic docs structure, add your first pages, and confirm the site builds with the new navigation.
 
 <Callout kind="info">
 
-Set up your local environment before you bootstrap the monorepo:
+Set up your local environment before you start:
 
-- Node.js 18 or later
-- `pnpm` installed globally
-- Bun installed and on your `PATH`
-- Python 3.11 or later with `uv` installed and on your `PATH`
-- Git access to the `AIGravity/core` repository
+- Node.js and `npm`
+- Git
+- A docs content folder in your project, such as `docs` or `content`
 
 </Callout>
 
-## Bootstrap the monorepo
-
-Clone the repository and install the workspace dependencies before you start any services.
+## Create your first pages
 
 <Steps>
-  <Step title="Clone the repository" icon="download">
+  <Step title="Create `introduction.mdx`" icon="file-plus">
 
-    Use Git to clone the monorepo and move into it:
+    Add a new page for the home or introduction section in your docs content folder.
 
     ```bash
-    git clone git@github.com:AIGravity/core.git
-    cd core
+    touch docs/introduction.mdx
     ```
 
-    You should now be in the repository root with the workspace files available.
+    If your project uses a different content directory, replace `docs` with the folder your site reads from.
 
   </Step>
 
-  <Step title="Install dependencies" icon="package">
+  <Step title="Add frontmatter" icon="edit">
 
-    Run the repository bootstrap command from the root of the monorepo:
+    Open `introduction.mdx` and add the page metadata the site uses to build navigation and page titles.
 
-    <CodeGroup tabs="pnpm setup">
-    ```bash
-    pnpm setup
+    ```mdx
+    ---
+    title: Introduction
+    description: Start here for an overview of the docs site and its main sections.
+    ---
     ```
-    </CodeGroup>
 
-    Use this command to install the workspace dependencies required by the web app, API, and AI service.
+    Save the file and confirm the page now has a title and description at the top.
+
+  </Step>
+
+  <Step title="Create a second page" icon="plus">
+
+    Add another page such as `features.mdx` so the navigation has more than one destination.
+
+    ```bash
+    touch docs/features.mdx
+    ```
+
+    Keep the second page in the same folder so it appears alongside the first page in your docs structure.
+
+  </Step>
+
+  <Step title="Add page content" icon="file-text">
+
+    Add a short heading and a few sentences to each file so the pages render with visible content.
+
+    ```mdx
+    ## Introduction
+
+    Welcome to the docs site.
+    ```
+
+    ```mdx
+    ## Features
+
+    Describe the main feature set here.
+    ```
 
   </Step>
 </Steps>
 
-## Start the services
+## Run and build the site
 
-Run the full stack from the repository root with Turborepo.
+Use your project commands to start the local site and verify that the new pages compile.
 
 <Steps>
-  <Step title="Start the development environment" icon="play-circle">
+  <Step title="Start the local preview" icon="play-circle">
 
-    Start all workspace services together:
+    Run the development command your project uses.
 
-    <CodeGroup tabs="pnpm dev">
+    <CodeGroup tabs="npm">
     ```bash
-    pnpm dev
+    npm run dev
     ```
     </CodeGroup>
 
-    The command starts the web app, API, and AI service. Wait for each process to finish starting before you test the app.
+    If your project uses a different script name or package manager, substitute the equivalent command from your repo.
 
   </Step>
 
-  <Step title="Verify the web app loads" icon="monitor">
+  <Step title="Build the site" icon="package">
 
-    Open the web app in your browser:
+    Run the production build after the preview starts successfully.
 
+    <CodeGroup tabs="npm">
     ```bash
-    http://localhost:3000
-    ```
-
-    The page should load without errors in the browser. If the app does not load, check the terminal output for the web process first.
-
-  </Step>
-
-  <Step title="Verify the health endpoints" icon="check-circle">
-
-    Confirm that the API and AI service are responding:
-
-    <CodeGroup tabs="API,AI service">
-    ```bash
-    curl -i http://localhost:3001/api/health
-    ```
-    ```bash
-    curl -i http://localhost:8001/health
+    npm run build
     ```
     </CodeGroup>
 
-    Both endpoints should return `200 OK` when the services are healthy.
+    A successful build confirms that the new pages and frontmatter parse correctly.
+
+  </Step>
+
+  <Step title="Confirm navigation" icon="check-circle">
+
+    Open the site navigation and make sure both pages appear where you expect them.
+
+    If the pages do not show up, check the content folder path, the file names, and any navigation configuration in your project.
 
   </Step>
 </Steps>
 
-## Verify service status
+## Verify the result
 
-Use these URLs to confirm each part of the stack is running.
+You should now be able to open both pages in the editor and in the running site.
 
-| Service | URL | Check |
-| --- | --- | --- |
-| Web app | `http://localhost:3000` | Load the page in a browser |
-| API | `http://localhost:3001` | `GET http://localhost:3001/api/health` |
-| AI service | `http://localhost:8001` | `GET http://localhost:8001/health` |
+<Callout kind="success">
 
-If a check fails, review the corresponding terminal output and restart the service if needed.
+You can open Introduction and Quickstart pages in the editor/site.
 
-## Troubleshooting
-
-<ExpandableGroup>
-
-  <Expandable title="Port already in use" default-open="false">
-
-  If `pnpm dev` or `pnpm setup` fails because a port is already in use, stop the process that is holding the port and try again.
-
-  - Check for existing processes using the local ports `3000`, `3001`, or `8001`.
-  - Stop any duplicate dev servers or orphaned terminal sessions.
-  - Restart the command after the port is free.
-
-  </Expandable>
-
-  <Expandable title="pnpm setup fails" default-open="false">
-
-  If the bootstrap step fails, confirm that Node.js, `pnpm`, Bun, Python 3.11 or later, and `uv` are installed and available on your `PATH`.
-
-  - Re-run `pnpm setup` from the repository root.
-  - Check the terminal output for the first missing tool or workspace error.
-
-  </Expandable>
-
-  <Expandable title="Health endpoints do not return 200 OK" default-open="false">
-
-  If `GET http://localhost:3001/api/health` or `GET http://localhost:8001/health` times out or returns an error, the service process is not healthy.
-
-  - Confirm `pnpm dev` is still running.
-  - Review the logs for the API or AI service.
-  - Restart the development environment after fixing the underlying issue.
-
-  </Expandable>
-
-  <Expandable title="The web app does not load" default-open="false">
-
-  If `http://localhost:3000` does not open, check the web app process first.
-
-  - Confirm the web service started successfully in the terminal.
-  - Refresh the browser after the process is healthy.
-  - If the app still fails, restart `pnpm dev` and watch for the first error in the logs.
-
-  </Expandable>
-
-</ExpandableGroup>
+</Callout>
 
 ## Next steps
 
-Once the local stack is running, keep the terminal open and start working in the area you need.
+Keep building the docs site by adding content in the areas readers use most.
 
 <Columns cols={2}>
-  <Card title="Review core concepts" icon="book-open" href="/introduction">
-    Learn how the Gravity stack is organized before you make changes.
+  <Card title="Features" icon="zap" href="/features">
+    Document the product capabilities readers need to compare and evaluate.
   </Card>
 
-  <Card title="Explore features" icon="zap" href="/features">
-    See which parts of the app and API you can work with next.
+  <Card title="Integrations" icon="cloud" href="/integrations">
+    Show how the docs site connects to the rest of your workflow.
+  </Card>
+
+  <Card title="Help Center" icon="help-circle" href="/help-center">
+    Add support content for common setup and usage questions.
+  </Card>
+
+  <Card title="Changelog" icon="bar-chart" href="/changelog">
+    Track what changed as the docs site grows.
   </Card>
 </Columns>
