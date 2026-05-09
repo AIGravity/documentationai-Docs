@@ -1,17 +1,5 @@
 {
   "name": "Gravity",
-  "colors": {
-    "light": {
-      "brand": "#3B82F6",
-      "heading": "#3B82F6",
-      "text": "#3B82F6"
-    },
-    "dark": {
-      "brand": "#87B1F6",
-      "heading": "#87B1F6",
-      "text": "#87B1F6"
-    }
-  },
   "navigation": {
     "tabs": [
       {
@@ -180,5 +168,6 @@
         ]
       }
     ]
-  }
+  },
+  "template": "classic"
 }
