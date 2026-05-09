@@ -1,48 +1,49 @@
 ---
 title: Introduction
-description: Learn what Documentation.AI provides and how to think about publishing docs with MDX.
+description: Understand the Gravity codebase and use this documentation set to navigate local setup, architecture, services, operations, and configuration.
 ---
 
 ## Overview
 
-Documentation.AI helps you author, organize, and publish documentation with MDX.
-
-- Write content in MDX with reusable components
-- Structure docs for tutorials, references, help, and changelogs
-- Link related pages with cards and clear navigation
-- Publish documentation that is easy to scan and maintain
+Gravity is a polyglot monorepo that brings together a Remix frontend, a NestJS API, and a FastAPI AI service. This documentation set stays close to the repository so you can move from reading to running, debugging, and changing the system without guessing how the pieces fit together.
 
 <Callout kind="info">
 
-This site focuses on documentation authoring and publishing workflows; it is not tied to any specific SaaS feature set.
+These docs are grounded in the current implementation. When a document and the repository drift, follow the repository behavior first and treat older references as suspect until they are updated.
 
 </Callout>
 
-## Documentation philosophy
+## What this documentation covers
 
-Documentation works best when it matches the reader's task. Use concise pages for facts, step-based pages for procedures, and explanatory pages for concepts that need context.
+Use these docs to get oriented quickly and then drill into the part of Gravity you need to work on. Most pages fall into one of these areas:
 
-Keep each page focused on one primary job, reuse shared pages instead of repeating the same guidance, and surface the next best action at the end of the page.
+- **Getting started** for local setup, prerequisites, and first-run workflows
+- **Architecture** for how the frontend, API, and AI services connect
+- **Service foundations** for the core patterns, boundaries, and responsibilities inside each service
+- **Operations** for running, configuring, and troubleshooting the system in different environments
+- **Reference material** for configuration details, interfaces, and implementation-specific facts
+
+Start with the shortest path that matches your goal, then follow the linked pages for deeper detail.
 
 <Columns cols={2}>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
-    Learn the shortest path to publishing your first documentation page.
+    Set up the repository locally and verify that the main services start correctly.
 
   </Card>
-  <Card title="Features" href="/features" icon="book-open">
+  <Card title="Architecture Overview" href="/architecture-overview" icon="book-open">
 
-    Review the core documentation capabilities and how they fit together.
-
-  </Card>
-  <Card title="Integrations" href="/integrations" icon="plug">
-
-    Connect external tools and services to your documentation workflow.
+    Understand how the Remix frontend, NestJS API, and FastAPI AI service fit together.
 
   </Card>
-  <Card title="Help center" href="/help-center/help-center" icon="help-circle">
+  <Card title="API Service Foundation" href="/api-service-foundation" icon="code">
 
-    Find answers to common publishing and editing questions.
+    Review the core structure, patterns, and responsibilities of the API service.
+
+  </Card>
+  <Card title="Configuration Reference" href="/configuration-reference" icon="settings">
+
+    Look up environment variables, configuration surfaces, and behavior that depends on runtime settings.
 
   </Card>
 </Columns>
