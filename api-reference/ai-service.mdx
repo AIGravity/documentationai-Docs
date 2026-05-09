@@ -1,0 +1,114 @@
+---
+title: AI Service
+description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+---
+
+## Overview
+
+This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+
+<Callout kind="info">
+
+Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+
+</Callout>
+
+## Endpoint
+
+### GET /health
+
+Use this endpoint to verify that the AI service is running and able to respond to requests.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/health`
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+No authentication requirement was found in the FastAPI route implementation.
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:8000/health
+```
+
+```json
+{
+  "status": "ok"
+}
+```
+
+</CodeGroup>
+
+## Request details
+
+This endpoint does not accept any request inputs beyond the request method and path.
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None. The route path is static and does not define any path parameters.
+
+</ParamField>
+
+<ParamField body="query parameters" param-type="none" required="false" show-location="false">
+
+None. No query parameters are defined in the route handler.
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. Send the request without a body.
+
+</ParamField>
+
+<Callout kind="info">
+
+No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+
+</Callout>
+
+## Response
+
+A successful request returns a JSON object with a single status field.
+
+<ResponseField name="status" field-type="string" required="true">
+
+Service health status. The current implementation returns `ok`.
+
+</ResponseField>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "status": "ok"
+}
+```
+
+</Response>
+
+## Implementation notes
+
+The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+
+Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+
+## Likely error responses
+
+The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+
+- **`404 Not Found`** — Returned when you request a path that is not defined.
+- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
+- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.

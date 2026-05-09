@@ -1,0 +1,323 @@
+---
+title: Docker Images and Packaging
+description: How each implemented service is containerized today, including build stages, runtime commands, exposed ports, and image publishing through GitHub Actions.
+---
+
+## Current container packaging at a glance
+
+Three services currently ship as separate container images: `gravity-web`, `gravity-api`, and `gravity-ai-service`. Each service has its own Dockerfile and GitHub Actions workflow, and each workflow builds from that service directory, tags the image from shared Docker metadata, and publishes to GitHub Container Registry. The packaging described here covers the current service foundations only, not a full multi-service product stack.
+
+<Callout kind="info">
+
+This page only describes behavior that is explicitly implemented in the repository Dockerfiles and GitHub Actions workflows.
+
+</Callout>
+
+## Image inventory
+
+The workflows publish these image names to GitHub Container Registry under the repository owner namespace.
+
+| Service | Image |
+| --- | --- |
+| Web | `ghcr.io/${{ github.repository_owner }}/gravity-web` |
+| API | `ghcr.io/${{ github.repository_owner }}/gravity-api` |
+| AI service | `ghcr.io/${{ github.repository_owner }}/gravity-ai-service` |
+
+Each workflow uses the same tag pattern from Docker metadata:
+
+```yml
+tags: |
+  type=raw,value=${{ needs.version.outputs.version }}
+  type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+  type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
+  type=sha,prefix=
+```
+
+That means every published image gets a version tag and a SHA tag. Branch-specific rolling tags are added only on `main` and `dev`.
+
+## Web image
+
+The web image builds a Remix application in a Node-based multi-stage Dockerfile, then starts it with `remix-serve` from the generated server bundle.
+
+### Base image and build stages
+
+The Dockerfile uses `node:20-alpine` for both the build stage and the runtime stage.
+
+<CodeGroup tabs="Build stage,Runtime stage">
+
+```dockerfile
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package.json ./
+RUN npm install --include=dev
+COPY . .
+# tsconfig.json extends ../../tsconfig.base.json — place it at the expected path
+COPY tsconfig.base.json /tsconfig.base.json
+RUN npm run build
+```
+
+```dockerfile
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev
+COPY --from=build /app/build ./build
+EXPOSE 3000
+CMD ["npm", "run", "start"]
+```
+
+</CodeGroup>
+
+The build stage installs development dependencies, copies the application source, places `tsconfig.base.json` where the build expects it, and runs `npm run build`. The runtime stage installs production dependencies only, copies the built output, exposes port `3000`, and starts the server with `npm run start`.
+
+The grounded package scripts are:
+
+```json
+{
+  "scripts": {
+    "build": "remix vite:build",
+    "start": "remix-serve ./build/server/index.js"
+  }
+}
+```
+
+### Build context caveat
+
+The web workflow builds with `context: ./apps/web`, so the Docker build context does not include repository-root files by default. To compensate, the workflow copies `tsconfig.base.json` into `apps/web` before the image build starts.
+
+<Callout kind="alert">
+
+Web packaging depends on this workflow step:
+
+```yml
+- name: Copy monorepo files into Docker context
+  run: cp tsconfig.base.json apps/web/tsconfig.base.json
+```
+
+Without that copy, the Docker build context would not contain the root TypeScript base config that the web build expects.
+
+</Callout>
+
+## API image
+
+The API image uses Bun for both build and runtime. It compiles the application into `dist` and starts the production entrypoint with `bun .`.
+
+### Base image and build stages
+
+The Dockerfile uses `oven/bun:1-alpine` in both stages.
+
+<CodeGroup tabs="Build stage,Runtime stage">
+
+```dockerfile
+FROM oven/bun:1-alpine AS build
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY . .
+RUN bun run build
+```
+
+```dockerfile
+FROM oven/bun:1-alpine
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+COPY --from=build /app/dist ./dist
+EXPOSE 3000
+CMD ["bun", "run", "start:prod"]
+```
+
+</CodeGroup>
+
+The build stage installs dependencies from `bun.lock`, copies the service source, and runs `bun run build`. The runtime stage installs production dependencies, copies the compiled `dist` output, exposes port `3000`, and runs the production start script.
+
+The grounded package scripts are:
+
+```json
+{
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start:prod": "bun ."
+  }
+}
+```
+
+### Runtime port mismatch
+
+The container metadata and the application runtime do not currently agree on the port. The Dockerfile exposes `3000`, but the application code listens on `3001`.
+
+```ts
+await app.listen(3001);
+console.log("🚀 API running on http://localhost:3001");
+```
+
+<Callout kind="alert">
+
+The API Dockerfile declares `EXPOSE 3000`, but the app code calls `app.listen(3001)`. Treat `3001` as the grounded runtime port and `3000` as current Dockerfile metadata.
+
+</Callout>
+
+## AI service image
+
+The AI service image uses Python slim images and installs dependencies with `uv` into a virtual environment that is copied into the final image.
+
+### Base image and build stages
+
+The Dockerfile uses `python:3.14-slim` for both the builder and runtime stages.
+
+<CodeGroup tabs="Build stage,Runtime stage">
+
+```dockerfile
+FROM python:3.14-slim AS builder
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+```
+
+```dockerfile
+FROM python:3.14-slim
+WORKDIR /app
+COPY --from=builder /app/.venv /app/.venv
+COPY . .
+ENV PATH="/app/.venv/bin:$PATH"
+EXPOSE 8001
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+```
+
+</CodeGroup>
+
+The builder stage copies `uv` binaries, installs dependencies from `pyproject.toml` and `uv.lock`, and creates the virtual environment. The runtime stage copies that virtual environment into the final image, adds the application source, exposes port `8001`, and starts Uvicorn on `0.0.0.0:8001`.
+
+The service entrypoint is grounded by the FastAPI app in `main.py`, including a health route:
+
+```py
+app = FastAPI()
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+## Publishing flow in GitHub Actions
+
+Each service has its own workflow, but the publish sequence is the same across web, API, and AI service. The workflow logs into `ghcr.io`, computes tags through Docker metadata, then builds and pushes the image with `docker/build-push-action@v6`.
+
+The image base always follows this pattern:
+
+```yml
+images: ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
+```
+
+The service-specific image names are:
+
+- `gravity-web`
+- `gravity-api`
+- `gravity-ai-service`
+
+Each workflow also builds from the service directory as its Docker context:
+
+- Web: `./apps/web`
+- API: `./apps/api`
+- AI service: `./apps/ai-service`
+
+All three workflows use GitHub Actions cache during the Docker build and push the resulting image directly to GitHub Container Registry.
+
+## Tags and version inputs
+
+The Docker tag set comes directly from `needs.version.outputs.version`, plus branch-specific rolling tags and a SHA tag. That makes the version job the source of truth for the main image tag in every workflow.
+
+On `main`, the version job reads the service `VERSION` file, bumps semantic versioning based on the latest commit message, writes the new version back, and persists it. On `dev`, the version job creates a prerelease-style value in the form `base-dev.timestamp.shortsha` and does not persist it back to the repository.
+
+In practice, the tag behavior is:
+
+- **Version tag** — always published from `needs.version.outputs.version`
+- **`latest`** — published only on `main`
+- **`dev-latest`** — published only on `dev`
+- **SHA tag** — always published
+
+A typical outcome looks like this:
+
+| Branch | Version-style tag | Rolling tag |
+| --- | --- | --- |
+| `main` | `1.2.4` | `latest` |
+| `dev` | `1.2.3-dev.20260509123456.abc1234` | `dev-latest` |
+
+## Local build and run examples
+
+These commands mirror the implemented Dockerfiles and workflow build contexts as closely as possible. The web example includes the same monorepo file copy that the CI workflow performs before building.
+
+### Web
+
+<CodeGroup tabs="Build,Run">
+
+```bash
+cp tsconfig.base.json apps/web/tsconfig.base.json
+docker build -t gravity-web:local ./apps/web
+```
+
+```bash
+docker run --rm -p 3000:3000 gravity-web:local
+```
+
+</CodeGroup>
+
+The container starts the Remix server with `npm run start`. A successful run should make the app available on port `3000`.
+
+### API
+
+<CodeGroup tabs="Build,Run">
+
+```bash
+docker build -t gravity-api:local ./apps/api
+```
+
+```bash
+docker run --rm -p 3001:3001 gravity-api:local
+```
+
+</CodeGroup>
+
+The run command maps port `3001` because the application code listens on `3001`. That differs from the Dockerfile `EXPOSE 3000` line, so the runtime port and the Dockerfile metadata are not aligned today.
+
+### AI service
+
+<CodeGroup tabs="Build,Run">
+
+```bash
+docker build -t gravity-ai-service:local ./apps/ai-service
+```
+
+```bash
+docker run --rm -p 8001:8001 gravity-ai-service:local
+```
+
+</CodeGroup>
+
+The container starts Uvicorn on port `8001`. A successful run should make the health route available at `http://localhost:8001/health`.
+
+<Callout kind="info">
+
+These examples build and run each service independently. They do not provision dependent services, shared infrastructure, or an end-to-end application environment.
+
+</Callout>
+
+## Current packaging constraints
+
+<Callout kind="alert">
+
+The published containers package the current service foundations only. They do not represent a complete product stack or full cross-service runtime.
+
+</Callout>
+
+The current implementation has two packaging-specific constraints worth keeping in mind:
+
+- **Web packaging depends on a workflow workaround** that copies `tsconfig.base.json` into the web Docker context before the build.
+- **API packaging has a port mismatch** between Dockerfile metadata and the application runtime.
+
+## Related docs
+
+<Columns cols={2}>
+  <Card title="CI/CD" href="/ci-cd" icon="rocket" cta="Open page" />
+  <Card title="Versioning" href="/versioning" icon="git-branch" cta="Open page" />
+</Columns>

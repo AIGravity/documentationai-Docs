@@ -1,153 +1,214 @@
 ---
-title: Quickstart
-description: Get a docs site running fast: create pages, add MDX content, and verify navigation.
+title: Getting Started
+description: >-
+  Set up the Gravity monorepo locally, run each service, and verify the stack
+  with the actual commands and configuration from the repository.
 ---
+## Overview
 
-## Get the site running
+Gravity is a polyglot monorepo with three apps:
 
-Create a basic docs structure, add your first pages, and confirm the site builds with the new navigation.
+- `apps/web` — Remix frontend
 
-<Callout kind="info">
+- `apps/api` — NestJS API running on Bun
 
-Set up your local environment before you start:
+- `apps/ai-service` — FastAPI service managed with `uv`
 
-- Node.js and `npm`
-- Git
-- A docs content folder in your project, such as `docs` or `content`
-
+<Callout kind="info" collapsed="false">
+  This page reflects the current repository state. A few repo files are inconsistent with each other, so the commands below use the paths and runtime behavior that actually exist in the codebase.
 </Callout>
 
-## Create your first pages
+## Prerequisites
+
+Before you install anything, make sure these tools are available locally.
+
+<Callout kind="info" collapsed="false">
+  Required by the repository:
+
+  - Node.js 18+
+
+  - `pnpm`
+
+  - `bun`
+
+  - `uv`
+
+  - Python 3.14+
+</Callout>
+
+Use these commands to verify your local toolchain:
+
+<CodeGroup show-lines="true" tabs={[]}>
+  ```bash
+  node -v
+  pnpm -v
+  bun -v
+  uv -v
+  python -V
+  ```
+</CodeGroup>
+
+## Install dependencies
+
+The repository includes a bootstrap script that installs dependencies for all three runtimes.
 
 <Steps>
-  <Step title="Create `introduction.mdx`" icon="file-plus">
+  <Step title="Clone the repository" icon="git-branch" title-type="p">
+    ```bash
+    git clone <your-repo-url>
+    cd core
+    ```
+  </Step>
 
-    Add a new page for the home or introduction section in your docs content folder.
+  <Step title="Run the bootstrap script" icon="play-circle" title-type="p">
+    ```bash
+    ./scripts/bootstrap.sh
+    ```
+
+    The script does the following:
 
     ```bash
-    touch docs/introduction.mdx
+    pnpm install
+    cd apps/api && bun install
+    cd apps/ai-service && uv sync
     ```
-
-    If your project uses a different content directory, replace `docs` with the folder your site reads from.
-
-  </Step>
-
-  <Step title="Add frontmatter" icon="edit">
-
-    Open `introduction.mdx` and add the page metadata the site uses to build navigation and page titles.
-
-    ```mdx
-    ---
-    title: Introduction
-    description: Start here for an overview of the docs site and its main sections.
-    ---
-    ```
-
-    Save the file and confirm the page now has a title and description at the top.
-
-  </Step>
-
-  <Step title="Create a second page" icon="plus">
-
-    Add another page such as `features.mdx` so the navigation has more than one destination.
-
-    ```bash
-    touch docs/features.mdx
-    ```
-
-    Keep the second page in the same folder so it appears alongside the first page in your docs structure.
-
-  </Step>
-
-  <Step title="Add page content" icon="file-text">
-
-    Add a short heading and a few sentences to each file so the pages render with visible content.
-
-    ```mdx
-    ## Introduction
-
-    Welcome to the docs site.
-    ```
-
-    ```mdx
-    ## Features
-
-    Describe the main feature set here.
-    ```
-
   </Step>
 </Steps>
 
-## Run and build the site
+<Callout kind="tip" collapsed="false">
+  The root `README.md` mentions `pnpm setup`, but that script does not exist in the current root `package.json`. Use `./scripts/bootstrap.sh` instead.
+</Callout>
 
-Use your project commands to start the local site and verify that the new pages compile.
+## Environment variables
+
+There are currently no repository-provided environment example files for local development.
+
+- No `.env.example` file is present
+
+- No `docker-compose.yml`, `compose.yml`, or `compose.yaml` file is present
+
+- No repo-defined environment variables appear required for the current minimal local setup
+
+That means you can start the project without creating an `.env` file.
+
+## Run the project locally
+
+You can start everything together from the repository root.
 
 <Steps>
-  <Step title="Start the local preview" icon="play-circle">
-
-    Run the development command your project uses.
-
-    <CodeGroup tabs="npm">
+  <Step title="Run all services" icon="rocket" title-type="p">
     ```bash
-    npm run dev
+    pnpm dev
     ```
-    </CodeGroup>
 
-    If your project uses a different script name or package manager, substitute the equivalent command from your repo.
-
+    This runs `turbo run dev --parallel` from the root `package.json`.
   </Step>
 
-  <Step title="Build the site" icon="package">
+  <Step title="Run a single service when needed" icon="terminal" title-type="p">
+    Use the app-level dev commands below if you want to work on one service at a time.
 
-    Run the production build after the preview starts successfully.
+    <CodeGroup show-lines="true" tabs={[]}>
+      ```bash
+      pnpm --filter @repo/web dev
+      ```
 
-    <CodeGroup tabs="npm">
-    ```bash
-    npm run build
-    ```
+      ```bash
+      pnpm --filter @repo/api dev
+      ```
+
+      ```bash
+      cd apps/ai-service
+      uv run uvicorn main:app --reload --port 8001
+      ```
     </CodeGroup>
-
-    A successful build confirms that the new pages and frontmatter parse correctly.
-
-  </Step>
-
-  <Step title="Confirm navigation" icon="check-circle">
-
-    Open the site navigation and make sure both pages appear where you expect them.
-
-    If the pages do not show up, check the content folder path, the file names, and any navigation configuration in your project.
-
   </Step>
 </Steps>
 
-## Verify the result
+## Local URLs and ports
 
-You should now be able to open both pages in the editor and in the running site.
+The current repository points to these local services:
 
-<Callout kind="success">
+- Web app: check the URL printed by the Remix dev server
 
-You can open Introduction and Quickstart pages in the editor/site.
+- API: `http://localhost:3001`
 
+- AI service: `http://localhost:8001`
+
+<Callout kind="alert" collapsed="false">
+  The repo currently contains a few port and naming mismatches:
+
+  - The root `README.md` and API CORS config expect the frontend on `http://localhost:3000`
+
+  - `apps/web/README.md` says the web app is available at `http://localhost:5173`
+
+  - `apps/api/src/main.ts` exposes the API on port `3001`
+
+  - The root script `dev:py` points to `apps/py-service`, but the actual directory is `apps/ai-service`
+
+  Because of this, the safest way to confirm the web URL is to use the address printed in the `apps/web` dev server output.
 </Callout>
+
+## Verify everything is working
+
+After the services start, verify each backend service directly.
+
+<Steps>
+  <Step title="Check the API health endpoint" icon="heart-pulse" title-type="p">
+    ```bash
+    curl http://localhost:3001/health
+    ```
+
+    Expected response:
+
+    ```json
+    {"status":"ok","service":"api"}
+    ```
+  </Step>
+
+  <Step title="Check the AI service health endpoint" icon="cpu" title-type="p">
+    ```bash
+    curl http://localhost:8001/health
+    ```
+
+    Expected response:
+
+    ```json
+    {"status":"ok"}
+    ```
+  </Step>
+
+  <Step title="Open the web app" icon="globe" title-type="p">
+    Open the local URL printed by the Remix dev server and confirm the starter UI loads.
+  </Step>
+</Steps>
+
+## Repository notes to keep in mind
+
+The current codebase is still scaffold-level, so a few repo details are worth calling out while setting up the project:
+
+- `apps/ai-service/pyproject.toml` requires Python `>=3.14`
+
+- The API route implemented in code is `GET /health`, not `GET /api/health`
+
+- The repo includes Dockerfiles for each app, but no compose-based local orchestration file
+
+- The root README references shared `packages/*` paths that are not present yet
 
 ## Next steps
 
-Keep building the docs site by adding content in the areas readers use most.
+Once the stack is running locally, continue with the rest of the docs:
 
-<Columns cols={2}>
-  <Card title="Features" icon="zap" href="/features">
-    Document the product capabilities readers need to compare and evaluate.
+<Columns cols="2">
+  <Card title="Introduction" href="/introduction" icon="book" horizontal="false">
+    Read the high-level overview of the repository and its current product scope.
   </Card>
 
-  <Card title="Integrations" icon="cloud" href="/integrations">
-    Show how the docs site connects to the rest of your workflow.
+  <Card title="Features" href="/features" icon="zap" horizontal="false">
+    Review the currently implemented capabilities across the web, API, and AI service.
   </Card>
 
-  <Card title="Help Center" icon="help-circle" href="/help-center">
-    Add support content for common setup and usage questions.
-  </Card>
-
-  <Card title="Changelog" icon="bar-chart" href="/changelog">
-    Track what changed as the docs site grows.
+  <Card title="Integrations" href="/integrations" icon="cloud" horizontal="false">
+    Explore how the services, tooling, and deployment pieces connect.
   </Card>
 </Columns>
+

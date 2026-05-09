@@ -1,0 +1,141 @@
+---
+title: NestJS API
+description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+---
+
+## Overview
+
+This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+
+<Callout kind="info">
+
+Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
+</Callout>
+
+<Callout kind="alert">
+
+The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
+</Callout>
+
+## Endpoint
+
+### GET `/health`
+
+Use this endpoint to verify that the NestJS backend is running and responding.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/health`
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication requirements were found in the analyzed code.
+
+</ParamField>
+
+<Callout kind="info">
+
+No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
+</Callout>
+
+## Request details
+
+This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
+
+### Path parameters
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None. The route is fixed at `GET /health`.
+
+</ParamField>
+
+### Query parameters
+
+<ParamField body="query parameters" param-type="none" required="false" show-location="false">
+
+None. The handler does not define or consume query string values.
+
+</ParamField>
+
+### Headers
+
+<ParamField body="custom headers" param-type="none" required="false" show-location="false">
+
+None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
+
+</ParamField>
+
+### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. `GET /health` does not accept a request body.
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i http://localhost:3001/health
+```
+
+</CodeGroup>
+
+## Response
+
+A successful request returns a JSON object that identifies the service and reports its status.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "status": "ok",
+  "service": "api"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="status" field-type="string" required="true">
+
+Health state returned by the endpoint. The implemented handler returns `ok`.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service identifier returned by the endpoint. The implemented handler returns `api`.
+
+</ResponseField>
+
+## Likely error responses
+
+The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+
+### 404 not found
+
+A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+
+### 500 internal server error
+
+A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+
+## Notes
+
+The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.

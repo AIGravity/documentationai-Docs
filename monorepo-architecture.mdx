@@ -1,0 +1,297 @@
+---
+title: Monorepo Architecture
+description: How the AIGravity/core repository organizes web, API, and AI services and orchestrates development across Node, Bun, and Python.
+---
+
+## Repository overview
+
+AIGravity/core is a polyglot monorepo organized around application directories under `apps/`, with root-level coordination handled by pnpm workspaces and Turborepo. The current repository separates the frontend, API, and AI service into distinct runtime boundaries rather than forcing a single toolchain across the whole codebase.
+
+## Monorepo layout
+
+The repository centers on a small set of root workspace and orchestration files. Those files define how JavaScript packages participate in the workspace, how cross-app tasks run, and which configuration can be shared.
+
+```text
+apps/
+├── web/         Remix frontend
+├── api/         NestJS service on Bun
+└── ai-service/  FastAPI service managed with uv
+```
+
+The workspace declaration is intentionally minimal:
+
+```yaml
+packages:
+  - apps/*
+  - packages/*
+```
+
+That layout has a few practical consequences:
+
+- `apps/web` is a workspace package with its own `package.json`
+- `apps/api` is a workspace package with its own `package.json`
+- `apps/ai-service` is a Python service defined by `pyproject.toml`
+- `packages/*` is declared as a workspace area, but there is currently no `packages/` directory in the repository tree
+
+A naming mismatch also exists in the current repository state. The README describes the Python app as `py-service`, while the actual repository and bootstrap flow use `apps/ai-service`.
+
+## Orchestration across the repository
+
+The root of the monorepo acts as the control plane for local development. pnpm selects workspace packages, Turborepo fans tasks out across participating apps, and a shell bootstrap script installs the toolchains that pnpm does not manage directly.
+
+### Root commands
+
+The root `package.json` provides the main entrypoints for day-to-day work.
+
+<CodeGroup tabs="Root package scripts,Bootstrap script">
+```json
+{
+  "scripts": {
+    "dev:web": "pnpm --filter @repo/web dev",
+    "dev:api": "pnpm --filter @repo/api dev",
+    "dev:py": "cd apps/py-service && uv run uvicorn main:app --reload --port 8001",
+    "dev": "turbo run dev --parallel"
+  }
+}
+```
+
+```bash
+command -v pnpm >/dev/null 2>&1 || { echo "pnpm is not installed"; exit 1; }
+command -v bun >/dev/null 2>&1 || { echo "bun is not installed"; exit 1; }
+command -v uv >/dev/null 2>&1 || { echo "uv is not installed"; exit 1; }
+
+pnpm install
+
+cd apps/api
+bun install
+cd ../../
+
+cd apps/ai-service
+uv sync
+cd ../../
+```
+</CodeGroup>
+
+Use these commands in two modes:
+
+- **Single service development** for focused work on one app
+- **Parallel development** through `pnpm dev` when you need multiple services running together
+
+The root script surface is not fully aligned with the current tree. `dev:py` still points at `apps/py-service`, while the repository and bootstrap script use `apps/ai-service`.
+
+### Turbo pipeline behavior
+
+Turbo configuration stays deliberately small:
+
+<CodeGroup tabs="turbo.json,Build-related app scripts">
+```json
+{
+  "tasks": {
+    "dev": {
+      "cache": false
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    }
+  }
+}
+```
+
+```json
+{
+  "web": {
+    "build": "remix vite:build"
+  },
+  "api": {
+    "build": "tsc -p tsconfig.build.json"
+  }
+}
+```
+</CodeGroup>
+
+That configuration means:
+
+- `dev` tasks always run live and do not use cache
+- `build` tasks depend on upstream workspace `build` tasks
+- Turbo assumes build outputs land under `dist/**`
+
+That last assumption only partially matches the current apps. The API service is the closest fit because it compiles TypeScript into `dist`, while the web app uses Remix and Vite build output conventions instead of an obvious `dist/**` target. The Python service does not define a comparable build task in `pyproject.toml`.
+
+## Runtime boundaries
+
+The repository follows a runtime-isolation model instead of standardizing on a single package manager or execution environment. Each app uses the tools that fit its stack, and the root layer coordinates them rather than flattening them.
+
+### Web uses Remix with Node-oriented package tooling
+
+The frontend lives in `apps/web` and participates as a pnpm workspace package. Its package manifest shows a standalone Remix app with Vite-based development and build commands.
+
+```json
+{
+  "name": "@repo/web",
+  "scripts": {
+    "build": "remix vite:build",
+    "dev": "remix vite:dev",
+    "start": "remix-serve ./build/server/index.js",
+    "typecheck": "tsc"
+  }
+}
+```
+
+This app fits cleanly into the workspace model because pnpm can install, filter, and run it from the repository root.
+
+### API uses NestJS on Bun
+
+The API service lives in `apps/api` and is also a workspace package, but its runtime is Bun rather than Node. The root still discovers it through pnpm, while the app itself uses Bun commands for development and execution.
+
+```json
+{
+  "name": "@repo/api",
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "bun dist/main.js",
+    "start:prod": "bun ."
+  }
+}
+```
+
+That split is important: workspace orchestration and runtime execution are separate concerns here. pnpm finds the package and runs scripts, but Bun remains the service runtime.
+
+### AI service uses FastAPI with uv and Python
+
+The AI service lives in `apps/ai-service` and is configured through Python-native files rather than the JavaScript workspace toolchain. Its dependency and runtime definition live in `pyproject.toml`, with `uv` handling synchronization and execution.
+
+```toml
+[project]
+name = "ai-service"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.135.0",
+    "pydantic>=2.12.5",
+    "uvicorn>=0.41.0",
+]
+```
+
+This service sits beside the workspace-managed apps instead of fully inside the same package lifecycle. That is why setup requires `uv sync` in addition to `pnpm install`.
+
+## Development flow
+
+Local development works by combining one root setup path with a mix of per-app and cross-app commands. The bootstrap script prepares each runtime, then root commands start the services you need.
+
+### Setup connects the three toolchains
+
+The bootstrap flow checks for the required package managers first, then installs dependencies for each runtime:
+
+- `pnpm` for workspace-managed JavaScript packages
+- `bun` for the API service
+- `uv` for the Python AI service
+
+The documented setup entrypoint in the current repository is `./scripts/bootstrap.sh`. The README mentions `pnpm setup`, but there is no matching root `setup` script in `package.json`.
+
+### Day-to-day development paths
+
+After bootstrap completes, the usual command paths are straightforward:
+
+- Run `pnpm dev:web` to start the Remix frontend
+- Run `pnpm dev:api` to start the Bun-based NestJS API
+- Run `pnpm dev` to ask Turbo to run available `dev` tasks in parallel
+
+The Python path needs extra care because the root script is stale. The repository evidence shows the intended Python service is `apps/ai-service`, not `apps/py-service`.
+
+## Configuration points
+
+The monorepo keeps most shared configuration at the root and leaves runtime-specific behavior inside each app. That keeps common settings centralized without pretending the three stacks use identical conventions.
+
+### Workspace declaration
+
+`pnpm-workspace.yaml` determines which directories pnpm treats as workspace packages.
+
+<ParamField body="packages" param-type="array" required="true" show-location="false">
+
+Includes `apps/*` and `packages/*` as workspace globs. In the current repository, `apps/web` and `apps/api` fit that model directly, while `packages/*` does not yet map to an existing directory.
+
+</ParamField>
+
+### Turbo configuration
+
+`turbo.json` defines the small shared task pipeline.
+
+<ParamField body="tasks.dev.cache" param-type="boolean" required="true" show-location="false">
+
+Set to `false`, so Turbo does not cache development runs.
+
+</ParamField>
+
+<ParamField body="tasks.build.dependsOn" param-type="array" required="true" show-location="false">
+
+Requires upstream workspace builds to complete before a dependent build runs.
+
+</ParamField>
+
+<ParamField body="tasks.build.outputs" param-type="array" required="true" show-location="false">
+
+Assumes build artifacts live under `dist/**`. That assumption aligns best with the API service and less cleanly with the web and Python apps.
+
+</ParamField>
+
+### Shared TypeScript baseline
+
+The TypeScript base config gives JavaScript and TypeScript consumers a shared compiler baseline.
+
+<CodeGroup tabs="tsconfig base,Key compiler options">
+```json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "baseUrl": "."
+  }
+}
+```
+
+```text
+ES2022 target
+Bundler module resolution
+strict type checking
+react-jsx JSX transform
+Node types enabled
+```
+</CodeGroup>
+
+This shared baseline applies to TypeScript consumers in the repository. It does not configure or influence the Python service.
+
+### Per-app manifests
+
+Each app keeps its own runtime-specific manifest:
+
+- `apps/web/package.json` for Remix app scripts and dependencies
+- `apps/api/package.json` for Bun and NestJS execution
+- `apps/ai-service/pyproject.toml` and `uv.lock` for Python dependencies
+
+That split reflects the actual architecture of the repository. Shared orchestration exists at the root, but app-level behavior still lives with the app that owns it.
+
+<Callout kind="info">
+
+The current implementation is a scaffolded runtime split, not a fully shared platform layer. There is no shared business domain, auth, or database layer yet. Repository evidence also shows a few inconsistencies: the README uses `py-service` while the repo and bootstrap flow use `ai-service`, the README documents `pnpm setup` although the working setup entrypoint is `./scripts/bootstrap.sh`, the root `dev:py` script still points at `apps/py-service`, and Turbo assumes `dist/**` outputs even though that does not cleanly match every app.
+
+</Callout>
+
+## Related pages
+
+<Columns cols={3}>
+  <Card title="Frontend application shell" href="/frontend-application-shell" icon="monitor" />
+  <Card title="API service foundation" href="/api-service-foundation" icon="code" />
+  <Card title="AI service foundation" href="/ai-service-foundation" icon="database" />
+  <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" />
+  <Card title="Repository automation scripts" href="/repository-automation-scripts" icon="terminal" />
+</Columns>

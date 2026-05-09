@@ -1,0 +1,202 @@
+---
+title: AI Service Foundation
+description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+---
+
+## Overview
+
+The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+
+<Callout kind="alert">
+
+No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+
+</Callout>
+
+## Current scope
+
+This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+
+That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+
+## Bootstrap in main.py
+
+The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+
+<CodeGroup tabs="main.py,Notes">
+
+```python
+from fastapi import FastAPI
+
+app = FastAPI()
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+```text
+Grounded bootstrap details:
+
+- app = FastAPI() is defined at the top level
+- /health is registered with @app.get("/health")
+- the handler is synchronous: def health()
+- no APIRouter usage appears in the analyzed files
+- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+```
+
+</CodeGroup>
+
+The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+
+## Health endpoint
+
+The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+
+<CodeGroup tabs="Route,Response">
+
+```python
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+```json
+{
+  "status": "ok"
+}
+```
+
+</CodeGroup>
+
+The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+
+## Python environment and dependency management
+
+Python and package management are consistent across local tooling, project metadata, and the lockfile. The service requires Python `>=3.14`, uses uv for dependency resolution, and pins resolved package versions in `uv.lock`.
+
+<CodeGroup tabs="pyproject.toml,uv.lock,.python-version">
+
+```toml
+[project]
+name = "ai-service"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.135.0",
+    "pydantic>=2.12.5",
+    "uvicorn>=0.41.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.0",
+    "pytest>=8.0.0",
+]
+```
+
+```toml
+version = 1
+revision = 3
+requires-python = ">=3.14"
+
+[[package]]
+name = "ai-service"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "uvicorn" },
+]
+
+[[package]]
+name = "fastapi"
+version = "0.135.0"
+
+[[package]]
+name = "pydantic"
+version = "2.12.5"
+
+[[package]]
+name = "uvicorn"
+version = "0.41.0"
+```
+
+```text
+3.14
+```
+
+</CodeGroup>
+
+The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
+
+No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+
+## Run locally
+
+The repository does not include a substantive local guide for this service, so the usable commands are implied by the CI workflow and Docker runtime command. Run these commands from `apps/ai-service`.
+
+<CodeGroup tabs="Install and start,Quality checks">
+
+```bash
+uv python install
+uv sync
+uv run uvicorn main:app --host 0.0.0.0 --port 8001
+```
+
+```bash
+uv run ruff format --check .
+uv run ruff check .
+```
+
+</CodeGroup>
+
+If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+
+Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
+
+## Docker packaging
+
+The service image uses a multi-stage Docker build based on `python:3.14-slim`. The builder stage installs production dependencies with uv, and the runtime stage copies the virtual environment and application source before starting Uvicorn.
+
+<CodeGroup tabs="Dockerfile">
+
+```dockerfile
+FROM python:3.14-slim AS builder
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev
+
+FROM python:3.14-slim
+WORKDIR /app
+COPY --from=builder /app/.venv /app/.venv
+COPY . .
+ENV PATH="/app/.venv/bin:$PATH"
+EXPOSE 8001
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+```
+
+</CodeGroup>
+
+A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
+
+The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+
+## CI workflow
+
+The GitHub workflow runs when changes affect `apps/ai-service/**` or `.github/workflows/ai-service.yml` on pushes and pull requests targeting `main` or `dev`. Its build job works from `apps/ai-service`, installs uv, installs Python, syncs dependencies, and runs Ruff formatting and lint checks.
+
+Publishing happens only on push events. On `main`, the workflow reads `apps/ai-service/VERSION`, bumps the version according to commit message rules, creates a Git tag in the format `ai-service-v<version>`, publishes `ghcr.io/<owner>/gravity-ai-service`, applies the generated version tag and `latest`, and creates a GitHub Release.
+
+On `dev`, the workflow generates a development version using the base version, timestamp, and short SHA. It tags the repository, publishes the same image with the generated version tag and `dev-latest`, and also adds a SHA tag.
+
+## Related docs
+
+<Columns cols={3}>
+  <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
+  <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
+  <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+</Columns>

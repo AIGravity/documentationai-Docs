@@ -3,13 +3,13 @@
   "colors": {
     "light": {
       "brand": "#3B82F6",
-      "heading": "undefined",
-      "text": "undefined"
+      "heading": "#3B82F6",
+      "text": "#3B82F6"
     },
     "dark": {
       "brand": "#87B1F6",
-      "heading": "undefined",
-      "text": "undefined"
+      "heading": "#87B1F6",
+      "text": "#87B1F6"
     }
   },
   "navigation": {
@@ -39,6 +39,26 @@
               {
                 "title": "Features",
                 "path": "features"
+              },
+              {
+                "title": "Architecture Overview",
+                "path": "architecture-overview"
+              },
+              {
+                "title": "Monorepo Architecture",
+                "path": "monorepo-architecture"
+              },
+              {
+                "title": "Frontend Application Shell",
+                "path": "frontend-application-shell"
+              },
+              {
+                "title": "API Service Foundation",
+                "path": "api-service-foundation"
+              },
+              {
+                "title": "AI Service Foundation",
+                "path": "ai-service-foundation"
               }
             ]
           },
@@ -49,6 +69,34 @@
               {
                 "title": "Integrations",
                 "path": "integrations"
+              },
+              {
+                "title": "Health Checks",
+                "path": "health-checks"
+              },
+              {
+                "title": "Service Versioning",
+                "path": "service-versioning"
+              },
+              {
+                "title": "CI/CD Pipelines",
+                "path": "ci-cd-pipelines"
+              },
+              {
+                "title": "Docker Images and Packaging",
+                "path": "docker-images-and-packaging"
+              },
+              {
+                "title": "Repository Automation Scripts",
+                "path": "repository-automation-scripts"
+              },
+              {
+                "title": "Data Models Reference",
+                "path": "data-models-reference"
+              },
+              {
+                "title": "Configuration Reference",
+                "path": "configuration-reference"
               }
             ]
           }
@@ -60,7 +108,16 @@
         "groups": [
           {
             "group": "Endpoints",
-            "openapi": "api-reference/openapi.yaml"
+            "pages": [
+              {
+                "title": "NestJS API",
+                "path": "api-reference/nestjs-api"
+              },
+              {
+                "title": "AI Service",
+                "path": "api-reference/ai-service"
+              }
+            ]
           }
         ]
       },

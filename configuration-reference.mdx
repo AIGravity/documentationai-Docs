@@ -1,0 +1,1188 @@
+---
+title: Configuration Reference
+description: Reference for the repository’s current environment variables, config files, hardcoded runtime settings, and workflow gates across the web, API, and AI services.
+---
+
+## Overview
+
+This repository currently relies far more on static configuration than on environment-driven configuration. The inspected implementation does not define any `.env` files, does not read application environment variables in source code, and does not implement an app-level feature flag system.
+
+<Callout kind="info">
+
+This page reflects the current implementation in the repository, not an intended future configuration model. If a setting is listed here, it was found in source files, Dockerfiles, package scripts, or GitHub Actions workflows.
+
+</Callout>
+
+Use this page to answer three practical questions:
+
+- Which settings affect local runtime, builds, and deployment
+- Where each setting is defined
+- Which mismatches in the current configuration can affect development or container runtime
+
+## Configuration surface summary
+
+Configuration is spread across a small number of concrete surfaces rather than a centralized settings layer.
+
+- **Application runtime code** defines hardcoded behavior such as the API port, API CORS origin, and the AI service health route.
+- **Package scripts** define dev and build commands for the monorepo and individual apps.
+- **Static config files** define TypeScript, workspace, Turbo, Nest, and Python tool settings.
+- **Dockerfiles** define container base images, exposed ports, commands, and one runtime environment variable for the AI service image.
+- **GitHub Actions workflows** define service names, image names, branch filters, concurrency behavior, setup versions, and release gating logic.
+
+<Callout kind="alert">
+
+The repository does not currently expose a general configuration abstraction for ports, CORS origin, or deployment behavior. Several values that are often environment-driven in other projects are fixed directly in code or workflow files.
+
+</Callout>
+
+## Environment variables
+
+### App environment variables
+
+The inspected source code does not consume repository-defined application environment variables.
+
+<Callout kind="success">
+
+No `.env` files were found in the repository tree, and no application code reads of `process.env`, `import.meta.env`, `os.getenv`, `getenv`, or `dotenv` were found.
+
+</Callout>
+
+### Current status
+
+<ParamField body="repo-defined-app-env" param-type="none" required="false" show-location="false">
+
+**Purpose:** Configure application runtime through repository-defined environment variables.
+
+**Type:** none.
+
+**Explicit value:** not present.
+
+**Required:** No. The current codebase does not depend on a repo-defined `.env` file for local startup.
+
+</ParamField>
+
+<ParamField body="env-file-support" param-type="none" required="false" show-location="false">
+
+**Purpose:** Load local configuration from `.env` files.
+
+**Type:** none.
+
+**Explicit value:** not implemented.
+
+**Required:** No. No `.env`, `.env.example`, or application dotenv loading was found.
+
+</ParamField>
+
+### Workflow and container environment variables
+
+The repository does use environment variables outside application code in Docker and GitHub Actions.
+
+#### Docker runtime environment
+
+<ParamField body="PATH" param-type="string" required="false" show-location="false">
+
+**Purpose:** Prepend the AI service virtual environment binary path so `uvicorn` and installed tools resolve from `/app/.venv/bin`.
+
+**Type:** string.
+
+**Explicit value:** `/app/.venv/bin:$PATH`.
+
+**Required:** No. The AI service Docker image sets this value internally.
+
+</ParamField>
+
+#### GitHub Actions workflow environment
+
+<ParamField body="SERVICE_NAME" param-type="string" required="true" show-location="false">
+
+**Purpose:** Identify the service being built in a workflow.
+
+**Type:** string.
+
+**Explicit values:** `api`, `web`, and `ai-service`, depending on the workflow file.
+
+**Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
+
+</ParamField>
+
+<ParamField body="IMAGE_NAME" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the Docker image name used by a workflow.
+
+**Type:** string.
+
+**Explicit values:** `gravity-api`, `gravity-web`, and `gravity-ai-service`.
+
+**Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
+
+</ParamField>
+
+<ParamField body="GITHUB_TOKEN" param-type="string" required="true" show-location="false">
+
+**Purpose:** Authenticate Docker login in GitHub Actions.
+
+**Type:** string.
+
+**Explicit value:** GitHub-provided secret at workflow runtime.
+
+**Required:** Yes for workflow execution paths that log in to GitHub Container Registry.
+
+</ParamField>
+
+<ParamField body="github-context-values" param-type="string" required="true" show-location="false">
+
+**Purpose:** Drive branch-based and event-based workflow behavior.
+
+**Type:** GitHub Actions context values.
+
+**Explicit values:** `github.ref`, `github.ref_name`, `github.actor`, `github.repository_owner`, and `github.event_name`.
+
+**Required:** Yes for the current workflow conditions and tagging logic.
+
+</ParamField>
+
+### Grounded excerpts
+
+<CodeGroup tabs="AI service Dockerfile,Workflow env">
+
+```dockerfile
+ENV PATH="/app/.venv/bin:$PATH"
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+```
+
+```yaml
+env:
+  SERVICE_NAME: api
+  IMAGE_NAME: gravity-api
+```
+
+</CodeGroup>
+
+## Application runtime settings
+
+Application runtime behavior is mostly fixed in source rather than configured dynamically.
+
+### API service runtime settings
+
+The API bootstrap file hardcodes both network binding and CORS behavior.
+
+<CodeGroup tabs="main.ts,Behavior summary">
+
+```ts
+const app = await NestFactory.create(AppModule);
+
+app.enableCors({
+  origin: ["http://localhost:3000"],
+  credentials: true,
+});
+
+await app.listen(3001);
+```
+
+```ts
+// Effective runtime behavior:
+// - CORS allows exactly http://localhost:3000
+// - Credentialed requests are enabled
+// - API listens on port 3001
+// - No environment-based override is present
+```
+
+</CodeGroup>
+
+<ParamField body="origin" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define which frontend origins may access the API through CORS.
+
+**Type:** array of strings.
+
+**Explicit value:** `["http://localhost:3000"]`.
+
+**Required:** Yes. The current bootstrap code passes this value directly to `app.enableCors(...)`.
+
+</ParamField>
+
+<ParamField body="credentials" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Allow credentialed cross-origin requests.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes. The current bootstrap code sets it directly.
+
+</ParamField>
+
+<ParamField body="port" param-type="number" required="true" show-location="false">
+
+**Purpose:** Define the API listening port.
+
+**Type:** number.
+
+**Explicit value:** `3001`.
+
+**Required:** Yes. The service binds with `app.listen(3001)` and does not read a port from environment variables.
+
+</ParamField>
+
+### AI service runtime settings
+
+The AI service runtime surface is small and mostly script- and Docker-defined.
+
+<CodeGroup tabs="main.py,package script">
+
+```python
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+```json
+{
+  "scripts": {
+    "dev": "uv run uvicorn main:app --reload --port 8001"
+  }
+}
+```
+
+</CodeGroup>
+
+<ParamField body="health-route" param-type="string" required="true" show-location="false">
+
+**Purpose:** Expose a health check endpoint for the AI service.
+
+**Type:** string.
+
+**Explicit value:** `/health`.
+
+**Required:** Yes. The route is defined directly in application code.
+
+</ParamField>
+
+<ParamField body="dev-port" param-type="number" required="true" show-location="false">
+
+**Purpose:** Define the AI service port during local development.
+
+**Type:** number.
+
+**Explicit value:** `8001`.
+
+**Required:** Yes for the current dev script, because the script passes `--port 8001`.
+
+</ParamField>
+
+<ParamField body="container-port" param-type="number" required="true" show-location="false">
+
+**Purpose:** Define the AI service port in the container entry command.
+
+**Type:** number.
+
+**Explicit value:** `8001`.
+
+**Required:** Yes for the current Docker runtime, because the container command passes `--port 8001`.
+
+</ParamField>
+
+### Web service runtime notes
+
+The web app runtime port is not driven by a repository-defined environment variable. The inspected repository instead documents and hardcodes port expectations in multiple places, including `3000` in Docker and root documentation, with a separate development note referencing `5173`.
+
+## Config files
+
+These files define the monorepo’s build, toolchain, and service-level behavior. The entries below focus on settings that materially affect runtime, builds, or deployment.
+
+### Root package and workspace configuration
+
+<ParamField body="packageManager" param-type="string" required="true" show-location="false">
+
+**Purpose:** Pin the package manager and version for the repository.
+
+**Type:** string.
+
+**Explicit value:** `pnpm@10.13.1`.
+
+**Required:** Yes for consistent dependency installation and workspace behavior.
+
+</ParamField>
+
+<ParamField body="dev" param-type="script" required="false" show-location="false">
+
+**Purpose:** Start the repository development workflow from the root package.
+
+**Type:** package script.
+
+**Explicit value:** present in `package.json`.
+
+**Required:** No. It is a convenience entrypoint rather than a runtime requirement.
+
+</ParamField>
+
+<ParamField body="dev:web" param-type="script" required="false" show-location="false">
+
+**Purpose:** Start the web app development flow from the root package.
+
+**Type:** package script.
+
+**Explicit value:** present in `package.json`.
+
+**Required:** No.
+
+</ParamField>
+
+<ParamField body="dev:api" param-type="script" required="false" show-location="false">
+
+**Purpose:** Start the API development flow from the root package.
+
+**Type:** package script.
+
+**Explicit value:** present in `package.json`.
+
+**Required:** No.
+
+</ParamField>
+
+<ParamField body="dev:py" param-type="script" required="false" show-location="false">
+
+**Purpose:** Start the AI service development flow from the root package.
+
+**Type:** package script.
+
+**Explicit value:** `uv run uvicorn main:app --reload --port 8001`.
+
+**Required:** No, but it is the current scripted AI service dev entrypoint.
+
+</ParamField>
+
+<ParamField body="packages" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define workspace package globs for pnpm.
+
+**Type:** array of strings.
+
+**Explicit value:** `["apps/*", "packages/*"]`.
+
+**Required:** Yes for workspace resolution.
+
+</ParamField>
+
+<ParamField body="ignoredBuiltDependencies" param-type="string[]" required="false" show-location="false">
+
+**Purpose:** Exclude selected built dependencies from pnpm handling.
+
+**Type:** array of strings.
+
+**Explicit value:** `["esbuild"]`.
+
+**Required:** No.
+
+</ParamField>
+
+### Turbo configuration
+
+<ParamField body="tasks.dev.cache" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Disable caching for development tasks.
+
+**Type:** boolean.
+
+**Explicit value:** `false`.
+
+**Required:** Yes for the current Turbo task definition.
+
+</ParamField>
+
+<ParamField body="tasks.build.dependsOn" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define upstream build dependencies.
+
+**Type:** array of strings.
+
+**Explicit value:** `["^build"]`.
+
+**Required:** Yes for the current build graph.
+
+</ParamField>
+
+<ParamField body="tasks.build.outputs" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Declare build output paths for caching and orchestration.
+
+**Type:** array of strings.
+
+**Explicit value:** `["dist/**"]`.
+
+**Required:** Yes for the current build task definition.
+
+</ParamField>
+
+### API service config files
+
+<ParamField body="monorepo" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Configure Nest CLI monorepo mode.
+
+**Type:** boolean.
+
+**Explicit value:** `false`.
+
+**Required:** Yes in `apps/api/nest-cli.json`.
+
+</ParamField>
+
+<ParamField body="sourceRoot" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the API source root for Nest CLI operations.
+
+**Type:** string.
+
+**Explicit value:** `src`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="entryFile" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the Nest bootstrap entry file name.
+
+**Type:** string.
+
+**Explicit value:** `main`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="generateOptions.spec" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Control automatic spec file generation.
+
+**Type:** boolean.
+
+**Explicit value:** `false`.
+
+**Required:** Yes in the current Nest CLI config.
+
+</ParamField>
+
+<ParamField body="compilerOptions.manualRestart" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Control manual restart behavior in Nest CLI.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="compilerOptions.tsConfigPath" param-type="string" required="true" show-location="false">
+
+**Purpose:** Point Nest CLI to the build TypeScript config.
+
+**Type:** string.
+
+**Explicit value:** `./tsconfig.build.json`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="compilerOptions.webpack" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Disable webpack-based compilation in Nest CLI.
+
+**Type:** boolean.
+
+**Explicit value:** `false`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="compilerOptions.deleteOutDir" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Remove the output directory before rebuilding.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="target" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the API TypeScript output target.
+
+**Type:** string.
+
+**Explicit value:** `ES2024` in `apps/api/tsconfig.json`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="module" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the API TypeScript module format.
+
+**Type:** string.
+
+**Explicit value:** `ESNext` in `apps/api/tsconfig.json`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="moduleResolution" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define TypeScript module resolution behavior.
+
+**Type:** string.
+
+**Explicit value:** `Bundler` in `apps/api/tsconfig.json`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="outDir" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the API build output directory.
+
+**Type:** string.
+
+**Explicit value:** `./dist`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="strictNullChecks" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Enforce null-safety checks in the API TypeScript build.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="incremental" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Enable incremental TypeScript compilation.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="sourceMap" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Generate source maps for the API build.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="exclude" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Exclude test and build artifacts from the API build config.
+
+**Type:** array of strings.
+
+**Explicit value:** `["node_modules", "test", "dist", "**/*spec.ts"]`.
+
+**Required:** Yes in `apps/api/tsconfig.build.json`.
+
+</ParamField>
+
+### Web config files
+
+<ParamField body="build" param-type="script" required="true" show-location="false">
+
+**Purpose:** Build the web app.
+
+**Type:** package script.
+
+**Explicit value:** `remix vite:build`.
+
+**Required:** Yes for the current web build flow.
+
+</ParamField>
+
+<ParamField body="dev" param-type="script" required="false" show-location="false">
+
+**Purpose:** Start the web development server.
+
+**Type:** package script.
+
+**Explicit value:** `remix vite:dev`.
+
+**Required:** No.
+
+</ParamField>
+
+<ParamField body="start" param-type="script" required="true" show-location="false">
+
+**Purpose:** Start the production web server from the build output.
+
+**Type:** package script.
+
+**Explicit value:** `remix-serve ./build/server/index.js`.
+
+**Required:** Yes for the current container start behavior.
+
+</ParamField>
+
+<ParamField body="plugins" param-type="array" required="true" show-location="false">
+
+**Purpose:** Define Vite plugins for the web app.
+
+**Type:** array.
+
+**Explicit value:** `tailwindcss()`, `remix()`, and `tsconfigPaths()`.
+
+**Required:** Yes for the current web build configuration.
+
+</ParamField>
+
+<ParamField body="jsx" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define JSX transform behavior for the web app TypeScript config.
+
+**Type:** string.
+
+**Explicit value:** `react-jsx`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="noEmit" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Disable file emission in the web TypeScript config.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+### Shared TypeScript base config
+
+<ParamField body="lib" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define the shared TypeScript standard libraries.
+
+**Type:** array of strings.
+
+**Explicit value:** `["ES2022", "DOM"]`.
+
+**Required:** Yes in `tsconfig.base.json`.
+
+</ParamField>
+
+<ParamField body="strict" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Enable shared strict TypeScript checking.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="resolveJsonModule" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Allow importing JSON modules in shared TypeScript settings.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+### AI service config files
+
+<ParamField body="python-version" param-type="string" required="true" show-location="false">
+
+**Purpose:** Pin the local Python version for the AI service.
+
+**Type:** string.
+
+**Explicit value:** `3.14`.
+
+**Required:** Yes in `apps/ai-service/.python-version`.
+
+</ParamField>
+
+<ParamField body="requires-python" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the supported Python runtime range for the AI service.
+
+**Type:** string.
+
+**Explicit value:** `>=3.14`.
+
+**Required:** Yes in `apps/ai-service/pyproject.toml`.
+
+</ParamField>
+
+<ParamField body="dependencies" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define the Python runtime dependencies for the AI service.
+
+**Type:** array of strings.
+
+**Explicit value:** `fastapi`, `pydantic`, and `uvicorn`.
+
+**Required:** Yes.
+
+</ParamField>
+
+### Dockerfiles
+
+<CodeGroup tabs="Web Dockerfile,API Dockerfile,AI service Dockerfile">
+
+```dockerfile
+FROM node:20-alpine
+EXPOSE 3000
+CMD ["npm", "run", "start"]
+```
+
+```dockerfile
+FROM oven/bun:1-alpine
+EXPOSE 3000
+CMD ["bun", "run", "start:prod"]
+```
+
+```dockerfile
+FROM python:3.14-slim
+ENV PATH="/app/.venv/bin:$PATH"
+EXPOSE 8001
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+```
+
+</CodeGroup>
+
+<ParamField body="web-base-image" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the base image for the web container build.
+
+**Type:** string.
+
+**Explicit value:** `node:20-alpine`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="web-exposed-port" param-type="number" required="true" show-location="false">
+
+**Purpose:** Declare the web container port.
+
+**Type:** number.
+
+**Explicit value:** `3000`.
+
+**Required:** Yes in `apps/web/Dockerfile`.
+
+</ParamField>
+
+<ParamField body="api-base-image" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the base image for the API container build.
+
+**Type:** string.
+
+**Explicit value:** `oven/bun:1-alpine`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="api-exposed-port" param-type="number" required="true" show-location="false">
+
+**Purpose:** Declare the API container port.
+
+**Type:** number.
+
+**Explicit value:** `3000`.
+
+**Required:** Yes in `apps/api/Dockerfile`.
+
+</ParamField>
+
+<ParamField body="ai-base-image" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the runtime base image for the AI service container.
+
+**Type:** string.
+
+**Explicit value:** `python:3.14-slim`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="uv-source-image" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the image source used for `uv` in the AI service Docker build.
+
+**Type:** string.
+
+**Explicit value:** `ghcr.io/astral-sh/uv:latest`.
+
+**Required:** Yes in the current Dockerfile.
+
+</ParamField>
+
+<ParamField body="ai-exposed-port" param-type="number" required="true" show-location="false">
+
+**Purpose:** Declare the AI service container port.
+
+**Type:** number.
+
+**Explicit value:** `8001`.
+
+**Required:** Yes.
+
+</ParamField>
+
+## Workflow and build configuration
+
+GitHub Actions workflows provide the repository’s main deployment-time configuration layer.
+
+### Branch and environment gates
+
+<ParamField body="trigger-branches" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Restrict workflow execution to selected branches.
+
+**Type:** array of strings.
+
+**Explicit value:** `["main", "dev"]`.
+
+**Required:** Yes in the current workflow definitions.
+
+</ParamField>
+
+<ParamField body="environment-gate" param-type="mapping" required="true" show-location="false">
+
+**Purpose:** Select the deployment environment from the branch name.
+
+**Type:** branch-to-environment rule.
+
+**Explicit value:** `main` maps to production, all other current matched branches map to development.
+
+**Required:** Yes for current deployment targeting.
+
+</ParamField>
+
+<ParamField body="path-filters" param-type="static rules" required="true" show-location="false">
+
+**Purpose:** Limit service workflows to relevant file changes.
+
+**Type:** hardcoded path filters.
+
+**Explicit value:** defined separately per service workflow.
+
+**Required:** Yes in the current CI setup.
+
+</ParamField>
+
+### Image naming and version setup
+
+<ParamField body="api-image-name" param-type="string" required="true" show-location="false">
+
+**Purpose:** Name the API container image in CI.
+
+**Type:** string.
+
+**Explicit value:** `gravity-api`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="web-image-name" param-type="string" required="true" show-location="false">
+
+**Purpose:** Name the web container image in CI.
+
+**Type:** string.
+
+**Explicit value:** `gravity-web`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="ai-image-name" param-type="string" required="true" show-location="false">
+
+**Purpose:** Name the AI service container image in CI.
+
+**Type:** string.
+
+**Explicit value:** `gravity-ai-service`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="node-version" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the Node version used in workflows.
+
+**Type:** string.
+
+**Explicit value:** `20`.
+
+**Required:** Yes in current CI setup.
+
+</ParamField>
+
+<ParamField body="pnpm-version" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the pnpm version used in workflows.
+
+**Type:** string.
+
+**Explicit value:** `10.13.1`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="bun-version" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the Bun version used in workflows.
+
+**Type:** string.
+
+**Explicit value:** `latest`.
+
+**Required:** Yes where Bun is installed in CI.
+
+</ParamField>
+
+<ParamField body="uv-version" param-type="string" required="true" show-location="false">
+
+**Purpose:** Define the `uv` version used in workflows.
+
+**Type:** string.
+
+**Explicit value:** `latest`.
+
+**Required:** Yes where the AI service workflow installs `uv`.
+
+</ParamField>
+
+### Concurrency and release gates
+
+<ParamField body="concurrency-group" param-type="string" required="true" show-location="false">
+
+**Purpose:** Prevent overlapping workflow runs for the same ref.
+
+**Type:** string pattern.
+
+**Explicit values:** `api-${github.ref}`, `web-${github.ref}`, and `ai-service-${github.ref}`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="cancel-in-progress" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Cancel earlier runs when a new run starts for the same concurrency group.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="version-bump-detection" param-type="rule set" required="true" show-location="false">
+
+**Purpose:** Derive semantic version bump level from commit messages.
+
+**Type:** conditional rules.
+
+**Explicit value:** major for `[major]` or `BREAKING CHANGE`, minor for `[minor]` or `feat(` or `feat:`, otherwise patch.
+
+**Required:** Yes in the current release automation.
+
+</ParamField>
+
+<ParamField body="latest-tag-gate" param-type="branch rule" required="true" show-location="false">
+
+**Purpose:** Restrict the `latest` Docker tag to the main branch.
+
+**Type:** branch condition.
+
+**Explicit value:** enabled only on `main`.
+
+**Required:** Yes in current tag logic.
+
+</ParamField>
+
+<ParamField body="dev-latest-tag-gate" param-type="branch rule" required="true" show-location="false">
+
+**Purpose:** Restrict the `dev-latest` Docker tag to the dev branch.
+
+**Type:** branch condition.
+
+**Explicit value:** enabled only on `dev`.
+
+**Required:** Yes in current tag logic.
+
+</ParamField>
+
+## Feature flags
+
+No true application feature flag system was found in the inspected codebase.
+
+<Callout kind="info">
+
+Boolean settings exist in the repository, but they are not feature flags unless application code uses them to enable or disable user-facing behavior at runtime. In this repository, the booleans that were found belong to bootstrap settings, build tools, or workflows.
+
+</Callout>
+
+### App code feature flags
+
+<ParamField body="app-feature-flags" param-type="none" required="false" show-location="false">
+
+**Purpose:** Toggle application behavior through a dedicated feature-flag mechanism.
+
+**Type:** none.
+
+**Explicit value:** not present.
+
+**Required:** No. No app-level feature flag framework or env-driven toggle system was found.
+
+</ParamField>
+
+### Workflow and tool booleans that are not feature flags
+
+<ParamField body="api-cors-credentials" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Allow credentialed CORS requests in the API bootstrap config.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="turbo-dev-cache" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Disable caching for Turbo dev tasks.
+
+**Type:** boolean.
+
+**Explicit value:** `false`.
+
+**Required:** Yes.
+
+</ParamField>
+
+<ParamField body="workflow-cancel-in-progress" param-type="boolean" required="true" show-location="false">
+
+**Purpose:** Cancel overlapping CI runs for the same ref.
+
+**Type:** boolean.
+
+**Explicit value:** `true`.
+
+**Required:** Yes.
+
+</ParamField>
+
+## Notable mismatches
+
+A few current settings conflict across files or docs and can affect local setup or deployment assumptions.
+
+<Callout kind="alert">
+
+The API service listens on port `3001` in source code, but `apps/api/Dockerfile` exposes port `3000`. Treat this as an active mismatch until one side changes.
+
+</Callout>
+
+<ParamField body="api-port-mismatch" param-type="runtime mismatch" required="false" show-location="false">
+
+**Purpose:** Highlight the difference between API source runtime port and container exposed port.
+
+**Type:** mismatch.
+
+**Explicit value:** source listens on `3001`, Docker exposes `3000`.
+
+**Required:** No, but it is operationally important.
+
+</ParamField>
+
+<ParamField body="web-port-documentation-mismatch" param-type="documentation mismatch" required="false" show-location="false">
+
+**Purpose:** Highlight inconsistent frontend port expectations across repository materials.
+
+**Type:** mismatch.
+
+**Explicit value:** root docs and API CORS expect `http://localhost:3000`, while the web app README mentions `http://localhost:5173`.
+
+**Required:** No, but it affects local integration expectations.
+
+</ParamField>
+
+<ParamField body="service-name-mismatch" param-type="documentation mismatch" required="false" show-location="false">
+
+**Purpose:** Highlight the naming inconsistency for the Python or AI service.
+
+**Type:** mismatch.
+
+**Explicit value:** the root README refers to `py-service`, while the actual directory is `apps/ai-service`.
+
+**Required:** No, but it can mislead local setup and script interpretation.
+
+</ParamField>
+
+<ParamField body="env-abstraction-gap" param-type="architecture note" required="false" show-location="false">
+
+**Purpose:** Call out that ports, CORS origin, and several deployment choices are hardcoded rather than abstracted into application configuration.
+
+**Type:** implementation characteristic.
+
+**Explicit value:** present across runtime code and workflows.
+
+**Required:** No, but it is important when planning changes.
+
+</ParamField>
+
+## Related docs
+
+<Columns cols={3}>
+  <Card title="Quickstart" href="/quickstart" icon="rocket" cta="Open guide" />
+  <Card title="API service foundation" href="/api-service-foundation" icon="code" cta="Review runtime behavior" />
+  <Card title="Monorepo architecture" href="/monorepo-architecture" icon="folder" cta="Browse project layout" />
+</Columns>

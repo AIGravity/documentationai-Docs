@@ -1,0 +1,198 @@
+---
+title: Data Models Reference
+description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+---
+
+## Overview
+
+AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+
+What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+
+<Callout kind="info">
+
+This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+
+</Callout>
+
+## Current model inventory summary
+
+The repository is closer to a service scaffold than an application with domain entities.
+
+| Area | Current status |
+| --- | --- |
+| Named domain models | None found in the analyzed code |
+| ORM or database models | None found in the analyzed code |
+| DTO classes | None found in the analyzed code |
+| Named validation schemas | None found in the analyzed code |
+| Migration files | None found in the analyzed code |
+| Inline response shapes | 2 found |
+| Persisted entities | None found in the analyzed code |
+
+### Model-like definitions found
+
+- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
+- **FastAPI health response** — inline response shape: `{"status": "ok"}`
+
+<Callout kind="danger">
+
+The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+
+</Callout>
+
+## Persistence and migration status
+
+No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+
+Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+
+### Repository-level signals
+
+- The NestJS API exposes a single health controller with an inline object response.
+- The FastAPI service exposes a single health endpoint with an inline object response.
+- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
+- The repository README describes shared schemas and database work as planned rather than implemented.
+
+## NestJS API response shape
+
+The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
+
+### Implemented shape
+
+<CodeGroup tabs="TypeScript">
+
+```ts
+@Controller("health")
+export class HealthController {
+  @Get()
+  getHealth() {
+    return { status: "ok", service: "api" };
+  }
+}
+```
+
+</CodeGroup>
+
+### Classification
+
+- **Kind** — Inline response shape
+- **Named entity or DTO** — None found in the analyzed code
+- **Persistence-backed** — No
+- **Relationships** — None found in the analyzed code
+- **Validation rules** — None found in the analyzed code
+
+### Response fields
+
+<ResponseField name="status" field-type="string" required="true">
+
+Health state returned by the endpoint. The implemented handler returns `ok`.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service identifier returned by the endpoint. The implemented handler returns `api`.
+
+</ResponseField>
+
+### Notes
+
+This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
+
+## FastAPI response shape
+
+The FastAPI service currently returns one structured object from the health endpoint. This object is an inline response shape, not a named Pydantic model or persisted entity.
+
+### Implemented shape
+
+<CodeGroup tabs="Python">
+
+```python
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+</CodeGroup>
+
+### Classification
+
+- **Kind** — Inline response shape
+- **Named model** — None found in the analyzed code
+- **Persistence-backed** — No
+- **Relationships** — None found in the analyzed code
+- **Validation rules** — None found in the analyzed code
+
+### Response fields
+
+<ResponseField name="status" field-type="string" required="true">
+
+Health state returned by the endpoint. The implemented handler returns `ok`.
+
+</ResponseField>
+
+### Notes
+
+The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
+
+## Validation schema and DTO status
+
+No named validation layer is implemented in the analyzed repository.
+
+### NestJS API
+
+- No DTO classes found
+- No `class-validator` usage found
+- No `ValidationPipe` setup found
+- No request body schemas found
+
+### FastAPI service
+
+- No Pydantic `BaseModel` classes found
+- No request model annotations found
+- No response model annotations found
+
+<Callout kind="info">
+
+Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+
+</Callout>
+
+## Migration status
+
+No migration system is present in the analyzed code.
+
+### Summary
+
+- No ORM migration configuration found
+- No migration directories found
+- No SQL migration files found
+- No schema history found
+- No persistence entities found that would require migrations
+
+### Current implication
+
+The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+
+## Gaps and implications
+
+The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+
+- **No canonical domain entities** — There is no checked-in source of truth for business objects.
+- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
+- **No persistence contract** — No model maps to a database table, collection, or record.
+- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
+- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
+
+<Callout kind="danger">
+
+Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+
+</Callout>
+
+## Related docs
+
+<Columns cols={2}>
+  <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+  <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+</Columns>

@@ -1,0 +1,277 @@
+---
+title: Service Versioning
+description: How version numbers are stored per service, bumped manually with the repository script, and augmented by CI workflows for image and release tagging.
+---
+
+## Version numbers live with each service, not in the root package version.
+
+The repository keeps a separate plain-text `VERSION` file for each deployable service. Manual bumps update only that file, while CI reads it and derives branch-specific or release-specific versions for tags, images, and GitHub releases. The root `package.json` has its own `version`, but the service build and release workflows do not use it as the source of truth for service versioning.
+
+## Version file layout
+
+Each service stores its checked-in base version in its own file under `apps/`.
+
+- `apps/web/VERSION` → `0.1.0`
+- `apps/api/VERSION` → `0.1.0`
+- `apps/ai-service/VERSION` → `0.1.0`
+
+The root `package.json` also contains:
+
+```json
+{
+  "version": "1.0.0"
+}
+```
+
+That root package version is separate from the service versioning flow. The workflows for web, API, and AI service read `apps/<service>/VERSION` instead.
+
+## Bump a service version manually
+
+Manual version bumps go through `scripts/version-bump.sh`. The root `package.json` exposes wrappers for each service and bump type, but all of them call the same script.
+
+### Available wrapper commands
+
+```json
+{
+  "version:web:patch": "./scripts/version-bump.sh web patch",
+  "version:web:minor": "./scripts/version-bump.sh web minor",
+  "version:web:major": "./scripts/version-bump.sh web major",
+  "version:api:patch": "./scripts/version-bump.sh api patch",
+  "version:api:minor": "./scripts/version-bump.sh api minor",
+  "version:api:major": "./scripts/version-bump.sh api major",
+  "version:ai:patch": "./scripts/version-bump.sh ai-service patch",
+  "version:ai:minor": "./scripts/version-bump.sh ai-service minor",
+  "version:ai:major": "./scripts/version-bump.sh ai-service major"
+}
+```
+
+### Accepted inputs
+
+The script expects exactly two arguments: a service name and a bump type.
+
+- **Service names**: `web`, `api`, `ai-service`
+- **Bump types**: `major`, `minor`, `patch`
+
+If either argument is missing, the script exits with a usage message. If the service or bump type is invalid, it exits with an error and prints the allowed values.
+
+### What the script changes
+
+The script maps the service name to one of these directories:
+
+- `web` → `apps/web`
+- `api` → `apps/api`
+- `ai-service` → `apps/ai-service`
+
+It then reads the corresponding `VERSION` file, strips whitespace, parses the value as `MAJOR.MINOR.PATCH`, applies the requested increment, and writes the new version back to that same file.
+
+Bump behavior is fixed:
+
+- **`major`** — increment major, reset minor and patch to `0`
+- **`minor`** — increment minor, reset patch to `0`
+- **`patch`** — increment patch only
+
+The script does not commit changes automatically. It prints the next Git commands after updating the file.
+
+<CodeGroup tabs="Shell script,Example output">
+
+```bash
+# ./scripts/version-bump.sh <service> <major|minor|patch>
+
+if [[ -z "$SERVICE" || -z "$BUMP_TYPE" ]]; then
+  echo "❌ Usage: $0 <web|api|ai-service> <major|minor|patch>"
+  exit 1
+fi
+
+case "$SERVICE" in
+  web)        SERVICE_DIR="apps/web" ;;
+  api)        SERVICE_DIR="apps/api" ;;
+  ai-service) SERVICE_DIR="apps/ai-service" ;;
+  *)
+    echo "❌ Unknown service: $SERVICE"
+    echo "   Valid services: web, api, ai-service"
+    exit 1
+    ;;
+esac
+
+VERSION_FILE="$SERVICE_DIR/VERSION"
+CURRENT_VERSION=$(tr -d '[:space:]' < "$VERSION_FILE")
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+case "$BUMP_TYPE" in
+  major)
+    MAJOR=$((MAJOR + 1))
+    MINOR=0
+    PATCH=0
+    ;;
+  minor)
+    MINOR=$((MINOR + 1))
+    PATCH=0
+    ;;
+  patch)
+    PATCH=$((PATCH + 1))
+    ;;
+  *)
+    echo "❌ Invalid bump type: $BUMP_TYPE"
+    echo "   Valid types: major, minor, patch"
+    exit 1
+    ;;
+esac
+
+NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+echo "$NEW_VERSION" > "$VERSION_FILE"
+
+echo "✅ ${SERVICE}: ${CURRENT_VERSION} → ${NEW_VERSION}"
+echo "  git add $VERSION_FILE"
+echo "  git commit -m \"chore($SERVICE): bump version to $NEW_VERSION\""
+```
+
+```bash
+$ ./scripts/version-bump.sh web minor
+✅ web: 0.1.0 → 0.2.0
+  git add apps/web/VERSION
+  git commit -m "chore(web): bump version to 0.2.0"
+```
+
+</CodeGroup>
+
+## CI derives release versions differently on main and dev
+
+The workflow files for `web`, `api`, and `ai-service` follow the same versioning pattern. They do not call `scripts/version-bump.sh`. Instead, each workflow implements its own inline version calculation.
+
+### On main
+
+For pushes to `main`, the workflow:
+
+- reads `apps/<service>/VERSION`
+- parses `MAJOR.MINOR.PATCH`
+- inspects the latest commit message
+- computes a new version from regex matches
+- writes the new version back to the same `VERSION` file
+- commits and pushes that file with `[skip ci]`
+- uses that computed version for downstream tag, image, and release steps
+
+The bump rules are exactly:
+
+- **major** if the latest commit message matches ``\[major\]|BREAKING CHANGE``
+- **minor** if the latest commit message matches ``\[minor\]|feat(\(|:)``
+- **patch** otherwise
+
+### On dev
+
+For pushes to `dev`, the workflow does not persist a new base version. It reads the checked-in service version and derives a build-style version in this format:
+
+```text
+<base-version>-dev.<YYYYMMDDHHMMSS>.<short-sha>
+```
+
+That derived `dev` version is used in the workflow output, but the `VERSION` file in the repository remains unchanged.
+
+## Publishing implications
+
+The computed workflow version feeds every published identifier for that service.
+
+### Git tags
+
+Each workflow creates a service-prefixed Git tag:
+
+- `web-v<version>`
+- `api-v<version>`
+- `ai-service-v<version>`
+
+### Docker image tags
+
+Each service publishes to a distinct image name:
+
+- `gravity-web`
+- `gravity-api`
+- `gravity-ai-service`
+
+Docker metadata always includes the computed version tag, and also adds branch aliases:
+
+- `latest` only on `main`
+- `dev-latest` only on `dev`
+- a SHA-based tag from `type=sha,prefix=`
+
+That means the same computed version becomes the versioned image tag, while branch aliases track the most recent build for that branch.
+
+### GitHub releases
+
+Release creation runs only on `main`. The release uses the same computed version for:
+
+- the Git tag name
+- the release title
+- the image reference in the release body
+
+Examples of image references include:
+
+- `ghcr.io/<owner>/gravity-web:<version>`
+- `ghcr.io/<owner>/gravity-api:<version>`
+- `ghcr.io/<owner>/gravity-ai-service:<version>`
+
+## Workflow examples
+
+These excerpts show the exact transition from checked-in base version to CI-derived version and published tags.
+
+<CodeGroup tabs="Main branch versioning,Dev branch versioning,Docker and release tags">
+
+```bash
+BASE_VERSION=$(tr -d '[:space:]' < apps/web/VERSION)
+IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE_VERSION"
+COMMIT_MSG=$(git log -1 --pretty=%B)
+
+if echo "$COMMIT_MSG" | grep -qiE '\[major\]|BREAKING CHANGE'; then
+  MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
+elif echo "$COMMIT_MSG" | grep -qiE '\[minor\]|feat(\(|:)'; then
+  MINOR=$((MINOR + 1)); PATCH=0
+else
+  PATCH=$((PATCH + 1))
+fi
+
+VERSION="${MAJOR}.${MINOR}.${PATCH}"
+
+echo "$VERSION" > apps/web/VERSION
+git add apps/web/VERSION
+git commit -m "chore(web): bump version to ${VERSION} [skip ci]" || true
+git push origin "$BRANCH" || true
+```
+
+```bash
+BASE_VERSION=$(tr -d '[:space:]' < apps/web/VERSION)
+TIMESTAMP=$(date +%Y%m%d%H%M%S)
+VERSION="${BASE_VERSION}-dev.${TIMESTAMP}.${SHORT_SHA}"
+```
+
+```yaml
+tags: |
+  type=raw,value=${{ needs.version.outputs.version }}
+  type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+  type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
+  type=sha,prefix=
+
+git tag "${{ env.SERVICE_NAME }}-v${{ steps.version.outputs.version }}"
+git push origin "${{ env.SERVICE_NAME }}-v${{ steps.version.outputs.version }}"
+```
+
+</CodeGroup>
+
+<Callout kind="alert">
+
+Current versioning behavior has a few important assumptions:
+
+- The source of truth for service versions is the per-service `VERSION` file, not the root `package.json`.
+- CI workflows do not call `scripts/version-bump.sh`; they duplicate bump logic inline.
+- `dev` branch versions are derived at build time and are not written back to the repository.
+- `main` branch workflows write the updated `VERSION` file back to the repo, but `git commit` and `git push` are tolerated on failure with `|| true`.
+- Git tag creation and tag push are not wrapped with `|| true`.
+- GitHub releases are created only on `main`.
+- Web and API release note generation includes `packages/`, even though that directory may not exist in the current tree.
+- The root `package.json` includes a separate `dev:py` script path inconsistency, but that path is not part of service version bumping.
+
+</Callout>
+
+## Related pages
+
+<Columns cols={2}>
+  <Card title="CI/CD" href="/ci-cd" icon="rocket" cta="Open page" />
+  <Card title="Docker packaging" href="/docker-packaging" icon="package" cta="Open page" />
+</Columns>

@@ -1,0 +1,396 @@
+---
+title: API Service Foundation
+description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+---
+
+## Overview
+
+The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+
+<Callout kind="info">
+
+The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+
+</Callout>
+
+## Bootstrap flow
+
+`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. All of that behavior is hardcoded in the entrypoint rather than driven by environment-based configuration.
+
+<CodeGroup tabs="main.ts,Behavior summary">
+
+```ts
+const app = await NestFactory.create(AppModule);
+
+app.enableCors({
+  origin: ["http://localhost:3000"],
+  credentials: true,
+});
+
+await app.listen(3001);
+```
+
+```ts
+// Grounded behavior from the inspected file:
+//
+// - Creates the app with NestFactory.create(AppModule)
+// - Enables CORS
+// - Allows exactly http://localhost:3000
+// - Enables credentials
+// - Listens on port 3001
+// - Logs: 🚀 API running on http://localhost:3001
+```
+
+</CodeGroup>
+
+### Application creation
+
+The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the full set of controllers, providers, and imported modules available at runtime.
+
+Because `AppModule` is currently minimal, bootstrap is also minimal. There are no global pipes, interceptors, guards, filters, or prefixes configured in the inspected entrypoint.
+
+### CORS configuration
+
+CORS is enabled with `app.enableCors(...)` and allows exactly one origin: `http://localhost:3000`. The configuration also sets `credentials: true`, so browsers can include credentials on cross-origin requests from that origin.
+
+That setup is enough for local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables or a configuration module.
+
+### Port binding
+
+The service binds to port `3001` with `app.listen(3001)`. There is no `process.env.PORT` handling in the inspected source, so the listening port is fixed in code.
+
+<Callout kind="alert">
+
+The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
+
+</Callout>
+
+## Module wiring
+
+`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
+
+<CodeGroup tabs="app.module.ts,Current application graph">
+
+```ts
+@Module({
+  controllers: [HealthController],
+})
+export class AppModule {}
+```
+
+```text
+AppModule
+└── HealthController
+```
+
+</CodeGroup>
+
+### Current module graph
+
+The module graph is intentionally small:
+
+- `AppModule` declares `controllers: [HealthController]`
+- `AppModule` has no `imports`
+- `AppModule` has no `providers`
+- `AppModule` exports nothing
+
+That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+
+### What is not wired yet
+
+Several common Nest application concerns are absent from the inspected files:
+
+- auth modules, guards, JWT, or session handling
+- DTO classes and validation pipes
+- database configuration, repositories, entities, or migrations
+- domain-specific modules and services
+- `ConfigModule` or other environment-driven configuration
+- OpenAPI or Swagger setup
+
+<Callout kind="info">
+
+The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
+
+</Callout>
+
+## Health endpoint
+
+The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+
+<CodeGroup tabs="health.controller.ts,Response example">
+
+```ts
+@Controller("health")
+export class HealthController {
+  @Get()
+  getHealth() {
+    return { status: "ok", service: "api" };
+  }
+}
+```
+
+```json
+{
+  "status": "ok",
+  "service": "api"
+}
+```
+
+</CodeGroup>
+
+### Route behavior
+
+The route path is `/health` because the controller is decorated with `@Controller("health")` and there is no global prefix configured in `main.ts`. The method is `GET`, and the handler returns a literal object directly from the controller method.
+
+Because there is no API versioning or prefix configuration in the bootstrap file, clients call the endpoint at `/health`, not `/api/health` or `/v1/health`.
+
+### Response shape
+
+The response is a small JSON object with two fields.
+
+<ResponseField name="status" field-type="string" required="true">
+Returns `ok` in the current implementation.
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+Returns `api` in the current implementation.
+</ResponseField>
+
+### What the endpoint does not include
+
+The health endpoint is intentionally bare. It does not check downstream dependencies, validate output through a schema, or map through a response DTO.
+
+There is also no health library integration in the inspected files. The endpoint reports service availability by returning a static object from the controller.
+
+## Runtime and build
+
+Local development and runtime execution are defined in `apps/api/package.json`, while Nest and TypeScript build behavior is split across `nest-cli.json`, `tsconfig.json`, and `tsconfig.build.json`. The setup is workable as a foundation, but several paths and module settings do not line up cleanly.
+
+<CodeGroup tabs="package.json scripts,package metadata">
+
+```json
+{
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "bun dist/main.js",
+    "start:prod": "bun ."
+  }
+}
+```
+
+```json
+{
+  "main": "dist/src/main",
+  "type": "commonjs"
+}
+```
+
+</CodeGroup>
+
+### Runtime scripts
+
+The service defines four runtime and build scripts:
+
+- **`dev`** — runs `bun --watch src/main.ts`
+- **`build`** — runs `tsc -p tsconfig.build.json`
+- **`start`** — runs `bun dist/main.js`
+- **`start:prod`** — runs `bun .`
+
+The `dev` command runs the TypeScript entrypoint directly in Bun watch mode. The `build` command compiles with TypeScript rather than `nest build`.
+
+### Likely dist path mismatch
+
+The package metadata and runtime scripts point to different built entrypoints. `package.json` declares `main` as `dist/src/main`, while the `start` script runs `dist/main.js`.
+
+<Callout kind="alert">
+
+The compiled output path is likely inconsistent with the `start` script. With `rootDir` set to `./` and the source entrypoint at `src/main.ts`, emitted files likely land under `dist/src/`, which makes `bun dist/main.js` a probable mismatch.
+
+</Callout>
+
+### Nest CLI configuration
+
+The Nest CLI file is present but does not appear to drive the main build path because the package script uses `tsc`.
+
+<CodeGroup tabs="nest-cli.json,tsconfig.build.json,tsconfig.json">
+
+```json
+{
+  "monorepo": false,
+  "sourceRoot": "src",
+  "entryFile": "main",
+  "generateOptions": {
+    "spec": false
+  },
+  "compilerOptions": {
+    "manualRestart": true,
+    "tsConfigPath": "./tsconfig.build.json",
+    "webpack": false,
+    "deleteOutDir": true
+  }
+}
+```
+
+```json
+{
+  "extends": "./tsconfig.json",
+  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+}
+```
+
+```json
+{
+  "compilerOptions": {
+    "module": "ESNext",
+    "declaration": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "target": "ES2024",
+    "outDir": "./dist",
+    "rootDir": "./",
+    "moduleResolution": "Bundler",
+    "incremental": true
+  }
+}
+```
+
+</CodeGroup>
+
+### TypeScript build setup
+
+The TypeScript configuration enables decorators and metadata emission for Nest, targets `ES2024`, writes output to `./dist`, and sets `rootDir` to `./`. The build config excludes `node_modules`, `test`, `dist`, and `**/*spec.ts`.
+
+The module settings are also worth noting. TypeScript emits `module: "ESNext"` while `package.json` declares `type: "commonjs"`, which creates a potentially inconsistent runtime model unless Bun is intentionally smoothing over the difference.
+
+### Dependencies present in the API package
+
+The inspected package includes these runtime dependencies:
+
+- `@nestjs/common`
+- `@nestjs/core`
+- `@nestjs/platform-express`
+- `reflect-metadata`
+
+It includes these development dependencies:
+
+- `@nestjs/cli`
+- `@nestjs/schematics`
+- `@types/node`
+- `typescript`
+
+## Docker and runtime packaging
+
+The Dockerfile builds the service in one Bun-based stage and runs it in a second Bun-based stage. It copies the built `dist/` directory into the runtime image and starts the service with the production script.
+
+<CodeGroup tabs="Dockerfile build stage,Dockerfile runtime stage">
+
+```dockerfile
+FROM oven/bun:1-alpine AS build
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+COPY . .
+RUN bun run build
+```
+
+```dockerfile
+FROM oven/bun:1-alpine
+WORKDIR /app
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+COPY --from=build /app/dist ./dist
+EXPOSE 3000
+CMD ["bun", "run", "start:prod"]
+```
+
+</CodeGroup>
+
+### Build flow inside the image
+
+The build stage installs dependencies from `package.json` and `bun.lock`, copies the application files, and runs `bun run build`. The runtime stage installs production dependencies only, copies `dist/` from the build stage, and starts the container with `bun run start:prod`.
+
+That keeps the final image smaller than a single-stage build and matches the Bun-based local runtime approach used in the package scripts.
+
+### Runtime behavior in the container
+
+The runtime image exposes port `3000` and starts the service with `bun run start:prod`. That command resolves to `bun .`, so the container depends on package metadata to find the entrypoint rather than using an explicit file path.
+
+This is one more place where the current packaging is functional but indirect. Between the `main` value, the `start` script path, and the hardcoded port in `main.ts`, the implementation has multiple runtime assumptions that do not fully agree.
+
+## CI integration
+
+The API workflow in `.github/workflows/api.yml` already covers build, versioning, image publishing, release creation, and a placeholder deploy job. It is more complete than the service implementation itself, but several parts are still scaffolding.
+
+### Trigger and build behavior
+
+The workflow runs on pushes to `main` and `dev` for changes under selected paths, and on pull requests targeting those branches. The build section installs dependencies with `pnpm install --frozen-lockfile` and builds the API with `pnpm --filter @repo/api build`.
+
+The workflow path filters include `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, `tsconfig.base.json`, and the workflow file itself. The inspected tree does not show a `packages/` directory, so that filter currently looks anticipatory or stale.
+
+<CodeGroup tabs="Workflow trigger,Build step">
+
+```yaml
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "apps/api/**"
+      - "packages/**"
+      - "pnpm-lock.yaml"
+      - "tsconfig.base.json"
+      - ".github/workflows/api.yml"
+  pull_request:
+    branches: [main, dev]
+```
+
+```yaml
+- name: Install dependencies
+  run: pnpm install --frozen-lockfile
+
+- name: Build
+  run: pnpm --filter @repo/api build
+```
+
+</CodeGroup>
+
+### Versioning and tagging
+
+The workflow reads the base version from `apps/api/VERSION`, which currently contains `0.1.0`. On `main`, it bumps major, minor, or patch based on commit message rules. On `dev`, it creates a prerelease version in the form `base-dev.timestamp.shortsha`.
+
+It then tags releases as `api-v<version>`. On `main`, the workflow also writes the bumped version back to `apps/api/VERSION`, commits it, and pushes the change.
+
+### Docker publishing and releases
+
+The workflow publishes a container image to `ghcr.io/<owner>/gravity-api`. Tags include the exact version, `latest` on `main`, `dev-latest` on `dev`, and a SHA-based tag.
+
+On `main`, the workflow also creates a GitHub Release named `API v<version>`. The release body includes the published image reference.
+
+### Deploy step status
+
+The deploy job exists, but it does not perform a real deployment yet. The inspected workflow only writes a deployment summary, and the actual deploy commands are commented placeholders.
+
+<Callout kind="alert">
+
+The CI pipeline includes release and deployment scaffolding, but deployment is not implemented. The deploy job is placeholder-only in the current workflow.
+
+</Callout>
+
+## Current limitations
+
+<Callout kind="danger">
+
+The inspected API service is a foundation app, not a feature-complete backend. It currently has:
+
+- no DTOs
+- no auth
+- no persistence or database integration
+- no domain modules or services
+- no environment-based configuration
+- no OpenAPI or Swagger setup
+- no active test step in CI
+- no lint step, even though the workflow job is labeled Build and Lint
+
+</Callout>
+
+The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.

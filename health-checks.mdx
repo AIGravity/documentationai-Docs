@@ -1,0 +1,176 @@
+---
+title: Health Checks
+description: The currently implemented health endpoints for the API and AI services, how to verify them locally, and where repository documentation diverges from code.
+---
+
+## Current health checks at a glance
+
+Two services currently expose health endpoints: the NestJS API and the FastAPI AI service. Both implement `GET /health`, return small JSON payloads, and support direct local verification with `curl`.
+
+### Current endpoints
+
+Use these paths when you verify the services based on the current code and documented local ports:
+
+- **NestJS API** — `GET http://localhost:3001/health`
+- **FastAPI AI service** — `GET http://localhost:8001/health`
+
+### Implemented routes in code
+
+<CodeGroup tabs="NestJS API,FastAPI AI service">
+
+```ts
+@Controller("health")
+export class HealthController {
+  @Get()
+  getHealth() {
+    return { status: "ok", service: "api" };
+  }
+}
+```
+
+```py
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+```
+
+</CodeGroup>
+
+## Exact response payloads
+
+These are the current response bodies implemented by code.
+
+### NestJS API response
+
+```json
+{"status":"ok","service":"api"}
+```
+
+<ResponseField name="status" field-type="string" required="true">
+Returns `ok`.
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+Returns `api`.
+</ResponseField>
+
+### FastAPI AI service response
+
+```json
+{"status":"ok"}
+```
+
+<ResponseField name="status" field-type="string" required="true">
+Returns `ok`.
+</ResponseField>
+
+## Verify each endpoint locally
+
+Run each request directly against the local service port. A successful check returns the exact JSON shown in the previous section.
+
+<Steps>
+  <Step title="Check the NestJS API health endpoint" icon="terminal">
+
+Use the implemented local URL:
+
+<CodeGroup tabs="cURL,Expected response">
+
+```bash
+curl http://localhost:3001/health
+```
+
+```json
+{"status":"ok","service":"api"}
+```
+
+</CodeGroup>
+
+Success looks like a `200` response with a body that includes both `status` and `service`.
+
+  </Step>
+
+  <Step title="Check the FastAPI AI service health endpoint" icon="terminal">
+
+Use the documented local port and the implemented `/health` path:
+
+<CodeGroup tabs="cURL,Expected response">
+
+```bash
+curl http://localhost:8001/health
+```
+
+```json
+{"status":"ok"}
+```
+
+</CodeGroup>
+
+Success looks like a `200` response with a body containing only `status`.
+
+  </Step>
+</Steps>
+
+## README and code currently disagree
+
+The repository README references a different NestJS API path than the one implemented in code.
+
+<Callout kind="alert">
+
+README examples reference `http://localhost:3001/api/health` and `GET /api/health`. The NestJS code currently implements `GET /health`, and the reviewed `main.ts` does not define a global `api` prefix.
+
+</Callout>
+
+### Current discrepancy
+
+- **README documented endpoint** — `/api/health`
+- **Implemented Nest endpoint** — `/health`
+
+### Grounding for the mismatch
+
+<CodeGroup tabs="README reference,NestJS implementation">
+
+```md
+| NestJS API      | [http://localhost:3001/api/health](http://localhost:3001/api/health) |
+
+### NestJS
+
+GET /api/health
+```
+
+```ts
+@Controller("health")
+export class HealthController {
+  @Get()
+  getHealth() {
+    return { status: "ok", service: "api" };
+  }
+}
+
+// main.ts
+await app.listen(3001);
+```
+
+</CodeGroup>
+
+## What these checks validate
+
+These endpoints currently validate one narrow thing: each service exposes a reachable HTTP route that returns a static success payload.
+
+<Callout kind="info">
+
+The current health checks do **not** demonstrate dependency readiness, database connectivity, model availability, queue health, external API reachability, or any broader application readiness state. Keep their meaning limited to the exact implemented responses.
+
+</Callout>
+
+### Service-readiness notes
+
+- **NestJS API** — confirms that the API process is serving `GET /health` and returns `{"status":"ok","service":"api"}`.
+- **FastAPI AI service** — confirms that the AI service process is serving `GET /health` and returns `{"status":"ok"}`.
+- **Neither endpoint** currently exposes deeper health semantics beyond that response.
+
+## Related foundation pages
+
+<Columns cols={2}>
+  <Card title="API service foundation" href="/api-service-foundation" icon="code" cta="Open page" />
+  <Card title="AI service foundation" href="/ai-service-foundation" icon="cloud" cta="Open page" />
+</Columns>

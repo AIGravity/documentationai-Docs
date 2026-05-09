@@ -1,0 +1,309 @@
+---
+title: Repository Automation Scripts
+description: What the repository’s bootstrap and version-bump scripts automate today, how they are invoked, and where script behavior differs from other project documentation.
+---
+
+## Overview
+
+The repository currently includes two implemented shell scripts for local automation: `scripts/bootstrap.sh` and `scripts/version-bump.sh`. Root `package.json` also exposes wrapper scripts for version bumps and local development, but the available entrypoints do not fully match the README or the current repository structure.
+
+## Script inventory
+
+The implemented automation in the analyzed files falls into two groups: standalone shell scripts in `scripts/` and script wrappers defined in root `package.json`. The shell scripts perform the actual automation. The root scripts mostly provide shorter entrypoints for repeated commands.
+
+### Implemented shell scripts
+
+- `scripts/bootstrap.sh` — verifies required tooling, installs workspace dependencies, installs Bun dependencies for `apps/api`, and runs `uv sync` in `apps/ai-service`
+- `scripts/version-bump.sh` — bumps the `VERSION` file for one service and prints the next manual git commands
+
+### Root package.json wrappers
+
+The root `package.json` exposes these wrappers:
+
+- Development
+  - `dev`
+  - `dev:web`
+  - `dev:api`
+  - `dev:py`
+
+- Version bump
+  - `version:web:patch`
+  - `version:web:minor`
+  - `version:web:major`
+  - `version:api:patch`
+  - `version:api:minor`
+  - `version:api:major`
+  - `version:ai:patch`
+  - `version:ai:minor`
+  - `version:ai:major`
+
+<Callout kind="info">
+
+This inventory is limited to the analyzed repository files: `scripts/bootstrap.sh`, `scripts/version-bump.sh`, `package.json`, and `README.md`. No additional automation is documented here.
+
+</Callout>
+
+## Bootstrap
+
+`scripts/bootstrap.sh` prepares the monorepo for local development by checking for required tools and installing dependencies for each runtime used in the repository. It stops on the first failing command because it enables `set -e`.
+
+### What the script does
+
+<Steps>
+  <Step title="Verify required tools" icon="check-circle">
+
+  The script checks whether `pnpm`, `bun`, and `uv` are available with `command -v`. If any tool is missing, it prints an error such as `❌ pnpm is not installed` and exits with status `1`.
+
+  When all three tools are present, the script prints `✅ All required tools found`.
+
+  </Step>
+  <Step title="Install root workspace dependencies" icon="download">
+
+  The script runs `pnpm install` from the repository root. This installs the workspace dependencies defined for the monorepo.
+
+  </Step>
+  <Step title="Install API dependencies with Bun" icon="package">
+
+  The script changes into `apps/api`, runs `bun install`, and then returns to the repository root. This is the only Bun-specific install step implemented in the script.
+
+  </Step>
+  <Step title="Sync AI service dependencies with uv" icon="terminal">
+
+  The script changes into `apps/ai-service`, runs `uv sync`, and then returns to the repository root. This is the Python environment setup step currently implemented.
+
+  </Step>
+  <Step title="Print completion output" icon="rocket">
+
+  At the end, the script prints `✅ Setup complete!` followed by `Run everything with:` and `pnpm dev`. That output confirms the install flow completed without an earlier failure.
+
+  </Step>
+</Steps>
+
+### How to invoke bootstrap
+
+<CodeGroup show-lines={true} tabs="Direct script">
+```bash
+./scripts/bootstrap.sh
+```
+</CodeGroup>
+
+There is no root `package.json` wrapper for `scripts/bootstrap.sh`. The analyzed `package.json` does not define a `setup` script.
+
+<Callout kind="alert">
+
+The README instructs you to run `pnpm setup`, but no `setup` script exists in root `package.json`. The verified bootstrap entrypoint is `./scripts/bootstrap.sh`.
+
+</Callout>
+
+## Version bump
+
+`scripts/version-bump.sh` updates exactly one service `VERSION` file based on a `major`, `minor`, or `patch` bump. It does not update package versions, create commits, create tags, or push changes.
+
+### How the script works
+
+The script enables `set -euo pipefail`, reads two positional arguments, and validates both before making any file changes. The first argument selects the service, and the second selects the bump type.
+
+Supported service values are:
+
+- `web` mapped to `apps/web`
+- `api` mapped to `apps/api`
+- `ai-service` mapped to `apps/ai-service`
+
+Supported bump types are:
+
+- `major`
+- `minor`
+- `patch`
+
+If either argument is missing, the script prints `❌ Usage: $0 <web|api|ai-service> <major|minor|patch>` and exits with status `1`. If the service value or bump type is invalid, the script prints a targeted error message and exits with status `1`.
+
+### Exact effects on the VERSION file
+
+After resolving the service directory, the script reads the current version from `apps/<service>/VERSION` with whitespace removed. It parses the version into major, minor, and patch parts, then applies one of these changes:
+
+- `major` increments major and resets minor and patch to `0`
+- `minor` increments minor and resets patch to `0`
+- `patch` increments patch only
+
+The script writes the new version back to the same `VERSION` file. After writing the file, it prints the old and new versions and shows the next manual git commands to run.
+
+### What the script does not automate
+
+- It does not update `package.json` versions.
+- It does not create a git commit.
+- It does not create a git tag.
+- It does not push changes.
+- It does not update more than one service at a time.
+
+### How to invoke version bump
+
+<CodeGroup show-lines={true} tabs="Direct script,Root wrappers">
+```bash
+./scripts/version-bump.sh web patch
+./scripts/version-bump.sh api minor
+./scripts/version-bump.sh ai-service major
+```
+
+```bash
+pnpm version:web:patch
+pnpm version:api:minor
+pnpm version:ai:major
+```
+</CodeGroup>
+
+## Script entrypoints
+
+The root `package.json` scripts map short commands to a smaller set of underlying commands. For local development, some wrappers start services directly. For versioning, each wrapper calls `scripts/version-bump.sh` with fixed arguments.
+
+### Development entrypoints
+
+<CodeGroup show-lines={true} tabs="Wrappers,Underlying commands">
+```bash
+pnpm dev
+pnpm dev:web
+pnpm dev:api
+pnpm dev:py
+```
+
+```bash
+turbo run dev --parallel
+pnpm --filter @repo/web dev
+pnpm --filter @repo/api dev
+cd apps/py-service && uv run uvicorn main:app --reload --port 8001
+```
+</CodeGroup>
+
+### Version entrypoints
+
+<CodeGroup show-lines={true} tabs="Wrappers,Underlying commands">
+```bash
+pnpm version:web:patch
+pnpm version:web:minor
+pnpm version:web:major
+pnpm version:api:patch
+pnpm version:api:minor
+pnpm version:api:major
+pnpm version:ai:patch
+pnpm version:ai:minor
+pnpm version:ai:major
+```
+
+```bash
+./scripts/version-bump.sh web patch
+./scripts/version-bump.sh web minor
+./scripts/version-bump.sh web major
+./scripts/version-bump.sh api patch
+./scripts/version-bump.sh api minor
+./scripts/version-bump.sh api major
+./scripts/version-bump.sh ai-service patch
+./scripts/version-bump.sh ai-service minor
+./scripts/version-bump.sh ai-service major
+```
+</CodeGroup>
+
+## Mismatch notes
+
+Several verified discrepancies exist between the analyzed scripts, root `package.json`, README instructions, and the current repository structure. These mismatches matter because they change which commands actually work.
+
+<Callout kind="alert">
+
+`dev:py` points to `apps/py-service`, but the repository path present in the analyzed tree is `apps/ai-service`. The current root script is `cd apps/py-service && uv run uvicorn main:app --reload --port 8001`, so the configured path does not match the verified service directory.
+
+</Callout>
+
+<Callout kind="alert">
+
+The README references `pnpm setup`, but root `package.json` does not define a `setup` script. The implemented bootstrap entrypoint is `./scripts/bootstrap.sh`.
+
+</Callout>
+
+<Callout kind="alert">
+
+The README uses `py-service` in multiple places, including `apps/py-service/`, `@repo/py-service`, `cd apps/py-service`, and service runtime examples. The analyzed repository structure uses `apps/ai-service` instead.
+
+</Callout>
+
+<Callout kind="alert">
+
+The README describes a `packages/` directory with entries such as `packages/types`, `packages/ui`, and `packages/config`, but no `packages` directory is present in the analyzed repository tree.
+
+</Callout>
+
+<Callout kind="info">
+
+These notes describe verified differences only. They do not imply which source should be treated as canonical beyond the commands and paths directly observed in the analyzed files.
+
+</Callout>
+
+## Usage examples
+
+Use these commands when you want the behavior that is implemented today, not the behavior implied by stale README references. The expected outcomes below come from the script logic and printed output in the analyzed files.
+
+### Bootstrap the repository
+
+<CodeGroup show-lines={true} tabs="Command,Expected outcome">
+```bash
+./scripts/bootstrap.sh
+```
+
+```bash
+🚀 Bootstrapping Gravity Monorepo...
+✅ All required tools found
+...
+✅ Setup complete!
+Run everything with:
+    pnpm dev
+```
+</CodeGroup>
+
+If one required tool is missing, the script exits early after printing the corresponding error line. If the script completes, you know it has already run `pnpm install`, `bun install` in `apps/api`, and `uv sync` in `apps/ai-service`.
+
+### Bump one service version
+
+<CodeGroup show-lines={true} tabs="Command,Expected outcome">
+```bash
+pnpm version:api:patch
+```
+
+```bash
+✅ api: 0.0.0 → 0.0.1
+Next steps:
+  git add apps/api/VERSION
+  git commit -m "chore(api): bump version to 0.0.1"
+```
+</CodeGroup>
+
+The exact version numbers depend on the current contents of `apps/api/VERSION`. A successful run changes only that file and then prints the suggested manual git commands.
+
+### Validate argument handling
+
+<CodeGroup show-lines={true} tabs="Missing args,Invalid service,Invalid bump type">
+```bash
+./scripts/version-bump.sh
+```
+
+```bash
+./scripts/version-bump.sh worker patch
+```
+
+```bash
+./scripts/version-bump.sh web build
+```
+</CodeGroup>
+
+The script exits with status `1` for each invalid invocation. The error text identifies whether the problem is missing arguments, an unknown service, or an invalid bump type.
+
+## Related docs
+
+<Columns cols={2}>
+  <Card title="Service versioning" href="/service-versioning" icon="tag">
+
+  Review the service-level versioning model and how `VERSION` files fit into release workflows.
+
+  </Card>
+  <Card title="Monorepo architecture" href="/monorepo-architecture" icon="folder">
+
+  See how the repository is organized across `apps/web`, `apps/api`, and `apps/ai-service`.
+
+  </Card>
+</Columns>

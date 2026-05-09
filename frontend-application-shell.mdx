@@ -1,0 +1,437 @@
+---
+title: Frontend Application Shell
+description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+---
+
+## Overview
+
+The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+
+## App purpose and current scope
+
+Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+
+<Callout kind="info">
+
+This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+
+</Callout>
+
+The implemented files that define the shell are:
+
+- `apps/web/app/root.tsx`
+- `apps/web/app/app.css`
+- `apps/web/app/routes/_index.tsx`
+- `apps/web/app/routes/home.tsx`
+- `apps/web/app/welcome/welcome.tsx`
+- `apps/web/vite.config.ts`
+- `apps/web/package.json`
+- `apps/web/Dockerfile`
+- `apps/web/VERSION`
+
+## Route map
+
+Two routes are currently implemented, and both render the same shared component.
+
+### `/`
+
+The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
+
+<CodeGroup tabs="Route component,Route metadata">
+
+```tsx
+import { Welcome } from "../welcome/welcome";
+
+export default function Home() {
+  return <Welcome />;
+}
+```
+
+```tsx
+export function meta() {
+  return [
+    { title: "New Remix App" },
+    { name: "description", content: "Welcome to Remix!" },
+  ];
+}
+```
+
+</CodeGroup>
+
+### `/home`
+
+The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route and also renders `Welcome`.
+
+<CodeGroup tabs="Route component,Route metadata">
+
+```tsx
+import { Welcome } from "../welcome/welcome";
+
+export default function Home() {
+  return <Welcome />;
+}
+```
+
+```tsx
+export function meta() {
+  return [
+    { title: "New Remix App" },
+    { name: "description", content: "Welcome to Remix!" },
+  ];
+}
+```
+
+</CodeGroup>
+
+Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+
+## Root layout
+
+`apps/web/app/root.tsx` defines the application document shell. It imports global CSS, registers font-related links, provides the HTML document structure, and renders the route outlet.
+
+### Global style import and linked assets
+
+The root file imports the shared stylesheet directly and exposes font-related link tags through Remix `links()`.
+
+<CodeGroup tabs="Style import,Links function">
+
+```tsx
+import "./app.css";
+```
+
+```tsx
+export const links: LinksFunction = () => [
+  { rel: "preconnect", href: "https://fonts.googleapis.com" },
+  {
+    rel: "preconnect",
+    href: "https://fonts.gstatic.com",
+    crossOrigin: "anonymous",
+  },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
+  },
+];
+```
+
+</CodeGroup>
+
+This is the only font configuration currently present. The shell preconnects to Google Fonts and loads Inter for the global sans stack.
+
+### Document structure and Remix primitives
+
+The `Layout` export defines the outer document and includes the standard Remix primitives used by the app shell.
+
+<CodeGroup tabs="Layout,App outlet">
+
+```tsx
+export function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <Meta />
+        <Links />
+      </head>
+      <body>
+        {children}
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  );
+}
+```
+
+```tsx
+export default function App() {
+  return <Outlet />;
+}
+```
+
+</CodeGroup>
+
+A few points matter here:
+
+- `Meta` renders route-level metadata such as the title and description exported by route modules.
+- `Links` injects the stylesheet and font links registered through Remix.
+- `Outlet` is the only content rendered by the root app component, so the shell currently applies no shared navigation, providers, or app frame around routes.
+- `ScrollRestoration` and `Scripts` are included at the document level, which is the expected baseline for Remix apps.
+
+## Error handling
+
+The root file also defines the current error boundary. It distinguishes route error responses from runtime errors and exposes more detail during development.
+
+### Error boundary logic
+
+The implementation starts with fallback values, then refines the message based on the error type.
+
+<CodeGroup tabs="Boundary logic,Fallback UI">
+
+```tsx
+export function ErrorBoundary() {
+  const error = useRouteError();
+  let message = "Oops!";
+  let details = "An unexpected error occurred.";
+  let stack: string | undefined;
+
+  if (isRouteErrorResponse(error)) {
+    message = error.status === 404 ? "404" : "Error";
+    details =
+      error.status === 404
+        ? "The requested page could not be found."
+        : error.statusText || details;
+  } else if (import.meta.env.DEV && error && error instanceof Error) {
+    details = error.message;
+    stack = error.stack;
+  }
+```
+
+```tsx
+  return (
+    <main className="pt-16 p-4 container mx-auto">
+      <h1>{message}</h1>
+      <p>{details}</p>
+      {stack && (
+        <pre className="w-full p-4 overflow-x-auto">
+          <code>{stack}</code>
+        </pre>
+      )}
+    </main>
+  );
+}
+```
+
+</CodeGroup>
+
+### Current behavior
+
+The boundary currently behaves as follows:
+
+- **404 route errors** render `404` with the message `The requested page could not be found.`
+- **Other route error responses** render `Error` and use `error.statusText` when present
+- **Development runtime errors** render the thrown error message and stack trace
+- **Fallback cases** render `Oops!` and `An unexpected error occurred.`
+
+This is a practical starter boundary. It is useful for local development, but it does not yet include branded error pages, structured logging, or recovery flows.
+
+## Styling pipeline
+
+The styling stack is intentionally small. Global styles live in `app.css`, and Vite is configured with only the plugins required for Tailwind, Remix, and TypeScript path resolution.
+
+### Global CSS in `app.css`
+
+The stylesheet imports Tailwind, defines the sans font theme variable, and sets the document background for light and dark mode.
+
+<CodeGroup tabs="app.css">
+
+```css
+@import "tailwindcss";
+
+@theme {
+    --font-sans:
+        "Inter", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji",
+        "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+html,
+body {
+    background-color: var(--color-white);
+
+    @media (prefers-color-scheme: dark) {
+        background-color: var(--color-gray-950);
+        color-scheme: dark;
+    }
+}
+```
+
+</CodeGroup>
+
+From this file alone, the shell currently guarantees:
+
+- Tailwind CSS is loaded globally
+- Inter is first in the sans font stack
+- `html` and `body` default to a white background
+- dark mode switches the background to `var(--color-gray-950)` and enables `color-scheme: dark`
+
+### Vite and Remix configuration
+
+The build configuration is defined in `apps/web/vite.config.ts`.
+
+<CodeGroup tabs="vite.config.ts">
+
+```ts
+import { vitePlugin as remix } from "@remix-run/dev";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
+
+export default defineConfig({
+  plugins: [tailwindcss(), remix(), tsconfigPaths()],
+});
+```
+
+</CodeGroup>
+
+No additional server settings, proxy behavior, environment-specific overrides, or custom build options are configured here. The shell uses the default behavior provided by these plugins.
+
+## Welcome and home UI
+
+The visible UI for both routes lives in `apps/web/app/welcome/welcome.tsx`. It is still a placeholder screen intended to confirm that the shell is running.
+
+### What the current UI does
+
+The component renders a centered layout, a logo that switches by color scheme, and a small navigation card with external links.
+
+<CodeGroup tabs="Main layout,Navigation card">
+
+```tsx
+<main className="flex items-center justify-center pt-16 pb-4">
+  <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
+    <header className="flex flex-col items-center gap-9">
+      <div className="w-[500px] max-w-[100vw] p-4">
+        <img src={logoLight} alt="React Router" className="block w-full dark:hidden" />
+        <img src={logoDark} alt="React Router" className="hidden w-full dark:block" />
+      </div>
+    </header>
+```
+
+```tsx
+<nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
+  <p className="leading-6 text-gray-700 dark:text-gray-200 text-center">
+    What&apos;s next?
+  </p>
+  <ul>
+    {resources.map(({ href, text, icon }) => (
+      <li key={href}>
+        <a
+          className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {icon}
+          {text}
+        </a>
+      </li>
+    ))}
+  </ul>
+</nav>
+```
+
+</CodeGroup>
+
+### What the current UI does not do
+
+At this stage, the welcome screen is not connected to any application behavior. The current implementation has:
+
+- no API integration
+- no backend data fetches
+- no auth or session UI
+- no domain-specific navigation
+- no business workflow screens
+
+The two external links in the resources list open in a new tab, and the screen remains a starter-style landing page rather than an application homepage.
+
+## Local run and build
+
+`apps/web/package.json` defines the complete local script surface for the frontend shell.
+
+<Callout kind="tip">
+
+Run these commands from `apps/web` so `package.json` and the local build output resolve as expected.
+
+</Callout>
+
+<CodeGroup tabs="package.json scripts,Command usage">
+
+```json
+"scripts": {
+  "build": "remix vite:build",
+  "dev": "remix vite:dev",
+  "start": "remix-serve ./build/server/index.js",
+  "typecheck": "tsc"
+}
+```
+
+```bash
+npm run dev
+npm run build
+npm run start
+npm run typecheck
+```
+
+</CodeGroup>
+
+These commands map directly to the current shell lifecycle:
+
+- `npm run dev` starts the Remix Vite development server
+- `npm run build` creates the production build
+- `npm run start` serves the built app from `./build/server/index.js`
+- `npm run typecheck` runs TypeScript without a separate lint or test command in this package
+
+Other relevant package facts currently visible in `package.json`:
+
+- package name is `@repo/web`
+- module type is `module`
+
+## Container packaging
+
+The frontend can also be built and run as a container. The Dockerfile uses a two-stage Node 20 Alpine build and serves the production Remix bundle on port `3000`.
+
+### Docker build and runtime flow
+
+<CodeGroup tabs="Dockerfile,Version file">
+
+```dockerfile
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package.json ./
+RUN npm install --include=dev
+COPY . .
+# tsconfig.json extends ../../tsconfig.base.json — place it at the expected path
+COPY tsconfig.base.json /tsconfig.base.json
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev
+COPY --from=build /app/build ./build
+EXPOSE 3000
+CMD ["npm", "run", "start"]
+```
+
+```text
+0.1.0
+```
+
+</CodeGroup>
+
+A few implementation details matter:
+
+- the build stage installs development dependencies and runs `npm run build`
+- the runtime stage installs production dependencies only
+- the built `./build` output is copied into the final image
+- the container exposes port `3000`
+- the startup command is `npm run start`, which resolves to `remix-serve ./build/server/index.js`
+- `apps/web/VERSION` is currently `0.1.0`
+
+## Current limitations
+
+<Callout kind="alert">
+
+The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
+
+</Callout>
+
+That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+
+## Related foundation docs
+
+<Columns cols={3}>
+  <Card title="API service foundation" href="/api-service-foundation" icon="database" />
+  <Card title="Health checks" href="/health-checks" icon="shield" />
+  <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+</Columns>
