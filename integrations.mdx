@@ -1,6 +1,8 @@
 ---
 title: Integrations
-description: Connect documentation content and tooling workflows to your development process.
+description: >-
+  Connect documentation content and tooling workflows to your development
+  process.
 ---
 
 ## Why integrations matter
@@ -40,7 +42,7 @@ Update Markdown or MDX files in the branch you are already using for the change.
 
 <Step title="Review the diff" icon="check">
 
-Confirm the content change, metadata, and links before merge. The review should show the exact files that changed.
+Confirm the content change, metadata, and links before merging. The review should show the exact files that changed.
 
 </Step>
 
@@ -58,7 +60,7 @@ CI verification catches broken documentation before it reaches readers. A docs b
 
 <Callout kind="tip">
 
-If your docs rely on custom MDX components, keep the build check close to the editor workflow so syntax errors surface before merge.
+If your docs rely on custom MDX components, keep the build check close to the editor workflow so syntax errors surface before merging.
 
 </Callout>
 
@@ -86,7 +88,7 @@ pnpm docs:dev
   </Tab>
   <Tab title="CI check" icon="shield">
 
-CI verification runs the docs build after install and before deployment.
+CI verification runs the docs build after installation and before deployment.
 
 <CodeGroup tabs="npm,pnpm" show-lines={true}>
 
@@ -107,7 +109,7 @@ pnpm docs:build
 
 Webhook and event integrations connect documentation workflows to other systems when something changes. Common uses include notifying a build system, triggering a sync job, or handing off a publishing event to another service.
 
-Because exact event names are not sourced here, define your own event contract around the actions you already need, such as content updated, page published, or build completed. Keep the payload stable and small so downstream automation stays predictable.
+Because exact event names are not sourced here, define your own event contract around the actions you already need, such as a content update, page publication, or build completion. Keep the payload stable and small so downstream automation stays predictable.
 
 ### What to keep in the payload
 
@@ -153,12 +155,16 @@ If the page moved, update every internal link that still points to the old path 
 
 <Columns cols={2}>
 
-<Card title="Docs workflow" href="/docs" icon="book-open" horizontal={true}>
+<Card title="Docs workflow" href="/help-center/guides/add-project-docs" icon="book-open" horizontal={true}>
+
 See how documentation pages fit into the broader documentation workflow.
+
 </Card>
 
-<Card title="Content tooling" href="/docs/tooling" icon="settings" horizontal={true}>
+<Card title="Repository automation scripts" href="/repository-automation-scripts" icon="settings" horizontal={true}>
+
 Review the editor and build patterns that support docs authoring.
+
 </Card>
 
 </Columns>
