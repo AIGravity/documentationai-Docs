@@ -1,66 +1,82 @@
 ---
 title: Features
-description: Key capabilities for building and maintaining MDX documentation sites.
+description: Current Gravity capabilities across the Remix frontend shell, service health endpoints, versioning, packaging, and publishing.
 ---
 
 ## Overview
 
-This page summarizes the core building blocks for an MDX documentation site and shows how they work together from authoring through publishing.
+Gravity currently provides a polyglot monorepo foundation for running, checking, versioning, packaging, and publishing three service surfaces: a Remix frontend shell, a NestJS API, and a FastAPI AI service.
 
 <Callout kind="info">
 
-Keep pages small and focused so each document answers one reader need well.
+Gravity is an implementation scaffold today. The repository does not yet include authentication, persistence, AI inference workflows, or product-specific frontend flows.
 
 </Callout>
 
 ## Feature grid
 
 <Columns cols={2}>
-  <Card title="MDX page authoring" icon="code" href="/help-center">
-    Write documentation pages in MDX so content, structure, and components live in one file.
+  <Card title="Polyglot monorepo" icon="folder" href="/monorepo-architecture">
+    Work across separate Remix, NestJS, and FastAPI apps from one repository with shared orchestration through pnpm and Turborepo.
   </Card>
-  <Card title="Navigation-driven IA" icon="folder" href="/help-center">
-    Organize pages through navigation so readers can find the right topic without hunting across the site.
+  <Card title="Remix frontend shell" icon="monitor" href="/frontend-application-shell">
+    Run the current web shell with implemented routes for `/` and `/home`, both rendering the template welcome experience.
   </Card>
-  <Card title="Reusable MDX components" icon="settings" href="/help-center">
-    Use shared components to present callouts, cards, layouts, and structured content consistently.
+  <Card title="NestJS API health" icon="code" href="/health-checks">
+    Verify the API process with `GET http://localhost:3001/health`, which returns `status` and `service` fields.
   </Card>
-  <Card title="Integration hooks" icon="plug" href="/help-center">
-    Connect documentation to external tooling, publishing workflows, and site-level behavior where needed.
+  <Card title="FastAPI AI service health" icon="cloud" href="/health-checks">
+    Verify the AI service process with `GET http://localhost:8001/health`, which returns a static `status` field.
   </Card>
-  <Card title="Help center organization" icon="help-circle" href="/help-center">
-    Group task-based articles so support content stays easy to scan and maintain.
+  <Card title="Per-service versioning" icon="settings" href="/service-versioning">
+    Manage independent semantic versions for `web`, `api`, and `ai-service` through version files, scripts, tags, and releases.
   </Card>
-  <Card title="Release notes" icon="book-open" href="/help-center">
-    Record changes in a focused format so readers can quickly see what changed and whether they need to act.
+  <Card title="Packaging and publishing" icon="package" href="/ci-cd-pipelines">
+    Build per-service Docker images and publish them to GitHub Container Registry through service-specific GitHub Actions workflows.
   </Card>
 </Columns>
 
 ## How the pieces fit together
 
-Author a page in MDX, wire it into navigation, and use reusable components to make the content clear and scannable. Integration hooks extend the site where needed, while the help center and release notes keep operational content organized around reader tasks and change history.
+The current system is service-oriented but intentionally narrow. The frontend shell, API health route, and AI service health route can be run and checked independently, while versioning, Docker packaging, and CI/CD workflows provide the release plumbing around each service.
 
 ```mermaid
 graph LR
-  A[Author MDX] --> B[Add navigation]
-  B --> C[Use shared components]
-  C --> D[Preview and refine]
-  D --> E[Publish site]
+  A[Remix web shell] --> B[Local operator]
+  C[NestJS API health] --> B
+  D[FastAPI AI health] --> B
+  B --> E[Version service]
+  E --> F[Build Docker image]
+  F --> G[Publish to GHCR]
+  G --> H[Create release]
 ```
 
 ## Recommended workflow
 
-- **Author** the page in MDX with one clear topic and a structure that matches the reader's task.
-- **Preview** the page to confirm links, components, and navigation placement.
-- **Publish** once the page is concise, accurate, and easy to scan.
+- **Run** the service you are changing with its service-specific command, or use `pnpm dev` when you need the monorepo development loop.
+- **Verify** implemented behavior through concrete routes such as `GET /health` on the API and AI service ports.
+- **Version** the changed service with the per-service version scripts before release work.
+- **Publish** through the matching GitHub Actions workflow, which builds the service image, pushes it to GHCR, tags the release, and creates a GitHub Release on `main`.
+
+<Callout kind="alert">
+
+The CI/CD workflows publish images and releases, but the deploy jobs currently only emit summaries. They do not perform environment-specific infrastructure deployment.
+
+</Callout>
 
 ## Related links
 
 <Columns cols={2}>
-  <Card title="Help Center" icon="help-circle" href="/help-center">
-    Find task-oriented articles for setup, troubleshooting, and maintenance.
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Set up the repository locally and confirm the main services can start.
   </Card>
-  <Card title="Help articles" icon="book-open" href="/help-center">
-    Browse focused guidance for common documentation workflows.
+  <Card title="Architecture overview" icon="book-open" href="/architecture-overview">
+    See how the web, API, and AI service boundaries fit together.
+  </Card>
+  <Card title="Health checks" icon="check-circle" href="/health-checks">
+    Verify the currently implemented API and AI service health endpoints.
+  </Card>
+  <Card title="Docker images and packaging" icon="package" href="/docker-images-and-packaging">
+    Review the service-specific Dockerfiles and known packaging caveats.
   </Card>
 </Columns>

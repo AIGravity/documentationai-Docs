@@ -3,54 +3,70 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
+## Latest verified changes
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+The current repository snapshot updates implementation details that affect how contributors run, package, and describe Gravity services. These notes summarize verified behavior only; they do not describe planned product UI or endpoint changes.
 
-<Callout kind="alert">
+<Update label="Unreleased" description="Verified implementation notes" tags={["improvement", "documentation"]}>
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### Web routes and starter metadata
 
-</Callout>
+- The Remix web app currently serves both `/` and `/home`.
+- Both routes render the same starter welcome UI and use the same default metadata: title `New Remix App` and description `Welcome to Remix!`.
+- The visible UI still includes React Router starter branding, documentation links, and starter copy, so these routes should not be treated as finalized Gravity product branding.
 
-## Release history
+### Versioning and release commands
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+Each service now has its own version file:
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+- `apps/web/VERSION`
+- `apps/api/VERSION`
+- `apps/ai-service/VERSION`
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+Use the root package commands to bump service versions by release type:
+
+```bash
+pnpm version:web:patch
+pnpm version:web:minor
+pnpm version:web:major
+pnpm version:api:patch
+pnpm version:api:minor
+pnpm version:api:major
+pnpm version:ai:patch
+pnpm version:ai:minor
+pnpm version:ai:major
+```
+
+The direct script accepts `web`, `api`, or `ai-service` as the service name:
+
+```bash
+./scripts/version-bump.sh web patch
+./scripts/version-bump.sh api minor
+./scripts/version-bump.sh ai-service major
+```
+
+### Docker and port behavior
+
+- The web image exposes port `3000` and runs `npm run start`; local Vite development commonly uses port `5173`.
+- The API service listens on port `3001`, but its Dockerfile currently exposes port `3000`. Treat this as a documented mismatch until the Dockerfile or runtime mapping changes.
+- The AI service exposes and runs on port `8001` in both development and containerized execution.
+
+### Service naming caveat
+
+The repository still mixes `ai-service` and `py-service` naming in user-visible scripts and metadata. The service directory and version-bump script use `apps/ai-service` and `ai-service`, while the package name remains `@repo/py-service` and the root `dev:py` script still points to `apps/py-service`, which does not exist.
+
+### API and AI endpoint shapes
+
+This update does not change the API or AI service endpoint shapes. The current verified health endpoints remain:
+
+- API: `GET /health` returns `status` and `service` fields.
+- AI service: `GET /health` returns a `status` field.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Read the newest entry first and treat caveats as current implementation constraints. Entries focus on user-facing behavior, commands, routes, ports, and documented limitations rather than internal refactors.
 
 ## Related resources
 
