@@ -1,67 +1,45 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track user-facing Gravity release changes, including shipped web surfaces, service health endpoints, routing updates, and notable fixes.
 ---
 
-## Overview
+## Latest release
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+<Update label="Latest" description="Initial user-facing surfaces" tags={["feature", "improvement"]}>
 
-<Callout kind="alert">
+### New features
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+- Shipped the initial web application surface at `/`, currently presenting the starter welcome experience documented in [Frontend Application Shell](/frontend-application-shell).
+- Added service health checks for the API and AI services with `GET /health`, documented in [Health Checks](/health-checks).
 
-</Callout>
+### Updates
+
+- Refreshed the web routing and metadata wiring for the initial homepage surface.
+
+### Bug fixes
+
+- No user-facing bug fixes were identified for this release.
+
+</Update>
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
-
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+No prior user-facing release notes are available yet.
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom when you want the newest information first. Read each entry by impact: new features, updates, then bug fixes.
 
 ## Related resources
 
 <Columns cols={2}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Frontend Application Shell" href="/frontend-application-shell" icon="monitor">
+Review the current web application surface, route map, metadata, and shell limitations.
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="Health Checks" href="/health-checks" icon="shield">
+Verify the current API and AI service health endpoints and response payloads.
 </Card>
 
 </Columns>
