@@ -1,6 +1,8 @@
 ---
 title: CI/CD Pipelines
-description: How the repository’s GitHub Actions workflows build, check, version, and publish the web, API, and AI service artifacts.
+description: >-
+  How the repository’s GitHub Actions workflows build, check, version, and
+  publish the web, API, and AI service artifacts.
 ---
 
 ## Overview
@@ -68,7 +70,7 @@ deploy:
 
 ## Trigger strategy
 
-All three workflows run on `push` and `pull_request` for the `main` and `dev` branches. Each workflow also applies path filters, which keeps runs scoped to the service that changed and, for web and API, shared package changes that can affect those builds.
+All three workflows run on `push` and `pull_request` for the `main` and `dev` branches. Each workflow also applies path filters, which keep runs scoped to the service that changed and, for web and API, shared package changes that can affect those builds.
 
 ### Path filters isolate service runs
 

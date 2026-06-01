@@ -1,6 +1,8 @@
 ---
 title: API Service Foundation
-description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+description: >-
+  How the NestJS API service boots, wires modules, enables CORS, exposes health
+  checks, and builds for local and containerized execution.
 ---
 
 ## Overview
@@ -94,7 +96,7 @@ The module graph is intentionally small:
 - `AppModule` has no `providers`
 - `AppModule` exports nothing
 
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+That means all visible runtime behavior in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
 
 ### What is not wired yet
 

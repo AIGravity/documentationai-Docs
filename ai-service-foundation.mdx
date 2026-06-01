@@ -1,6 +1,8 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: >-
+  How the FastAPI-based AI service currently starts, manages dependencies with
+  uv, exposes health status, and packages for container deployment.
 ---
 
 ## Overview
@@ -183,7 +185,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The Dockerfile does not define a non-root user, a HEALTHCHECK instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
 
 ## CI workflow
 
@@ -191,7 +193,7 @@ The GitHub workflow runs when changes affect `apps/ai-service/**` or `.github/wo
 
 Publishing happens only on push events. On `main`, the workflow reads `apps/ai-service/VERSION`, bumps the version according to commit message rules, creates a Git tag in the format `ai-service-v<version>`, publishes `ghcr.io/<owner>/gravity-ai-service`, applies the generated version tag and `latest`, and creates a GitHub Release.
 
-On `dev`, the workflow generates a development version using the base version, timestamp, and short SHA. It tags the repository, publishes the same image with the generated version tag and `dev-latest`, and also adds a SHA tag.
+On `dev`, the workflow generates a development version using the base version, a timestamp, and a short SHA. It tags the repository, publishes the same image with the generated version tag and `dev-latest`, and also adds a SHA tag.
 
 ## Related docs
 

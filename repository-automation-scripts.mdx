@@ -1,15 +1,18 @@
 ---
 title: Repository Automation Scripts
-description: What the repository’s bootstrap and version-bump scripts automate today, how they are invoked, and where script behavior differs from other project documentation.
+description: >-
+  What the repository’s bootstrap and version-bump scripts automate today, how
+  they are invoked, and where script behavior differs from other project
+  documentation.
 ---
 
 ## Overview
 
-The repository currently includes two implemented shell scripts for local automation: `scripts/bootstrap.sh` and `scripts/version-bump.sh`. Root `package.json` also exposes wrapper scripts for version bumps and local development, but the available entrypoints do not fully match the README or the current repository structure.
+The repository currently includes two implemented shell scripts for local automation: `scripts/bootstrap.sh` and `scripts/version-bump.sh`. The root `package.json` also exposes wrapper scripts for version bumps and local development, but the available entry points do not fully match the README or the current repository structure.
 
 ## Script inventory
 
-The implemented automation in the analyzed files falls into two groups: standalone shell scripts in `scripts/` and script wrappers defined in root `package.json`. The shell scripts perform the actual automation. The root scripts mostly provide shorter entrypoints for repeated commands.
+The implemented automation in the analyzed files falls into two groups: standalone shell scripts in `scripts/` and script wrappers defined in the root `package.json`. The shell scripts perform the actual automation. The root scripts mostly provide shorter entry points for repeated commands.
 
 ### Implemented shell scripts
 
@@ -91,7 +94,7 @@ There is no root `package.json` wrapper for `scripts/bootstrap.sh`. The analyzed
 
 <Callout kind="alert">
 
-The README instructs you to run `pnpm setup`, but no `setup` script exists in root `package.json`. The verified bootstrap entrypoint is `./scripts/bootstrap.sh`.
+The README instructs you to run `pnpm setup`, but no `setup` script exists in the root `package.json`. The verified bootstrap entry point is `./scripts/bootstrap.sh`.
 
 </Callout>
 
@@ -151,11 +154,11 @@ pnpm version:ai:major
 ```
 </CodeGroup>
 
-## Script entrypoints
+## Script entry points
 
 The root `package.json` scripts map short commands to a smaller set of underlying commands. For local development, some wrappers start services directly. For versioning, each wrapper calls `scripts/version-bump.sh` with fixed arguments.
 
-### Development entrypoints
+### Development entry points
 
 <CodeGroup show-lines={true} tabs="Wrappers,Underlying commands">
 ```bash
@@ -173,7 +176,7 @@ cd apps/py-service && uv run uvicorn main:app --reload --port 8001
 ```
 </CodeGroup>
 
-### Version entrypoints
+### Version entry points
 
 <CodeGroup show-lines={true} tabs="Wrappers,Underlying commands">
 ```bash
@@ -213,7 +216,7 @@ Several verified discrepancies exist between the analyzed scripts, root `package
 
 <Callout kind="alert">
 
-The README references `pnpm setup`, but root `package.json` does not define a `setup` script. The implemented bootstrap entrypoint is `./scripts/bootstrap.sh`.
+The README references `pnpm setup`, but the root `package.json` does not define a `setup` script. The implemented bootstrap entry point is `./scripts/bootstrap.sh`.
 
 </Callout>
 

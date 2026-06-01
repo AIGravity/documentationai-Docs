@@ -1,6 +1,9 @@
 ---
 title: Service Versioning
-description: How version numbers are stored per service, bumped manually with the repository script, and augmented by CI workflows for image and release tagging.
+description: >-
+  How version numbers are stored per service, bumped manually with the
+  repository script, and augmented by CI workflows for image and release
+  tagging.
 ---
 
 ## Version numbers live with each service, not in the root package version.
@@ -186,7 +189,7 @@ Each service publishes to a distinct image name:
 - `gravity-api`
 - `gravity-ai-service`
 
-Docker metadata always includes the computed version tag, and also adds branch aliases:
+Docker metadata always includes the computed version tag and also adds branch aliases:
 
 - `latest` only on `main`
 - `dev-latest` only on `dev`
@@ -272,6 +275,6 @@ Current versioning behavior has a few important assumptions:
 ## Related pages
 
 <Columns cols={2}>
-  <Card title="CI/CD" href="/ci-cd" icon="rocket" cta="Open page" />
-  <Card title="Docker packaging" href="/docker-packaging" icon="package" cta="Open page" />
+  <Card title="CI/CD" href="/ci-cd-pipelines" icon="rocket" cta="Open page" />
+  <Card title="Docker packaging" href="/docker-images-and-packaging" icon="package" cta="Open page" />
 </Columns>
