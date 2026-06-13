@@ -1,6 +1,8 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
@@ -283,6 +285,12 @@ The visible UI for both routes lives in `apps/web/app/welcome/welcome.tsx`. It i
 ### What the current UI does
 
 The component renders a centered layout, a logo that switches by color scheme, and a small navigation card with external links.
+
+<Callout kind="info">
+
+The application shell is implemented with Remix v2. The current starter screen still exposes React Router placeholder assets in the shared `Welcome` component, including `React Router` image alt text and a React Router documentation resource link. Treat those visible labels as starter UI placeholders, not as evidence that the app is built on React Router.
+
+</Callout>
 
 <CodeGroup tabs="Main layout,Navigation card">
 
