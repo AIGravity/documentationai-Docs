@@ -3,67 +3,45 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
+## Latest release
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+This release makes each Gravity service runnable, packageable, and releasable from the monorepo while keeping service releases independent.
 
-<Callout kind="alert">
+<Update label="Latest" description="Service foundations and release automation" tags={["feature", "improvement"]}>
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### New features
 
-</Callout>
+- **Web shell** — The web app now ships with a Remix and Tailwind shell for the application layout, route rendering, and global styling. See [Frontend Application Shell](/frontend-application-shell).
+- **Service health endpoints** — The NestJS API and FastAPI AI service now expose runnable health endpoints so deployments can confirm service readiness. See [Health Checks](/health-checks), [API Service Foundation](/api-service-foundation), and [AI Service Foundation](/ai-service-foundation).
+- **Automated releases** — The web, API, and AI services now publish containers and GitHub releases through service-specific release flows. See [CI/CD Pipelines](/ci-cd-pipelines).
 
-## Release history
+### Updates
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- **Independent service versions** — Each service now has its own semantic version so web, API, and AI service releases can move at their own pace. See [Service Versioning](/service-versioning).
+- **Simplified web packaging** — The web service container packaging now uses a smaller runtime image focused on the built application and production dependencies. See [Docker Images and Packaging](/docker-images-and-packaging).
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### Bug fixes
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- No end-user-facing bug fixes are included in this release.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Read the newest entry first, then follow the linked reference pages when you need setup, deployment, or versioning details.
 
 ## Related resources
 
 <Columns cols={2}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Service versioning" href="/service-versioning" icon="settings">
+Understand how Gravity releases web, API, and AI service versions independently.
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket">
+Review how service containers and GitHub releases are published from the repository.
 </Card>
 
 </Columns>
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+For deployment packaging details, read [Docker Images and Packaging](/docker-images-and-packaging).
