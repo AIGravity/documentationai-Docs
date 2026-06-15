@@ -5,65 +5,61 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Gravity now has a verified initial release entry based on shipped product behavior. Read newest entries first, then follow the linked docs for setup, service details, packaging, and release automation.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+This changelog includes user-facing product changes only. Internal repository paths, implementation details, and non-functional comment-only changes are intentionally excluded.
 
 </Callout>
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="Initial release" description="v0.1.0" tags={["feature", "improvement"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Web application shell** — Shipped the initial Gravity web shell with a starter landing page, light and dark logo support, baseline routing, shared styling, and route-level error handling. Start with [Getting Started](/quickstart), then review the [Frontend Application Shell](/frontend-application-shell).
+- **API health endpoint** — Shipped the NestJS API service with a health check at `GET /api/health` so operators can confirm the API is running. See the [NestJS API](/api-reference/nestjs-api).
+- **AI service health endpoint** — Shipped the AI service with a health check at `GET /health` so operators can confirm the AI service is running. See the [AI Service](/api-reference/ai-service).
+- **Published container artifacts** — Published container images for the web app, API service, and AI service through the release pipeline. See [Docker Images and Packaging](/docker-images-and-packaging).
 
-## How to read this changelog
+### Updates
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Service versioning and release automation** — Added independent service versioning, release tags, generated releases, and branch-aware image tags for main and development builds. See [Service Versioning](/service-versioning) and [CI/CD Pipelines](/ci-cd-pipelines).
+
+### Bug fixes
+
+- No user-facing bug fixes shipped in this release.
+
+</Update>
 
 ## Related resources
 
 <Columns cols={2}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Getting Started" href="/quickstart" icon="rocket">
+Set up Gravity locally and confirm the basic workflow.
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="Frontend Application Shell" href="/frontend-application-shell" icon="monitor">
+Review the shipped web shell, routes, styling, error handling, and packaging.
+</Card>
+
+<Card title="NestJS API" href="/api-reference/nestjs-api" icon="database">
+Check the API service foundation and health endpoint behavior.
+</Card>
+
+<Card title="AI Service" href="/api-reference/ai-service" icon="cloud">
+Check the AI service foundation and health endpoint behavior.
+</Card>
+
+<Card title="Service Versioning" href="/service-versioning" icon="settings">
+Understand service versions, tags, and release behavior.
+</Card>
+
+<Card title="Docker Images and Packaging" href="/docker-images-and-packaging" icon="package">
+Review the published container artifacts and packaging workflow.
 </Card>
 
 </Columns>
-
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
