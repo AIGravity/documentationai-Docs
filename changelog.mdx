@@ -5,65 +5,55 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog records verified, user-facing Gravity platform changes. Entries focus on shipped outcomes and link to the relevant setup, architecture, operations, and release documentation.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="v0.1.0" description="Initial platform foundation" tags={["feature", "improvement"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Remix web app foundation shipped.** Gravity now includes a runnable web application foundation for the user-facing experience. Start with the [Quickstart](/quickstart), then review the [Architecture overview](/architecture-overview) for how the web app fits into the platform.
+- **NestJS API health endpoint shipped.** The API service exposes a health check that confirms the service is reachable. See [Health Checks](/health-checks) for the current endpoint behavior and verification steps.
+- **FastAPI AI service health endpoint shipped.** The AI service exposes its own health check so operators can verify that the AI service process is responding. See [Health Checks](/health-checks) for the expected response.
+- **Automated service release packaging shipped.** Each service can be versioned, packaged, and released independently through the documented automation. Review [Service Versioning](/service-versioning) and [CI/CD Pipelines](/ci-cd-pipelines) for the release flow.
+
+### Updates
+
+- **Platform documentation now reflects the shipped foundation.** Setup, architecture, health check, versioning, and CI/CD pages describe the current service boundaries and release behavior.
+
+### Bug fixes
+
+No user-facing bug fixes shipped in this entry.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom when you want the newest information first. Read each entry in order: new features first, then updates, then bug fixes. If an entry has no user-facing fixes, the bug fixes section says so directly.
 
 ## Related resources
 
 <Columns cols={2}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Quickstart" href="/quickstart" icon="rocket">
+Set up Gravity locally and verify the foundation services.
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="Architecture overview" href="/architecture-overview" icon="book-open">
+Understand the current service boundaries and platform shape.
+</Card>
+
+<Card title="Health checks" href="/health-checks" icon="check-circle">
+Verify the API and AI service health endpoints.
+</Card>
+
+<Card title="Service versioning" href="/service-versioning" icon="tag">
+Review per-service versioning and release labels.
+</Card>
+
+<Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="git-branch">
+See how service packaging and release automation works.
 </Card>
 
 </Columns>
-
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
