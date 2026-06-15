@@ -1,6 +1,8 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  API reference for the NestJS backend health endpoint implemented in the
+  AIGravity core repository.
 ---
 
 ## Overview
@@ -37,7 +39,7 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 </ParamField>
 
-<ParamField body="auth" param-type="string" required="true" show-location="false">
+<ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirements were found in the analyzed code.
 
@@ -124,13 +126,23 @@ Service identifier returned by the endpoint. The implemented handler returns `ap
 
 </ResponseField>
 
-## Likely error responses
+## Framework-level error responses
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+The analyzed code does not define custom error handling for this route. With the default NestJS Express adapter, unmatched paths and unsupported methods both fall through to the framework's not-found response.
 
 ### 404 not found
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+A `404` response is returned when no route handler matches the request. `GET /api/health` does not match because no global `/api` prefix is configured. `POST /health` also returns `404`, not `405`, because the default Express adapter does not automatically emit method-not-allowed responses for unsupported methods.
+
+For `POST /health`, NestJS returns a framework-level response similar to:
+
+```json
+{
+  "message": "Cannot POST /health",
+  "error": "Not Found",
+  "statusCode": 404
+}
+```
 
 ### 500 internal server error
 
