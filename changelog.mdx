@@ -1,52 +1,26 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Verified release notes for shipped Gravity foundation changes and notable platform availability updates.
 ---
 
-## Overview
+## Latest release
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+<Update label="Latest" description="Gravity foundation release" tags={["feature", "update"]}>
 
-<Callout kind="alert">
+### New features
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+- **Web app shell launched** — Gravity now has a visible Remix-based web experience that loads a starter screen and establishes the user-facing app surface. See [Quickstart](/quickstart) and [Frontend Application Shell](/frontend-application-shell).
+- **System dark-mode support** — The web experience adapts to the visitor's operating-system color preference, including the page background and visible brand assets. See [Frontend Application Shell](/frontend-application-shell).
+- **API health check available** — The API service now exposes a lightweight health response for confirming the service is reachable during local setup and deployment checks. See [Health Checks](/health-checks).
+- **AI service health check available** — The AI service now exposes its own health response so teams can verify that the service is running independently. See [Health Checks](/health-checks).
 
-</Callout>
+### Updates
 
-## Release history
+- **Service release and versioning flow available** — Web, API, and AI services now have service-level release/versioning support for tracking independently shipped foundations. See [Service Versioning](/service-versioning).
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+No user-facing bug fixes were verified for this release.
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+</Update>
 
 ## How to read this changelog
 
