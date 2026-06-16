@@ -5,65 +5,53 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+This changelog lists verified, reader-facing changes for Gravity. The latest entry reflects the current scaffolded product surface across the web app, backend API, AI service, and health checks.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+Gravity is still an early scaffold. The current release establishes service foundations and local verification paths, but it is not yet a feature-complete workflow application.
 
 </Callout>
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="Latest" description="Initial product scaffold" tags={["feature"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Initial web app** — Added the frontend application shell with starter routes, global styling, a visible welcome screen, and baseline error handling. See [Frontend Application Shell](/frontend-application-shell).
+- **Backend API** — Added the backend API foundation as the service boundary for future application workflows. See [Architecture Overview](/architecture-overview).
+- **AI service** — Added the AI service foundation for future AI-related capabilities. See [Architecture Overview](/architecture-overview).
+- **Service health checks** — Added health endpoints for the backend API and AI service so you can verify that each service is running locally. See [Health Checks](/health-checks).
+
+### Current product scope
+
+- Gravity currently provides a runnable scaffold, not a complete workflow app. Use the [Quickstart](/quickstart) to start the services and confirm the implemented surface area.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan newest entries first. Each entry lists user-facing changes only and keeps implementation details out of the release notes.
 
 ## Related resources
 
 <Columns cols={2}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Quickstart" href="/quickstart" icon="rocket">
+Run the current scaffold locally and verify each service.
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="Architecture overview" href="/architecture-overview" icon="book-open">
+Understand the current service boundaries and implementation scope.
+</Card>
+
+<Card title="Frontend application shell" href="/frontend-application-shell" icon="monitor">
+Review what the web app currently includes and what is still scaffold-level.
+</Card>
+
+<Card title="Health checks" href="/health-checks" icon="shield">
+Check the implemented service health endpoints and expected responses.
 </Card>
 
 </Columns>
-
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
