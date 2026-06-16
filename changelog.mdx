@@ -1,56 +1,61 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Verified repository snapshot for Gravity web tooling, service versioning, Docker publishing, and health endpoints across deployable services.
 ---
 
-## Overview
+## Latest verified snapshot
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Gravity does not expose a confirmed public release label in the repository snapshot used for this entry. Treat this changelog as the latest verified repository state, not as a historical release timeline.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+The entries below are limited to facts confirmed in source files, workflow configuration, and service code. They avoid release names, dates, and version history that the repository does not provide.
 
 </Callout>
 
-## Release history
+<Update label="Current repository snapshot" description="Latest verified changes" tags={["improvement"]}>
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+## Frontend tooling
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+- The web frontend uses Remix v2 through the Vite build path, with `remix vite:build` configured in `apps/web/package.json`.
+- Vite 6 is configured for the web app, and `apps/web/vite.config.ts` wires the Tailwind, Remix, and TypeScript path plugins together.
+- Tailwind CSS v4 is installed through `tailwindcss` and `@tailwindcss/vite`, with the CSS entrypoint using the v4 `@import "tailwindcss";` pattern in `apps/web/app/app.css`.
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+## Service versioning and image tags
 
-## How to read this changelog
+- Each deployable service keeps its base semantic version in a service-local `VERSION` file: `apps/web/VERSION`, `apps/api/VERSION`, and `apps/ai-service/VERSION`.
+- The CI workflows derive service tags from each service version and branch context. Main branch builds create service tags such as `web-v<version>`, `api-v<version>`, and `ai-service-v<version>`, while dev branch builds use prerelease tags with the base version, timestamp, and short commit SHA.
+- The manual version bump script, `scripts/version-bump.sh`, supports major, minor, and patch increments for `web`, `api`, and `ai-service`.
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+## Docker publishing
+
+Gravity publishes Docker images for all three services to GitHub Container Registry:
+
+| Service | Image name |
+| --- | --- |
+| Web frontend | `ghcr.io/<owner>/gravity-web` |
+| NestJS API | `ghcr.io/<owner>/gravity-api` |
+| AI service | `ghcr.io/<owner>/gravity-ai-service` |
+
+The workflows also publish branch-aware convenience tags: `latest` for main builds, `dev-latest` for dev builds, and a bare commit SHA tag for traceability.
+
+## Health endpoints
+
+- The NestJS API exposes `GET /health` and returns `{"status":"ok","service":"api"}` from `apps/api/src/health/health.controller.ts`.
+- The AI service exposes `GET /health` and returns `{"status":"ok"}` from `apps/ai-service/main.py`.
+- The Remix web frontend does not define a health route in the current `apps/web/app/routes` surface.
+
+<Callout kind="alert">
+
+The API service currently listens on port `3001` in `apps/api/src/main.ts`, while its Dockerfile declares `EXPOSE 3000`. Treat that as a deployment detail to verify before relying on container metadata for health checks.
+
+</Callout>
+
+</Update>
+
+## Verification sources
+
+The current snapshot was verified against `apps/web/package.json`, `apps/web/vite.config.ts`, `apps/web/app/app.css`, the three service `VERSION` files, `.github/workflows/*.yml`, `scripts/version-bump.sh`, the service Dockerfiles, and the API and AI service health route implementations.
 
 ## Related resources
 

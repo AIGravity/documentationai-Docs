@@ -1,66 +1,112 @@
 ---
 title: Features
-description: Key capabilities for building and maintaining MDX documentation sites.
+description: Summarize Gravity's implemented frontend, API, AI service, versioning, container publishing, and current product limitations.
 ---
 
 ## Overview
 
-This page summarizes the core building blocks for an MDX documentation site and shows how they work together from authoring through publishing.
+Gravity currently provides an early-stage monorepo foundation with a thin frontend shell, two service health endpoints, per-service version files, and CI workflows that build and publish containers. The implemented surface is operational scaffolding, not a complete product workflow.
 
 <Callout kind="info">
 
-Keep pages small and focused so each document answers one reader need well.
+This page separates verified capabilities from planned or missing product behavior. The current repository does not yet include authentication, persistence, business workflow UI, or AI model integration.
 
 </Callout>
 
-## Feature grid
+## Current product surface
 
 <Columns cols={2}>
-  <Card title="MDX page authoring" icon="code" href="/help-center">
-    Write documentation pages in MDX so content, structure, and components live in one file.
+  <Card title="Remix frontend shell" icon="monitor" href="/frontend-application-shell">
+    The web app uses Remix with Vite, Tailwind CSS v4, root layout wiring, starter routes, global styling, and container packaging.
   </Card>
-  <Card title="Navigation-driven IA" icon="folder" href="/help-center">
-    Organize pages through navigation so readers can find the right topic without hunting across the site.
+  <Card title="NestJS API foundation" icon="database" href="/api-service-foundation">
+    The API service boots a minimal NestJS app and exposes a single `GET /health` endpoint for process-level availability.
   </Card>
-  <Card title="Reusable MDX components" icon="settings" href="/help-center">
-    Use shared components to present callouts, cards, layouts, and structured content consistently.
+  <Card title="FastAPI AI service foundation" icon="zap" href="/ai-service-foundation">
+    The AI service starts a minimal FastAPI app and exposes a `GET /health` endpoint without model orchestration or inference logic.
   </Card>
-  <Card title="Integration hooks" icon="plug" href="/help-center">
-    Connect documentation to external tooling, publishing workflows, and site-level behavior where needed.
+  <Card title="Per-service versioning" icon="settings" href="/service-versioning">
+    Each service has its own `VERSION` file and release automation that can tag web, API, and AI service changes independently.
   </Card>
-  <Card title="Help center organization" icon="help-circle" href="/help-center">
-    Group task-based articles so support content stays easy to scan and maintain.
+  <Card title="Container publishing" icon="package" href="/docker-images-and-packaging">
+    CI workflows build service images and publish them to GitHub Container Registry with version, branch, and SHA-oriented tags.
   </Card>
-  <Card title="Release notes" icon="book-open" href="/help-center">
-    Record changes in a focused format so readers can quickly see what changed and whether they need to act.
+  <Card title="CI/CD scaffolding" icon="rocket" href="/ci-cd-pipelines">
+    Service workflows cover build, lint or format checks where configured, version generation, image publishing, release creation, and placeholder deployment steps.
   </Card>
 </Columns>
 
-## How the pieces fit together
+## Implemented capabilities
 
-Author a page in MDX, wire it into navigation, and use reusable components to make the content clear and scannable. Integration hooks extend the site where needed, while the help center and release notes keep operational content organized around reader tasks and change history.
+### Frontend shell
 
-```mermaid
-graph LR
-  A[Author MDX] --> B[Add navigation]
-  B --> C[Use shared components]
-  C --> D[Preview and refine]
-  D --> E[Publish site]
+The frontend in `apps/web` is a Remix application built through Vite. It imports Tailwind CSS through the Tailwind v4 package and Vite plugin, loads global styling from `app.css`, and defines a basic document shell in `root.tsx`.
+
+The implemented routes are still scaffold routes. Both `/` and `/home` render the shared welcome screen, so the frontend proves that routing, styling, metadata, error handling, local scripts, and container packaging are wired, but it does not yet represent a Gravity-specific user workflow.
+
+### API service health
+
+The API service in `apps/api` is a minimal NestJS app. `AppModule` registers only `HealthController`, and the service exposes one application endpoint at `GET /health`.
+
+```json
+{
+  "status": "ok",
+  "service": "api"
+}
 ```
 
-## Recommended workflow
+That response confirms the API process is reachable. The endpoint does not check downstream dependencies because no database, queue, auth provider, or external integration is currently wired into the service.
 
-- **Author** the page in MDX with one clear topic and a structure that matches the reader's task.
-- **Preview** the page to confirm links, components, and navigation placement.
-- **Publish** once the page is concise, accurate, and easy to scan.
+### AI service health
 
-## Related links
+The AI service in `apps/ai-service` is a minimal FastAPI app with one custom route at `GET /health`.
 
-<Columns cols={2}>
-  <Card title="Help Center" icon="help-circle" href="/help-center">
-    Find task-oriented articles for setup, troubleshooting, and maintenance.
-  </Card>
-  <Card title="Help articles" icon="book-open" href="/help-center">
-    Browse focused guidance for common documentation workflows.
-  </Card>
+```json
+{
+  "status": "ok"
+}
+```
+
+The service currently provides a runtime foundation for future AI behavior. The inspected implementation does not include model providers, prompts, inference routes, background jobs, vector storage, or orchestration code.
+
+### Versioning and releases
+
+Gravity tracks service versions independently. The web, API, and AI service each have a `VERSION` file currently set to `0.1.0`, and repository automation can bump those values by service.
+
+The CI workflows use those versions to create service-specific tags and releases, such as `web-v0.1.0`, `api-v0.1.0`, and `ai-service-v0.1.0`. That structure lets each service move at its own release pace instead of forcing every repository change into one global product version.
+
+### Container publishing
+
+Each service includes container packaging and workflow support for publishing images to GitHub Container Registry. The workflows publish service-specific images for the web app, API service, and AI service, with tags for exact versions, branch aliases, and commit SHAs.
+
+This is the most complete part of the current operational surface. Deployment jobs exist as scaffolding, but the workflows do not yet perform a real environment deployment.
+
+## Current limitations
+
+<Callout kind="alert">
+
+Gravity is not yet a feature-complete application. The repository currently implements service scaffolding, health checks, versioning, and container publishing, but the product layer is still missing.
+
+</Callout>
+
+The following capabilities are not implemented in the verified repository state:
+
+- **Authentication and sessions** — no login routes, auth guards, JWT handling, or session UI are wired into the web or API services.
+- **Persistence** — no database driver, ORM, migration system, repositories, or persisted domain models are present.
+- **Business workflow UI** — the frontend still renders starter welcome routes rather than dashboards, forms, project workflows, or domain-specific screens.
+- **AI model integration** — the AI service has no model SDKs, inference endpoints, prompt orchestration, vector storage, or provider configuration.
+- **Production deployment logic** — CI includes deployment placeholders, but the current workflows stop short of deploying a running environment.
+
+## How to read the current state
+
+Gravity is best understood as a service foundation with release infrastructure already taking shape. The repository can boot a frontend shell, answer health checks from the API and AI services, build service artifacts, version services independently, and publish containers.
+
+The next product milestone would need to add domain behavior on top of that foundation: application screens, authenticated API flows, persisted data models, and real AI service capabilities. Until those pieces exist, the health endpoints and release pipelines are the clearest signals of what works today.
+
+## Related foundation docs
+
+<Columns cols={3}>
+  <Card title="Frontend application shell" icon="monitor" href="/frontend-application-shell" />
+  <Card title="API service foundation" icon="database" href="/api-service-foundation" />
+  <Card title="AI service foundation" icon="zap" href="/ai-service-foundation" />
 </Columns>
