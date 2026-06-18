@@ -1,69 +1,72 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Verified release history for Gravity product updates that affect local development, service health, and the web app foundation.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Gravity now has a verified product changelog entry based on the current `AIGravity/core` repository state. Entries include only source-backed changes that affect local development, the web app shell, or public service health checks.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+This changelog entry was verified against the latest analyzed source snapshot and linked documentation for setup, service health, frontend behavior, and API references.
 
 </Callout>
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="2026-03-15" description="Verified product baseline" tags={["feature", "improvement"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+## Gravity app foundation
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+Gravity now includes a runnable local product baseline across the web app, API service, and AI service. Start the local experience with one command after completing the setup steps in the [Quickstart](/quickstart).
+
+### Gravity web app foundation
+
+- Added the first runnable Gravity web app foundation so teams can open the product locally and verify the application shell.
+
+### API health endpoint
+
+- Added an API health endpoint for checking backend availability. See the [API reference](/api-reference/nestjs-api) and [Health checks](/health-checks) for request and response details.
+
+### AI service health endpoint
+
+- Added an AI service health endpoint for checking AI service availability. See the [AI service reference](/api-reference/ai-service) and [Health checks](/health-checks) for request and response details.
+
+### One-command local development workflow
+
+- Added a one-command local development workflow that starts the web app, API service, and AI service together after setup. Follow the [Quickstart](/quickstart) for the full local startup flow.
+
+### Frontend baseline and browser metadata
+
+- Updated the frontend baseline with the current Remix and Tailwind setup, browser metadata, document defaults, font loading, and system dark-mode styling. Review the [Frontend application shell](/frontend-application-shell) for the user-visible shell behavior.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan entries from newest to oldest. Each entry lists only changes verified in source control, then groups them by reader impact so you can distinguish app behavior, service availability, and development workflow updates quickly.
 
 ## Related resources
 
 <Columns cols={2}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Quickstart" href="/quickstart" icon="rocket">
+Set up the Gravity monorepo locally and start the web, API, and AI services.
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="Health checks" href="/health-checks" icon="shield">
+Verify the current health endpoints for the API and AI services.
+</Card>
+
+<Card title="Frontend application shell" href="/frontend-application-shell" icon="monitor">
+Review the implemented Remix shell, styling baseline, metadata, and route behavior.
+</Card>
+
+<Card title="API reference" href="/api-reference/nestjs-api" icon="code">
+
+See the current API health endpoint reference.
+
 </Card>
 
 </Columns>
-
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
