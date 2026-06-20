@@ -1,6 +1,8 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
@@ -35,7 +37,7 @@ Two routes are currently implemented, and both render the same shared component.
 
 ### `/`
 
-The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
+The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata through a typed arrow function and returns `Welcome`.
 
 <CodeGroup tabs="Route component,Route metadata">
 
@@ -48,19 +50,21 @@ export default function Home() {
 ```
 
 ```tsx
-export function meta() {
+import type { MetaFunction } from "@remix-run/node";
+
+export const meta: MetaFunction = () => {
   return [
     { title: "New Remix App" },
     { name: "description", content: "Welcome to Remix!" },
   ];
-}
+};
 ```
 
 </CodeGroup>
 
 ### `/home`
 
-The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route and also renders `Welcome`.
+The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route, uses the same typed arrow-function metadata export, and also renders `Welcome`.
 
 <CodeGroup tabs="Route component,Route metadata">
 
@@ -73,12 +77,14 @@ export default function Home() {
 ```
 
 ```tsx
-export function meta() {
+import type { MetaFunction } from "@remix-run/node";
+
+export const meta: MetaFunction = () => {
   return [
     { title: "New Remix App" },
     { name: "description", content: "Welcome to Remix!" },
   ];
-}
+};
 ```
 
 </CodeGroup>
