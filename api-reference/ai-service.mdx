@@ -1,17 +1,13 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: >-
+  API reference for the FastAPI AI service health endpoint implemented in the
+  AIGravity core repository.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
-
-<Callout kind="info">
-
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
-
-</Callout>
+This page documents the FastAPI AI service endpoint confirmed in the AIGravity core repository. The service currently exposes one endpoint: `GET /health`.
 
 ## Endpoint
 
@@ -40,7 +36,7 @@ No authentication requirement was found in the FastAPI route implementation.
 <CodeGroup tabs="cURL,JSON response">
 
 ```bash
-curl -X GET http://localhost:8000/health
+curl -X GET http://localhost:8001/health
 ```
 
 ```json
@@ -109,6 +105,5 @@ Scope is intentionally limited to routes confirmed in code today. No other AI se
 
 The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
+- **`404 Not Found`** — Returned when you request a path or method combination that is not defined.
 - **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
