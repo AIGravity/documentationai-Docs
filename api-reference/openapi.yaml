@@ -16,7 +16,7 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:3001
     description: API service local development server
 tags:
   - name: Health
@@ -39,6 +39,7 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+                service: api
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -54,8 +55,21 @@ components:
       type: object
       description: Permissive health response payload for the API service.
       additionalProperties: true
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          description: Health status of the service.
+          example: ok
+        service:
+          type: string
+          description: Name of the service.
+          example: api
       example:
         status: ok
+        service: api
     Error:
       type: object
       description: Generic error response.
