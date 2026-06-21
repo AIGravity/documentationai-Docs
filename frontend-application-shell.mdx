@@ -1,6 +1,8 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
@@ -35,7 +37,7 @@ Two routes are currently implemented, and both render the same shared component.
 
 ### `/`
 
-The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
+The index route is defined in `apps/web/app/routes/_index.tsx`. It exports typed Remix metadata and returns `Welcome`.
 
 <CodeGroup tabs="Route component,Route metadata">
 
@@ -48,12 +50,14 @@ export default function Home() {
 ```
 
 ```tsx
-export function meta() {
+import type { MetaFunction } from "@remix-run/node";
+
+export const meta: MetaFunction = () => {
   return [
     { title: "New Remix App" },
     { name: "description", content: "Welcome to Remix!" },
   ];
-}
+};
 ```
 
 </CodeGroup>
@@ -73,12 +77,14 @@ export default function Home() {
 ```
 
 ```tsx
-export function meta() {
+import type { MetaFunction } from "@remix-run/node";
+
+export const meta: MetaFunction = () => {
   return [
     { title: "New Remix App" },
     { name: "description", content: "Welcome to Remix!" },
   ];
-}
+};
 ```
 
 </CodeGroup>
