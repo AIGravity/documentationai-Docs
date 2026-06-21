@@ -1,6 +1,8 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
@@ -48,12 +50,12 @@ export default function Home() {
 ```
 
 ```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
+import type { MetaFunction } from "@remix-run/node";
+
+export const meta: MetaFunction = () => [
+  { title: "New Remix App" },
+  { name: "description", content: "Welcome to Remix!" },
+];
 ```
 
 </CodeGroup>
@@ -73,12 +75,12 @@ export default function Home() {
 ```
 
 ```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
+import type { MetaFunction } from "@remix-run/node";
+
+export const meta: MetaFunction = () => [
+  { title: "New Remix App" },
+  { name: "description", content: "Welcome to Remix!" },
+];
 ```
 
 </CodeGroup>
