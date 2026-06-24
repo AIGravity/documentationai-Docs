@@ -1,6 +1,8 @@
 ---
 title: CI/CD Pipelines
-description: How the repository’s GitHub Actions workflows build, check, version, and publish the web, API, and AI service artifacts.
+description: >-
+  How the repository’s GitHub Actions workflows build, check, version, and
+  publish the web, API, and AI service artifacts.
 ---
 
 ## Overview
@@ -149,9 +151,17 @@ The API workflow uses pnpm, Node 20, and Bun. The active commands install depend
   run: pnpm --filter @repo/api build
 ```
 
-The AI service workflow sets `apps/ai-service` as the working directory, installs dependencies with `uv`, then runs Ruff format and lint checks.
+The AI service workflow sets `apps/ai-service` as the working directory, installs the `uv` tool, provisions Python with `uv`, syncs dependencies, then runs Ruff format and lint checks.
 
 ```yml
+- name: Install uv
+  uses: astral-sh/setup-uv@v4
+  with:
+    version: "latest"
+
+- name: Setup Python
+  run: uv python install
+
 - name: Install dependencies
   run: uv sync
 
@@ -243,11 +253,11 @@ The workflows are structurally similar, but they differ in tooling, path scope, 
 | --- | --- | --- | --- | --- |
 | Web | `.github/workflows/web.yml` | Install, typecheck, build | `apps/web/**`, `packages/**`, `pnpm-lock.yaml`, `tsconfig.base.json`, workflow file | Copies `tsconfig.base.json` into Docker context before image build |
 | API | `.github/workflows/api.yml` | Install, build | `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, `tsconfig.base.json`, workflow file | Job name says `Build & Lint`, but no explicit lint command appears |
-| AI service | `.github/workflows/ai-service.yml` | `uv sync`, Ruff format check, Ruff lint | `apps/ai-service/**`, workflow file | Uses `uv` and Python tooling instead of pnpm-based Node workflow |
+| AI service | `.github/workflows/ai-service.yml` | Install `uv`, install Python, sync dependencies, Ruff format check, Ruff lint | `apps/ai-service/**`, workflow file | Uses `uv` and Python tooling instead of pnpm-based Node workflow |
 
 ### Representative build sections
 
-<CodeGroup tabs="Web,API,AI service">
+<CodeGroup tabs="Web,API,AI service,AI service Python toolchain">
 
 ```yml
 - name: Install dependencies
@@ -273,6 +283,14 @@ The workflows are structurally similar, but they differ in tooling, path scope, 
 ```
 
 ```yml
+- name: Install uv
+  uses: astral-sh/setup-uv@v4
+  with:
+    version: "latest"
+
+- name: Setup Python
+  run: uv python install
+
 - name: Install dependencies
   run: uv sync
 
@@ -285,6 +303,16 @@ The workflows are structurally similar, but they differ in tooling, path scope, 
 # Uncomment when tests are added
 # - name: Run tests
 #   run: uv run pytest
+```
+
+```python
+# apps/ai-service build job command order
+uv_commands = [
+    "uv python install",
+    "uv sync",
+    "uv run ruff format --check .",
+    "uv run ruff check .",
+]
 ```
 
 </CodeGroup>
