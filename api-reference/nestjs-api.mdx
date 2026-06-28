@@ -1,21 +1,23 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Endpoints for health checks, Composio connections, marketplace builder fields, pending apps, and agent publishing — including deprecated legacy routes.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API service exposes endpoints across several controllers: health, connections, marketplace, apps, and legacy deprecated routes. Protected endpoints require a Supabase Bearer JWT token and enforce authentication before controller logic runs.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Implementation details on this page were derived from code analysis of the API service controllers.
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
 
 </Callout>
 
@@ -29,11 +31,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +45,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +65,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +73,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +83,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +91,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +126,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +151,627 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Connections
+
+### POST `/api/connections/auth/apps`
+
+Use this endpoint to retrieve the list of Composio apps referenced in a workflow object.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/connections/auth/apps`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT enforced by `SupabaseAuthGuard`.
+
+
+</ParamField>
+
+<ParamField body="workflow" param-type="object" required="true" show-location="false">
+
+Workflow object to inspect for referenced Composio apps.
+
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/connections/auth/apps \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow": {
+      "nodes": [
+        { "name": "Send email", "app": "gmail" },
+        { "name": "Post update", "app": "slack" }
+      ]
+    }
+  }'
+```
+
+```json
+{
+  "apps": ["gmail", "slack"]
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="apps" field-type="string[]" required="true">
+
+List of Composio app slugs referenced in the submitted workflow.
+
+
+</ResponseField>
+
+#### Error responses
+
+A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+### POST `/api/connections/auth/initiate`
+
+Use this endpoint to initiate a Composio OAuth connection for a given app.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/connections/auth/initiate`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT enforced by the authenticated connections controller.
+
+
+</ParamField>
+
+<ParamField body="app" param-type="string" required="true" show-location="false">
+
+Composio app slug to connect. The analyzed validation rules limit this field to 512 characters.
+
+
+</ParamField>
+
+<ParamField body="redirectUrl" param-type="string" required="false" show-location="false">
+
+Optional redirect URL to use after the OAuth flow completes. The analyzed validation rules limit this field to 2048 characters.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+Errors for this endpoint are returned as HTTP `200` responses with an `error` field in the payload rather than as non-`200` HTTP status codes.
+
+
+</Callout>
+
+<CodeGroup tabs="cURL,JSON success,JSON error">
+
+```bash
+curl -X POST http://localhost:3001/api/connections/auth/initiate \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app": "google_calendar",
+    "redirectUrl": "http://localhost:3000/settings/integrations"
+  }'
+```
+
+```json
+{
+  "redirectUrl": "https://composio.dev/oauth/start/google_calendar?connection=cnx_7mQ9sL2p",
+  "connectionStatus": "INITIATED"
+}
+```
+
+```json
+{
+  "error": "Failed to initiate connection"
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="redirectUrl" field-type="string" required="false">
+
+OAuth redirect URL returned when initiation succeeds.
+
+
+</ResponseField>
+
+<ResponseField name="connectionStatus" field-type="string" required="false">
+
+Connection state returned on success. The analyzed success path returns `INITIATED`.
+
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="false">
+
+Error message returned in the response body when initiation fails.
+
+
+</ResponseField>
+
+#### Error responses
+
+A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+### POST `/api/connections/auth/status`
+
+Use this endpoint to check whether a Composio app connection is active for the authenticated user.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/connections/auth/status`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT enforced by the authenticated connections controller.
+
+
+</ParamField>
+
+<ParamField body="app" param-type="string" required="true" show-location="false">
+
+Composio app slug to check. The analyzed validation rules limit this field to 512 characters.
+
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON connected,JSON not connected">
+
+```bash
+curl -X POST http://localhost:3001/api/connections/auth/status \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app": "slack"
+  }'
+```
+
+```json
+{
+  "connected": true,
+  "connectionId": "cnx_a82Xk4Lp9",
+  "status": "ACTIVE"
+}
+```
+
+```json
+{
+  "connected": false
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="connected" field-type="boolean" required="true">
+
+Whether the authenticated user has an active connection for the requested app.
+
+
+</ResponseField>
+
+<ResponseField name="connectionId" field-type="string" required="false">
+
+Connection identifier returned when a connection exists.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="false">
+
+Underlying connection status returned when a connection exists.
+
+
+</ResponseField>
+
+#### Error responses
+
+A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+### GET `/api/connections/auth/connections`
+
+Use this endpoint to list all Composio connections for the authenticated user.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/connections/auth/connections`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT enforced by the authenticated connections controller.
+
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. This endpoint does not accept a request body.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+Returned statuses are normalized before they reach the client. `connected` maps to active connections, `needs_reconnect` maps to expired, failed, or inactive connections, and `INITIATED` or `INITIALIZING` states are omitted. On any internal error, the endpoint returns `{"connections": []}` instead of throwing.
+
+
+</Callout>
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl http://localhost:3001/api/connections/auth/connections \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "connections": [
+    {
+      "slug": "gmail",
+      "status": "connected",
+      "connectionId": "cnx_2sKd9Qm1"
+    },
+    {
+      "slug": "slack",
+      "status": "needs_reconnect",
+      "connectionId": "cnx_4bTr8Vz7"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="connections" field-type="object[]" required="true">
+
+List of normalized Composio connections for the authenticated user.
+
+
+</ResponseField>
+
+<ResponseField name="slug" field-type="string" required="true">
+
+App slug for a connection entry.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Normalized connection status. The response uses `connected` or `needs_reconnect`.
+
+
+</ResponseField>
+
+<ResponseField name="connectionId" field-type="string" required="true">
+
+Connection identifier for the app entry.
+
+
+</ResponseField>
+
+#### Error responses
+
+A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+### POST `/api/connections/auth/disconnect`
+
+Use this endpoint to disconnect a Composio app connection.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/connections/auth/disconnect`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT enforced by the authenticated connections controller.
+
+
+</ParamField>
+
+<ParamField body="app" param-type="string" required="true" show-location="false">
+
+Composio app slug to disconnect. The analyzed validation rules limit this field to 512 characters.
+
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON success,JSON not found">
+
+```bash
+curl -X POST http://localhost:3001/api/connections/auth/disconnect \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app": "slack"
+  }'
+```
+
+```json
+{
+  "disconnected": true
+}
+```
+
+```json
+{
+  "disconnected": false,
+  "error": "No connected account found"
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="disconnected" field-type="boolean" required="true">
+
+Whether the disconnect operation removed an active connection.
+
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="false">
+
+Error message returned when no connected account was found for the requested app.
+
+
+</ResponseField>
+
+#### Error responses
+
+A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+## Marketplace
+
+### POST `/api/marketplace/builder-fields`
+
+Use this endpoint to resolve builder fields for a published workflow from consumer inputs.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/marketplace/builder-fields`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required for marketplace builder field resolution.
+
+
+</ParamField>
+
+<ParamField body="agentId" param-type="string" required="false" show-location="false">
+
+Published agent identifier used to resolve consumer-input-backed builder fields.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+Each builder field can include a `targets` array that binds a consumer input to one or more workflow node parameters. That mapping is the link between the published workflow definition and the values a consumer supplies at runtime.
+
+
+</Callout>
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/builder-fields \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "agent_9vK2mLp4"
+  }'
+```
+
+```json
+{
+  "fields": [
+    {
+      "id": "bf_01J8Z7KQ4H3T",
+      "engine": "n8n",
+      "canonicalName": "recipient_email",
+      "fieldType": "short-text",
+      "label": "Recipient email",
+      "required": true,
+      "defaultValue": null,
+      "pieceName": "gmail",
+      "pieceVersion": "1.2.0",
+      "actionName": "send_email",
+      "propertyName": "to",
+      "refreshers": [],
+      "targets": [
+        {
+          "nodeName": "Send welcome email",
+          "paramPath": "parameters.to"
+        }
+      ],
+      "staticOptions": null,
+      "markdownValue": null
+    }
+  ],
+  "source": "ap-consumer-inputs"
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="fields" field-type="array" required="true">
+
+Resolved builder fields for the published workflow. Each array item includes `id`, `engine`, `canonicalName`, `fieldType`, `label`, `required`, `defaultValue`, `pieceName`, `pieceVersion`, `actionName`, `propertyName`, `refreshers`, `targets`, `staticOptions`, and `markdownValue`.
+
+
+</ResponseField>
+
+<ResponseField name="source" field-type="string" required="true">
+
+Resolution source for the response. The analyzed controller returns `ap-consumer-inputs`, `no-agent-id`, or `no-ap-row`.
+
+
+</ResponseField>
+
+#### Error responses
+
+A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+## Apps
+
+### DELETE `/api/apps/pending/all`
+
+Use this endpoint to bulk-clear all pending apps from the user's wishlist.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`DELETE`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/apps/pending/all`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required to clear the authenticated user's pending apps.
+
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X DELETE http://localhost:3001/api/apps/pending/all \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+</CodeGroup>
+
+#### Error responses
+
+A `204` response indicates that the pending app wishlist was cleared and no response body is returned. A `401` response indicates that authentication is required or the Bearer token is invalid.
+
+## Deprecated endpoints
+
+Legacy `n8n-workflow` and `inngest-trigger` controllers have been removed from the active API service. These routes remain in the OpenAPI spec as deprecated references so you can map older integrations to current behavior where replacements exist.
+
+<Callout kind="alert">
+
+Calling any deprecated endpoint listed below returns `410 Gone`.
+
+
+</Callout>
+
+| Old endpoint | Replaced by |
+| --- | --- |
+| POST `/api/n8n-workflow/auth/apps` | POST `/api/connections/auth/apps` |
+| POST `/api/n8n-workflow/auth/initiate` | POST `/api/connections/auth/initiate` |
+| POST `/api/n8n-workflow/auth/status` | POST `/api/connections/auth/status` |
+| GET `/api/n8n-workflow/auth/connections` | GET `/api/connections/auth/connections` |
+| POST `/api/n8n-workflow/auth/disconnect` | POST `/api/connections/auth/disconnect` |
+| POST `/api/n8n-workflow/builder-fields` | POST `/api/marketplace/builder-fields` (AP fast-path only) |
+| POST `/api/n8n-workflow/execute` | POST `/api/marketplace/run` and POST `/api/marketplace/execute` |
+| POST `/api/n8n-workflow/build` | No replacement |
+| POST `/api/n8n-workflow/autofill` | No replacement |
+| POST `/api/n8n-workflow/execute-async` | No replacement |
+| POST `/api/n8n-workflow/supervised` | No replacement |
+| POST `/api/n8n-workflow/supervised-resume` | No replacement |
+| POST `/api/n8n-workflow/supervised-async` | No replacement |
+| POST `/api/n8n-workflow/supervised-resume-async` | No replacement |
+| POST `/api/n8n-workflow/cancel-pause` | No replacement |
+| POST `/api/n8n-workflow/execute/stream` | No replacement |
+| POST `/api/n8n-workflow/answers` | No replacement |
+| POST `/api/n8n-workflow/node-params` | No replacement |
+| POST `/api/n8n-workflow/triggers/subscribe` | No replacement |
+| POST `/api/n8n-workflow/triggers/webhook` | No replacement |
+| POST `/api/n8n-workflow/triggers/unsubscribe` | No replacement |
+| POST `/api/n8n-workflow/schedule` | No replacement |
+| POST `/api/n8n-workflow/schedule/cancel` | No replacement |
+| GET `/api/n8n-workflow/runs/{runId}` | No replacement |
+| GET `/api/n8n-workflow/runs/{runId}/messages` | No replacement |
+| GET `/api/n8n-workflow/threads/{threadId}/runs` | No replacement |
+| GET `/api/n8n-workflow/threads/{threadId}/messages` | No replacement |
+| GET `/api/n8n-workflow/external-response/{pauseId}/approval/{optionId}` | No replacement |
+| GET `/api/n8n-workflow/external-response/{pauseId}/form` | No replacement |
+| POST `/api/n8n-workflow/external-response/{pauseId}/form` | No replacement |
+| POST `/api/inngest-trigger/subscribe-token` | No replacement (Inngest dropped) |
+
+## Related resources
+
+<Columns cols={3}>
+
+  <Card title="API Service Foundation" href="/api-service-foundation" icon="code" />
+
+  <Card title="Data Models Reference" href="/data-models-reference" icon="database" />
+
+  <Card title="Configuration Reference" href="/configuration-reference" icon="settings" />
+
+
+</Columns>

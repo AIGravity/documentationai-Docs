@@ -1,42 +1,50 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Typed request and response models across the API service, including consumer input definitions, builder field wire shapes, and connection management DTOs.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+The API service now includes typed definitions across several controllers. The current repository contains request DTOs for connection management, wire shapes for marketplace builder fields, and a `ConsumerInput` type that drives dynamic dropdowns and field behavior.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+What still does not exist is a persistence-backed model layer. The checked-in types describe request validation and response formatting, not stored entities, relationships, or database mappings.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
 
+
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now includes typed API contracts, but it still does not define domain entities or persistence models.
 
 | Area | Current status |
 | --- | --- |
 | Named domain models | None found in the analyzed code |
 | ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
+| DTO classes | Found — AuthAppsDto, AuthInitiateDto, AuthStatusDto, BuilderFieldsDto |
+| Named validation schemas | Found — class-validator decorators on DTO properties (maxLength, required) |
 | Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
+| Inline response shapes | Multiple inline response shapes and typed wire formats |
 | Persisted entities | None found in the analyzed code |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **AuthAppsDto** — request body DTO for `POST /api/connections/auth/apps`
+- **AuthInitiateDto** — request body DTO for `POST /api/connections/auth/initiate`
+- **AuthStatusDto** — request body DTO for `POST /api/connections/auth/status` and `POST /api/connections/auth/disconnect`
+- **BuilderFieldsDto** — request body DTO for `POST /api/marketplace/builder-fields`
+- **BuilderFieldWireShape** — wire format for builder fields in marketplace responses
+- **ConsumerInput** — type definition for consumer inputs that drive dynamic dropdowns and fields
 
 <Callout kind="danger">
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+The analyzed repository does not implement persistence yet. DTO and wire-shape definitions exist for request validation and response formatting, but no current shape in this page maps to a database table, collection, or stored record.
+
 
 </Callout>
 
@@ -87,11 +95,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,22 +139,294 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
 
 The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
 
+## API request and response models
+
+The API service now defines typed request bodies and reusable wire formats for several non-health endpoints. These types describe transport-level contracts, not persisted entities.
+
+### AuthAppsDto
+
+Request body for `POST /api/connections/auth/apps`.
+
+<ResponseField name="workflow" field-type="object" required="true">
+
+Workflow object to inspect for referenced Composio apps. Passed as an opaque object; no structural validation is applied beyond the property being present.
+
+
+</ResponseField>
+
+### AuthInitiateDto
+
+Request body for `POST /api/connections/auth/initiate`.
+
+<ResponseField name="app" field-type="string" required="true">
+
+Composio app slug to connect. Validated with a maximum length of 512 characters.
+
+
+</ResponseField>
+
+<ResponseField name="redirectUrl" field-type="string" required="false">
+
+Optional redirect URL for post-OAuth navigation. Validated with a maximum length of 2048 characters.
+
+
+</ResponseField>
+
+### AuthStatusDto
+
+Request body for `POST /api/connections/auth/status` and `POST /api/connections/auth/disconnect`.
+
+<ResponseField name="app" field-type="string" required="true">
+
+Composio app slug to check or disconnect. Validated with a maximum length of 512 characters.
+
+
+</ResponseField>
+
+### BuilderFieldsDto
+
+Request body for `POST /api/marketplace/builder-fields`.
+
+<ResponseField name="agentId" field-type="string" required="false">
+
+Published agent identifier used to look up consumer inputs for builder field resolution.
+
+
+</ResponseField>
+
+### BuilderFieldWireShape
+
+Wire format returned in the `fields` array of `POST /api/marketplace/builder-fields` responses.
+
+<CodeGroup tabs="TypeScript">
+
+```ts
+interface BuilderFieldWireShape {
+  id: string;
+  engine: string;
+  canonicalName: string;
+  fieldType: string;
+  label: string;
+  required: boolean;
+  defaultValue: unknown;
+  pieceName: string;
+  pieceVersion: string;
+  actionName: string;
+  propertyName: string;
+  refreshers: string[];
+  targets: Array<{ nodeName: string; paramPath: string }>;
+  staticOptions: unknown;
+  markdownValue: unknown;
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique field identifier combining the published workflow ID and the field name.
+
+
+</ResponseField>
+
+<ResponseField name="engine" field-type="string" required="true">
+
+Source engine for the field. Currently `ap`.
+
+
+</ResponseField>
+
+<ResponseField name="canonicalName" field-type="string" required="true">
+
+Canonical name for the field, derived from the consumer input name.
+
+
+</ResponseField>
+
+<ResponseField name="fieldType" field-type="string" required="true">
+
+Field type identifier, such as `string`, `dynamic-dropdown`, `dynamic-cascade`, or `array`.
+
+
+</ResponseField>
+
+<ResponseField name="label" field-type="string" required="true">
+
+Human-readable field label.
+
+
+</ResponseField>
+
+<ResponseField name="required" field-type="boolean" required="true">
+
+Whether the field must be filled at runtime.
+
+
+</ResponseField>
+
+<ResponseField name="defaultValue" field-type="unknown" required="true">
+
+Default value when the consumer provides none. Can be `null`.
+
+
+</ResponseField>
+
+<ResponseField name="pieceName" field-type="string" required="true">
+
+ActivePieces piece name the field is sourced from.
+
+
+</ResponseField>
+
+<ResponseField name="pieceVersion" field-type="string" required="true">
+
+ActivePieces piece version.
+
+
+</ResponseField>
+
+<ResponseField name="actionName" field-type="string" required="true">
+
+Action or trigger name within the piece.
+
+
+</ResponseField>
+
+<ResponseField name="propertyName" field-type="string" required="true">
+
+Property name within the action or trigger.
+
+
+</ResponseField>
+
+<ResponseField name="refreshers" field-type="string[]" required="true">
+
+Names of other fields that, when changed, should refresh this field's options.
+
+
+</ResponseField>
+
+<ResponseField name="targets" field-type="array" required="true">
+
+Array of target mappings where the consumer input value is applied at clone time. Each target has a `nodeName` and `paramPath`.
+
+
+</ResponseField>
+
+<ResponseField name="staticOptions" field-type="unknown" required="true">
+
+Static dropdown options when defined. Can be `null`.
+
+
+</ResponseField>
+
+<ResponseField name="markdownValue" field-type="unknown" required="true">
+
+Markdown-formatted value when applicable. Can be `null`.
+
+
+</ResponseField>
+
+### ConsumerInput
+
+Type definition for consumer inputs that drive dynamic form fields in published workflows.
+
+<CodeGroup tabs="TypeScript">
+
+```ts
+interface ConsumerInput {
+  name: string;
+  label?: string;
+  type: 'string' | 'long-text' | 'dropdown' | 'multi-select' | 'dynamic-dropdown' | 'dynamic-cascade' | 'array';
+  required?: boolean;
+  defaultValue?: unknown;
+  options?: unknown[];
+  refreshers?: string[];
+  targets?: string[];
+  helpText?: string;
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Consumer input name used as the canonical field identifier.
+
+
+</ResponseField>
+
+<ResponseField name="label" field-type="string" required="false">
+
+Optional human-readable label displayed in the builder UI.
+
+
+</ResponseField>
+
+<ResponseField name="type" field-type="string" required="true">
+
+Field type. The `array` type supports repeated values submitted as comma- or newline-separated strings, which are split and delivered as string arrays. The `dynamic-dropdown` and `dynamic-cascade` types support refreshers.
+
+
+</ResponseField>
+
+<ResponseField name="required" field-type="boolean" required="false">
+
+Whether the consumer must provide a value.
+
+
+</ResponseField>
+
+<ResponseField name="defaultValue" field-type="unknown" required="false">
+
+Default value applied when the consumer submits nothing.
+
+
+</ResponseField>
+
+<ResponseField name="options" field-type="unknown[]" required="false">
+
+Static options for dropdown and multi-select types.
+
+
+</ResponseField>
+
+<ResponseField name="refreshers" field-type="string[]" required="false">
+
+Names of other consumer inputs that, when changed, refresh this input's options.
+
+
+</ResponseField>
+
+<ResponseField name="targets" field-type="string[]" required="false">
+
+Additional parameter paths the answer is also applied to at clone time.
+
+
+</ResponseField>
+
+<Callout kind="info">
+
+The `targets` field is new in this release. It allows a single consumer input to be bound to multiple workflow node parameters simultaneously. The `array` type is also new — it enables repeated-value inputs where consumers can add or remove items.
+
+
+</Callout>
+
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+No named validation layer is implemented in the FastAPI service, but the NestJS API now uses DTO-based validation in several controllers.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- DTO classes found for connection, marketplace, and apps controllers
+- `class-validator` decorators used for `maxLength` and required field validation
 
 ### FastAPI service
 
@@ -155,6 +437,7 @@ No named validation layer is implemented in the analyzed repository.
 <Callout kind="info">
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+
 
 </Callout>
 
@@ -188,11 +471,16 @@ The current codebase exposes service health, but it does not yet define durable 
 
 Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
 
+
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>

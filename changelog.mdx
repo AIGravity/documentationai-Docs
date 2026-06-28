@@ -1,68 +1,67 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Release history for API endpoint changes, data model updates, and deprecated endpoint migrations.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable API endpoint changes, data model updates, and deprecated endpoint migrations in the AIGravity platform.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="2026-06-28" description="API changes" tags={["feature", "breaking", "improvement"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### API endpoint consolidation and dynamic dropdown support
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+**Added endpoints:**
+
+- `POST /api/connections/auth/apps` — List Composio apps referenced in a workflow (migrated from legacy `n8n-workflow` path).
+- `POST /api/connections/auth/initiate` — Initiate Composio OAuth connection (migrated from legacy path).
+- `POST /api/connections/auth/status` — Check Composio connection status (migrated from legacy path).
+- `GET /api/connections/auth/connections` — List all user connections with normalized statuses (migrated from legacy path).
+- `POST /api/connections/auth/disconnect` — Disconnect a Composio app (migrated from legacy path).
+- `POST /api/marketplace/builder-fields` — Resolve builder fields from consumer inputs for a published workflow.
+- `DELETE /api/apps/pending/all` — Bulk-clear all pending apps from the user's wishlist.
+
+**Modified behavior:**
+
+- `POST /api/marketplace/property-options` now auto-detects `actionOrTrigger` from the flow node and derives piece coordinates from the live flow, fixing stale version errors that caused HTTP 400 from ActivePieces.
+- `POST /api/marketplace/test-builder/run` now publishes and runs the flow as `ENABLED` before testing, then disables it after the run completes. A new `500` error is returned when no run result is produced.
+- `POST /api/agents/publish-agent` now enriches consumer inputs with refreshers, cascade context, static options, and default values. New `array` and `dynamic-cascade` field types are supported. `creditCost` is now estimated from workflow AI node count when not explicitly provided.
+
+**New data model fields:**
+
+- `ConsumerInput.targets` — Binds a consumer input to multiple workflow node parameters simultaneously.
+- `ConsumerInput` type now includes `array` — Supports repeated-value inputs with comma- or newline-separated string splitting.
+- `BuilderFieldWireShape.targets` — Array of `nodeName` and `paramPath` mappings for field-to-node binding.
+
+**Deprecated endpoints:**
+
+All `POST` and `GET` routes under ` /api/n8n-workflow/* ` and all `POST` routes under ` /api/inngest-trigger/* ` have been removed and marked as deprecated. Calling any deprecated endpoint returns `410 Gone`. See the [NestJS API reference](/api-reference/nestjs-api#deprecated-endpoints) for the full migration table.
+
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom when you want the newest information first. Each entry lists added, modified, and deprecated changes separately.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 

@@ -1,13 +1,24 @@
-openapi: '3.0.0'
+openapi: '3.0.3'
 info:
   version: 1.0.0
   title: AIGravity Core API Service
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service endpoints for health, connections, marketplace, apps, and agents, including deprecated legacy routes retained here for reference.
+
+    Currently documented areas include:
+    - `GET /health`
+    - Composio connection and authentication endpoints under `/api/connections`
+    - Marketplace builder field endpoints under `/api/marketplace`
+    - Pending app wishlist management under `/api/apps`
+    - Deprecated legacy endpoints under `/api/n8n-workflow` and `/api/inngest-trigger`
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+
+    Authentication:
+    - Protected endpoints require a Supabase Bearer JWT token in the `Authorization` header.
+    - Public endpoints explicitly declare `security: []`.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +32,16 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Connections
+    description: Composio app connection and authentication management
+  - name: Marketplace
+    description: Agent publishing, builder fields, and flow execution
+  - name: Apps
+    description: Pending app wishlist management
+  - name: Agents
+    description: Agent customization and publishing
+  - name: Deprecated
+    description: Removed endpoints from the legacy n8n-workflow and inngest-trigger controllers
 paths:
   /health:
     get:
@@ -41,7 +62,679 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/apps:
+    post:
+      tags:
+        - Connections
+      summary: List referenced Composio apps in a workflow
+      description: Returns the list of Composio apps referenced in a workflow for the authenticated user.
+      operationId: postConnectionsAuthApps
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthAppsDto'
+            example:
+              workflow:
+                nodes: []
+      responses:
+        '200':
+          description: Successfully extracted referenced app identifiers from the workflow.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthAppsResponse'
+              example:
+                apps:
+                  - gmail
+                  - slack
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/initiate:
+    post:
+      tags:
+        - Connections
+      summary: Initiate Composio OAuth connection
+      description: Initiates a Composio OAuth connection flow for a given app for the authenticated user.
+      operationId: postConnectionsAuthInitiate
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthInitiateDto'
+            example:
+              app: gmail
+              redirectUrl: https://app.aigravity.dev/connections/callback
+      responses:
+        '200':
+          description: OAuth initiation result, either a redirect payload or an error payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthInitiateResponse'
+              examples:
+                success:
+                  value:
+                    redirectUrl: https://composio.example/oauth/start
+                    connectionStatus: initiated
+                error:
+                  value:
+                    error: Unable to initiate connection
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/status:
+    post:
+      tags:
+        - Connections
+      summary: Check Composio connection status
+      description: Checks the Composio connection status for a given app for the authenticated user.
+      operationId: postConnectionsAuthStatus
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthStatusDto'
+            example:
+              app: gmail
+      responses:
+        '200':
+          description: Current connection status for the requested app.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+              examples:
+                connected:
+                  value:
+                    connected: true
+                    connectionId: conn_123
+                    status: ACTIVE
+                notConnected:
+                  value:
+                    connected: false
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/connections:
+    get:
+      tags:
+        - Connections
+      summary: List Composio connections
+      description: Lists all Composio connections for the authenticated user. Returned statuses are normalized to `connected` or `needs_reconnect`, and transitional states are omitted.
+      operationId: getConnectionsAuthConnections
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of normalized connections for the authenticated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthConnectionsResponse'
+              examples:
+                success:
+                  value:
+                    connections:
+                      - slug: gmail
+                        status: connected
+                        connectionId: conn_123
+                      - slug: hubspot
+                        status: needs_reconnect
+                        connectionId: conn_456
+                emptyOnError:
+                  value:
+                    connections: []
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/disconnect:
+    post:
+      tags:
+        - Connections
+      summary: Disconnect a Composio app
+      description: Disconnects a Composio app connection for the authenticated user.
+      operationId: postConnectionsAuthDisconnect
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthStatusDto'
+            example:
+              app: gmail
+      responses:
+        '200':
+          description: Disconnect result for the requested app.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthDisconnectResponse'
+              examples:
+                success:
+                  value:
+                    disconnected: true
+                notFound:
+                  value:
+                    disconnected: false
+                    error: Connection not found
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/builder-fields:
+    post:
+      tags:
+        - Marketplace
+      summary: Get marketplace builder fields
+      description: Returns builder fields for a published workflow, sourced from consumer inputs, for the authenticated user.
+      operationId: postMarketplaceBuilderFields
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuilderFieldsDto'
+            example:
+              agentId: agent_123
+      responses:
+        '200':
+          description: Builder fields resolved for the requested published workflow.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuilderFieldsResponse'
+              example:
+                fields:
+                  - id: field_1
+                    engine: ap
+                    canonicalName: company_name
+                    fieldType: string
+                    label: Company Name
+                    required: true
+                    defaultValue: null
+                    pieceName: hubspot
+                    pieceVersion: 1.0.0
+                    actionName: create_contact
+                    propertyName: company
+                    refreshers:
+                      - workspace_id
+                    targets:
+                      - nodeName: Create Contact
+                        paramPath: input.company
+                    staticOptions: null
+                    markdownValue: null
+                source: ap-consumer-inputs
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/apps/pending/all:
+    delete:
+      tags:
+        - Apps
+      summary: Clear all pending apps
+      description: Bulk-clears all pending apps in the authenticated user's wishlist.
+      operationId: deleteAppsPendingAll
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: All pending apps were cleared successfully.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/n8n-workflow/build:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy workflow build endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowBuild
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/builder-fields:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy workflow builder fields endpoint
+      description: This deprecated endpoint has been removed from the service. Use `POST /api/marketplace/builder-fields` for the AP fast-path only; the n8n live-detect path is not replaced.
+      operationId: postDeprecatedN8nWorkflowBuilderFields
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/autofill:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy workflow autofill endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowAutofill
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/execute:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy workflow execute endpoint
+      description: This deprecated endpoint has been removed from the service. Use `POST /api/marketplace/run` and `POST /api/marketplace/execute` instead.
+      operationId: postDeprecatedN8nWorkflowExecute
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/execute-async:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy workflow async execute endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowExecuteAsync
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/supervised:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy supervised workflow endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowSupervised
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/supervised-resume:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy supervised resume endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowSupervisedResume
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/supervised-async:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy supervised async endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowSupervisedAsync
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/supervised-resume-async:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy supervised resume async endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowSupervisedResumeAsync
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/cancel-pause:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy cancel pause endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowCancelPause
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/execute/stream:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy streamed execute endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowExecuteStream
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/answers:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy answers endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowAnswers
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/node-params:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy node params endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowNodeParams
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/auth/apps:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy auth apps endpoint
+      description: This deprecated endpoint has been removed from the service. Use `POST /api/connections/auth/apps` instead.
+      operationId: postDeprecatedN8nWorkflowAuthApps
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/auth/initiate:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy auth initiate endpoint
+      description: This deprecated endpoint has been removed from the service. Use `POST /api/connections/auth/initiate` instead.
+      operationId: postDeprecatedN8nWorkflowAuthInitiate
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/auth/status:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy auth status endpoint
+      description: This deprecated endpoint has been removed from the service. Use `POST /api/connections/auth/status` instead.
+      operationId: postDeprecatedN8nWorkflowAuthStatus
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/auth/connections:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy auth connections endpoint
+      description: This deprecated endpoint has been removed from the service. Use `GET /api/connections/auth/connections` instead.
+      operationId: getDeprecatedN8nWorkflowAuthConnections
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/auth/disconnect:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy auth disconnect endpoint
+      description: This deprecated endpoint has been removed from the service. Use `POST /api/connections/auth/disconnect` instead.
+      operationId: postDeprecatedN8nWorkflowAuthDisconnect
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/triggers/subscribe:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy trigger subscribe endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowTriggersSubscribe
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/triggers/webhook:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy trigger webhook endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowTriggersWebhook
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/triggers/unsubscribe:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy trigger unsubscribe endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowTriggersUnsubscribe
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/schedule:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy schedule endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowSchedule
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/schedule/cancel:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy schedule cancel endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowScheduleCancel
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/runs/{runId}:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy run lookup endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: getDeprecatedN8nWorkflowRunsByRunId
+      deprecated: true
+      security: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          description: Legacy workflow run identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/runs/{runId}/messages:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy run messages endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: getDeprecatedN8nWorkflowRunMessagesByRunId
+      deprecated: true
+      security: []
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          description: Legacy workflow run identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/threads/{threadId}/runs:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy thread runs endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: getDeprecatedN8nWorkflowThreadRunsByThreadId
+      deprecated: true
+      security: []
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          description: Legacy workflow thread identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/threads/{threadId}/messages:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy thread messages endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: getDeprecatedN8nWorkflowThreadMessagesByThreadId
+      deprecated: true
+      security: []
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          description: Legacy workflow thread identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/external-response/{pauseId}/approval/{optionId}:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy approval response endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: getDeprecatedN8nWorkflowExternalResponseApproval
+      deprecated: true
+      security: []
+      parameters:
+        - name: pauseId
+          in: path
+          required: true
+          description: Legacy pause identifier.
+          schema:
+            type: string
+        - name: optionId
+          in: path
+          required: true
+          description: Legacy approval option identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/n8n-workflow/external-response/{pauseId}/form:
+    get:
+      tags:
+        - Deprecated
+      summary: Removed legacy form retrieval endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: getDeprecatedN8nWorkflowExternalResponseForm
+      deprecated: true
+      security: []
+      parameters:
+        - name: pauseId
+          in: path
+          required: true
+          description: Legacy pause identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+    post:
+      tags:
+        - Deprecated
+      summary: Removed legacy form submission endpoint
+      description: This deprecated endpoint has been removed from the service. No replacement is available.
+      operationId: postDeprecatedN8nWorkflowExternalResponseForm
+      deprecated: true
+      security: []
+      parameters:
+        - name: pauseId
+          in: path
+          required: true
+          description: Legacy pause identifier.
+          schema:
+            type: string
+      responses:
+        '410':
+          description: This endpoint has been removed.
+  /api/inngest-trigger/subscribe-token:
+    post:
+      tags:
+        - Deprecated
+      summary: Removed Inngest subscribe token endpoint
+      description: This deprecated endpoint has been removed from the service because the Inngest dependency was entirely dropped.
+      operationId: postDeprecatedInngestTriggerSubscribeToken
+      deprecated: true
+      security: []
+      responses:
+        '410':
+          description: This endpoint has been removed.
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Supabase JWT token
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -49,6 +742,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    UnauthorizedError:
+      description: Authentication required. A valid Bearer JWT token must be provided.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +767,400 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    AuthAppsDto:
+      type: object
+      description: Request payload containing a workflow to inspect for referenced Composio apps.
+      required:
+        - workflow
+      properties:
+        workflow:
+          type: object
+          description: Workflow object to inspect for referenced applications.
+          additionalProperties: true
+      example:
+        workflow:
+          nodes: []
+    AuthInitiateDto:
+      type: object
+      description: Request payload for initiating a Composio OAuth connection.
+      required:
+        - app
+      properties:
+        app:
+          type: string
+          description: Application slug to connect.
+          maxLength: 512
+          example: gmail
+        redirectUrl:
+          type: string
+          description: Optional URL to redirect the user after authentication.
+          maxLength: 2048
+          example: https://app.aigravity.dev/connections/callback
+      example:
+        app: gmail
+        redirectUrl: https://app.aigravity.dev/connections/callback
+    AuthStatusDto:
+      type: object
+      description: Request payload for checking or disconnecting a Composio app connection.
+      required:
+        - app
+      properties:
+        app:
+          type: string
+          description: Application slug to inspect.
+          maxLength: 512
+          example: gmail
+      example:
+        app: gmail
+    AuthAppsResponse:
+      type: object
+      description: Referenced Composio apps extracted from a workflow.
+      required:
+        - apps
+      properties:
+        apps:
+          type: array
+          description: List of app slugs referenced in the workflow.
+          items:
+            type: string
+          example:
+            - gmail
+            - slack
+      example:
+        apps:
+          - gmail
+          - slack
+    AuthInitiateResponse:
+      oneOf:
+        - type: object
+          description: Successful OAuth initiation response.
+          required:
+            - redirectUrl
+            - connectionStatus
+          properties:
+            redirectUrl:
+              type: string
+              description: Redirect URL to continue the OAuth flow.
+              example: https://composio.example/oauth/start
+            connectionStatus:
+              type: string
+              description: Current connection state after initiation.
+              example: initiated
+        - type: object
+          description: Error response returned as a successful HTTP response payload.
+          required:
+            - error
+          properties:
+            error:
+              type: string
+              description: Error encountered while initiating authentication.
+              example: Unable to initiate connection
+      description: Result of initiating a Composio OAuth connection.
+    AuthStatusResponse:
+      type: object
+      description: Connection status for a requested Composio app.
+      required:
+        - connected
+      properties:
+        connected:
+          type: boolean
+          description: Whether the app is currently connected.
+          example: true
+        connectionId:
+          type: string
+          description: Connection identifier when connected.
+          example: conn_123
+        status:
+          type: string
+          description: Provider connection status when connected.
+          example: ACTIVE
+      example:
+        connected: true
+        connectionId: conn_123
+        status: ACTIVE
+    AuthConnectionsResponse:
+      type: object
+      description: List of normalized Composio connections for the authenticated user.
+      required:
+        - connections
+      properties:
+        connections:
+          type: array
+          description: User connections with normalized status values.
+          items:
+            type: object
+            required:
+              - slug
+              - status
+              - connectionId
+            properties:
+              slug:
+                type: string
+                description: Application slug.
+                example: gmail
+              status:
+                type: string
+                description: Normalized connection status.
+                enum:
+                  - connected
+                  - needs_reconnect
+                example: connected
+              connectionId:
+                type: string
+                description: Composio connection identifier.
+                example: conn_123
+      example:
+        connections:
+          - slug: gmail
+            status: connected
+            connectionId: conn_123
+    AuthDisconnectResponse:
+      type: object
+      description: Result of disconnecting a Composio app connection.
+      required:
+        - disconnected
+      properties:
+        disconnected:
+          type: boolean
+          description: Whether the connection was disconnected.
+          example: true
+        error:
+          type: string
+          description: Error message when a connection could not be disconnected.
+          example: Connection not found
+      example:
+        disconnected: true
+    BuilderFieldsDto:
+      type: object
+      description: Request payload for resolving marketplace builder fields.
+      properties:
+        agentId:
+          type: string
+          description: Optional agent identifier for the published workflow lookup.
+          example: agent_123
+      example:
+        agentId: agent_123
+    BuilderFieldTarget:
+      type: object
+      description: Mapping target describing where a builder field is applied.
+      required:
+        - nodeName
+        - paramPath
+      properties:
+        nodeName:
+          type: string
+          description: Workflow node name.
+          example: Create Contact
+        paramPath:
+          type: string
+          description: Parameter path in the node configuration.
+          example: input.company
+      example:
+        nodeName: Create Contact
+        paramPath: input.company
+    BuilderFieldWireShape:
+      type: object
+      description: Wire shape describing a builder field sourced from consumer inputs.
+      required:
+        - id
+        - engine
+        - canonicalName
+        - fieldType
+        - label
+        - required
+        - pieceName
+        - pieceVersion
+        - actionName
+        - propertyName
+        - refreshers
+        - targets
+      properties:
+        id:
+          type: string
+          description: Unique field identifier.
+          example: field_1
+        engine:
+          type: string
+          description: Source engine for the field.
+          example: ap
+        canonicalName:
+          type: string
+          description: Canonical field name.
+          example: company_name
+        fieldType:
+          type: string
+          description: Field type identifier.
+          example: string
+        label:
+          type: string
+          description: Human-readable field label.
+          example: Company Name
+        required:
+          type: boolean
+          description: Whether the field is required.
+          example: true
+        defaultValue:
+          nullable: true
+          description: Default field value when present.
+        pieceName:
+          type: string
+          description: Source piece name.
+          example: hubspot
+        pieceVersion:
+          type: string
+          description: Source piece version.
+          example: 1.0.0
+        actionName:
+          type: string
+          description: Source action name.
+          example: create_contact
+        propertyName:
+          type: string
+          description: Source property name.
+          example: company
+        refreshers:
+          type: array
+          description: Names of fields that refresh this field.
+          items:
+            type: string
+          example:
+            - workspace_id
+        targets:
+          type: array
+          description: Workflow parameter targets for the field.
+          items:
+            $ref: '#/components/schemas/BuilderFieldTarget'
+        staticOptions:
+          nullable: true
+          description: Static options payload when defined.
+        markdownValue:
+          nullable: true
+          description: Markdown payload when defined.
+      example:
+        id: field_1
+        engine: ap
+        canonicalName: company_name
+        fieldType: string
+        label: Company Name
+        required: true
+        defaultValue: null
+        pieceName: hubspot
+        pieceVersion: 1.0.0
+        actionName: create_contact
+        propertyName: company
+        refreshers:
+          - workspace_id
+        targets:
+          - nodeName: Create Contact
+            paramPath: input.company
+        staticOptions: null
+        markdownValue: null
+    BuilderFieldsResponse:
+      type: object
+      description: Builder fields resolved for a published workflow.
+      required:
+        - fields
+        - source
+      properties:
+        fields:
+          type: array
+          description: Builder fields sourced from consumer inputs.
+          items:
+            $ref: '#/components/schemas/BuilderFieldWireShape'
+        source:
+          type: string
+          description: Source used to resolve builder fields.
+          enum:
+            - ap-consumer-inputs
+            - no-agent-id
+            - no-ap-row
+          example: ap-consumer-inputs
+      example:
+        fields:
+          - id: field_1
+            engine: ap
+            canonicalName: company_name
+            fieldType: string
+            label: Company Name
+            required: true
+            defaultValue: null
+            pieceName: hubspot
+            pieceVersion: 1.0.0
+            actionName: create_contact
+            propertyName: company
+            refreshers:
+              - workspace_id
+            targets:
+              - nodeName: Create Contact
+                paramPath: input.company
+            staticOptions: null
+            markdownValue: null
+        source: ap-consumer-inputs
+    ConsumerInput:
+      type: object
+      description: Consumer input definition used to derive builder fields.
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: Consumer input name.
+          example: company_name
+        label:
+          type: string
+          description: Human-readable label for the consumer input.
+          example: Company Name
+        type:
+          type: string
+          description: Consumer input type.
+          enum:
+            - string
+            - long-text
+            - dropdown
+            - multi-select
+            - dynamic-dropdown
+            - dynamic-cascade
+            - array
+          example: string
+        required:
+          type: boolean
+          description: Whether the consumer input is required.
+          example: true
+        defaultValue:
+          nullable: true
+          description: Default value for the consumer input.
+        options:
+          type: array
+          description: Input options when applicable.
+          items: {}
+        refreshers:
+          type: array
+          description: Consumer inputs that refresh this input.
+          items:
+            type: string
+          example:
+            - workspace_id
+        targets:
+          type: array
+          description: Target references associated with this input.
+          items:
+            type: string
+          example:
+            - Create Contact.input.company
+        helpText:
+          type: string
+          description: Additional help text for the consumer input.
+          example: Enter the company name to associate with the contact.
+      example:
+        name: company_name
+        label: Company Name
+        type: string
+        required: true
+        defaultValue: null
+        options: []
+        refreshers:
+          - workspace_id
+        targets:
+          - Create Contact.input.company
+        helpText: Enter the company name to associate with the contact.
