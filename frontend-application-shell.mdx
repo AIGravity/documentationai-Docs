@@ -1,6 +1,8 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
@@ -15,11 +17,15 @@ Today, the frontend serves as a scaffold rather than a feature-complete applicat
 
 This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
 
+
+
 </Callout>
 
 The implemented files that define the shell are:
 
 - `apps/web/app/root.tsx`
+- `apps/web/app/entry.client.tsx`
+- `apps/web/app/entry.server.tsx`
 - `apps/web/app/app.css`
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
@@ -216,6 +222,29 @@ The boundary currently behaves as follows:
 
 This is a practical starter boundary. It is useful for local development, but it does not yet include branded error pages, structured logging, or recovery flows.
 
+## Observability
+
+The web app includes Sentry entry points for error monitoring and performance tracing in production environments.
+
+### Browser-side Sentry
+
+The browser entry point initializes Sentry only when a DSN is present and the environment is set to `production`. It captures 100% of transactions for full performance visibility and propagates trace headers to same-origin `/api/` requests and to the URL configured in `VITE_API_URL`, so browser and backend spans appear as one unified trace across services.
+
+A user feedback widget is also integrated, allowing users to submit bug reports, feedback, and feature requests directly from the browser.
+
+### Server-side Sentry
+
+The server entry point initializes Sentry under the same production gate and wraps the Remix error handler so that server-side runtime errors are automatically captured and reported to Sentry.
+
+<Callout kind="info">
+
+Sentry is completely disabled in non-production environments. No configuration is required for local development.
+
+
+</Callout>
+
+See the [Configuration Reference](/configuration-reference#sentry-tracing-configuration) for the full list of Sentry environment variables and tracing settings.
+
 ## Styling pipeline
 
 The styling stack is intentionally small. Global styles live in `app.css`, and Vite is configured with only the plugins required for Tailwind, Remix, and TypeScript path resolution.
@@ -342,6 +371,8 @@ The two external links in the resources list open in a new tab, and the screen r
 
 Run these commands from `apps/web` so `package.json` and the local build output resolve as expected.
 
+
+
 </Callout>
 
 <CodeGroup tabs="package.json scripts,Command usage">
@@ -424,6 +455,8 @@ A few implementation details matter:
 
 The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
 
+
+
 </Callout>
 
 That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
@@ -431,7 +464,13 @@ That constraint is important when planning the next layer of frontend work. New 
 ## Related foundation docs
 
 <Columns cols={3}>
+
   <Card title="API service foundation" href="/api-service-foundation" icon="database" />
+
   <Card title="Health checks" href="/health-checks" icon="shield" />
+
   <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+
+
+
 </Columns>

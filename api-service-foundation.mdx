@@ -1,6 +1,8 @@
 ---
 title: API Service Foundation
-description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+description: >-
+  How the NestJS API service boots, wires modules, enables CORS, exposes health
+  checks, and builds for local and containerized execution.
 ---
 
 ## Overview
@@ -10,6 +12,7 @@ The API service is a minimal NestJS foundation app in `apps/api`. It boots a sin
 <Callout kind="info">
 
 The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+
 
 </Callout>
 
@@ -63,6 +66,7 @@ The service binds to port `3001` with `app.listen(3001)`. There is no `process.e
 
 The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
 
+
 </Callout>
 
 ## Module wiring
@@ -111,6 +115,7 @@ Several common Nest application concerns are absent from the inspected files:
 
 The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
 
+
 </Callout>
 
 ## Health endpoint
@@ -149,11 +154,15 @@ Because there is no API versioning or prefix configuration in the bootstrap file
 The response is a small JSON object with two fields.
 
 <ResponseField name="status" field-type="string" required="true">
+
 Returns `ok` in the current implementation.
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
+
 Returns `api` in the current implementation.
+
 </ResponseField>
 
 ### What the endpoint does not include
@@ -206,6 +215,7 @@ The package metadata and runtime scripts point to different built entrypoints. `
 <Callout kind="alert">
 
 The compiled output path is likely inconsistent with the `start` script. With `rootDir` set to `./` and the source entrypoint at `src/main.ts`, emitted files likely land under `dist/src/`, which makes `bun dist/main.js` a probable mismatch.
+
 
 </Callout>
 
@@ -374,6 +384,7 @@ The deploy job exists, but it does not perform a real deployment yet. The inspec
 
 The CI pipeline includes release and deployment scaffolding, but deployment is not implemented. The deploy job is placeholder-only in the current workflow.
 
+
 </Callout>
 
 ## Current limitations
@@ -386,10 +397,12 @@ The inspected API service is a foundation app, not a feature-complete backend. I
 - no auth
 - no persistence or database integration
 - no domain modules or services
-- no environment-based configuration
 - no OpenAPI or Swagger setup
 - no active test step in CI
 - no lint step, even though the workflow job is labeled Build and Lint
+
+Sentry error monitoring and performance tracing is configured in the API service bootstrap. It activates only in production environments and captures 100% of transactions by default. See the [Configuration Reference](/configuration-reference#sentry-tracing-configuration) for Sentry environment variables and tracing settings.
+
 
 </Callout>
 
