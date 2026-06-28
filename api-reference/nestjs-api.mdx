@@ -1,6 +1,8 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  API reference for the NestJS backend health endpoint implemented in the
+  AIGravity core repository.
 ---
 
 ## Overview
@@ -11,11 +13,13 @@ This page documents the NestJS backend service route currently implemented in th
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
 
+
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
 
 </Callout>
 
@@ -29,11 +33,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +47,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +67,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +75,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +85,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +93,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +128,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +153,93 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Marketplace and connection endpoints
+
+<Callout kind="alert">
+
+The following endpoints were recently introduced or relocated. If your client still uses the previous `/api/n8n-workflow/` paths, update the integration to the current routes documented here.
+
+
+</Callout>
+
+### POST `/api/marketplace/builder-fields`
+
+Use this endpoint to fetch the builder form fields for a published agent. The handler reads from the agent's stored consumer inputs.
+
+<ParamField body="agentId" param-type="string" required="true" show-location="false">
+
+The ID of the published agent to fetch builder fields for.
+
+
+</ParamField>
+
+This endpoint previously lived at `POST /api/n8n-workflow/builder-fields` and now uses the marketplace route.
+
+### GET `/api/connections/auth/connections`
+
+Use this endpoint to list all Composio connections for the authenticated user.
+
+This endpoint is part of the Composio auth route relocation. Composio auth endpoints previously lived under `/api/n8n-workflow/auth/*` and now live under `/api/connections/auth/*`.
+
+### POST `/api/connections/auth/apps`
+
+Use this endpoint to list available Composio apps that can be connected.
+
+This endpoint moved from `POST /api/n8n-workflow/auth/apps`.
+
+### POST `/api/connections/auth/initiate`
+
+Use this endpoint to initiate the Composio OAuth flow for a specific app.
+
+This endpoint moved from `POST /api/n8n-workflow/auth/initiate`.
+
+### POST `/api/connections/auth/status`
+
+Use this endpoint to check the status of a Composio connection.
+
+This endpoint moved from `POST /api/n8n-workflow/auth/status`.
+
+### POST `/api/connections/auth/disconnect`
+
+Use this endpoint to disconnect a Composio connection.
+
+This endpoint moved from `POST /api/n8n-workflow/auth/disconnect`.
+
+### DELETE `/api/apps/pending/all`
+
+Use this endpoint to clear all pending apps from the user's wishlist in a single request.
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+### POST `/api/marketplace/property-options`
+
+Use this endpoint to fetch dropdown options for a specific piece property at runtime.
+
+<ParamField body="pieceName" param-type="string" required="true" show-location="false">
+
+The Activepieces piece name.
+
+
+</ParamField>
+
+<ParamField body="actionName" param-type="string" required="true" show-location="false">
+
+The action or trigger name.
+
+
+</ParamField>
+
+This endpoint now handles trigger-level dropdowns correctly by passing trigger context instead of always using action context. It also reads piece versions from the flow node, which prevents stale frontend versions from being used.

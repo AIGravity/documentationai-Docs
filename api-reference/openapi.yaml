@@ -21,6 +21,12 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Marketplace
+    description: Marketplace agent publishing and builder field operations
+  - name: Connections
+    description: Composio connection management and OAuth operations
+  - name: Apps
+    description: Pending app wishlist management
 paths:
   /health:
     get:
@@ -39,6 +45,190 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/builder-fields:
+    post:
+      tags:
+        - Marketplace
+      summary: Get builder fields for a published agent
+      description: Fetches the builder form fields for a published agent from stored consumer inputs. Previously at POST /api/n8n-workflow/builder-fields.
+      operationId: getBuilderFields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agentId
+              properties:
+                agentId:
+                  type: string
+                  description: Identifier of the published agent.
+                  example: agent_123
+      responses:
+        '200':
+          description: Builder fields retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                fields: []
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/connections:
+    get:
+      tags:
+        - Connections
+      summary: List Composio connections
+      description: Lists all Composio connections for the authenticated user. Previously at GET /api/n8n-workflow/auth/connections.
+      operationId: getConnections
+      responses:
+        '200':
+          description: Connections retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                connections: []
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/apps:
+    post:
+      tags:
+        - Connections
+      summary: List available Composio apps
+      description: Lists available Composio apps that can be connected. Previously at POST /api/n8n-workflow/auth/apps.
+      operationId: getComposioApps
+      responses:
+        '200':
+          description: Available apps retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                apps: []
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/initiate:
+    post:
+      tags:
+        - Connections
+      summary: Initiate Composio OAuth flow
+      description: Initiates the Composio OAuth flow for a specific app. Previously at POST /api/n8n-workflow/auth/initiate.
+      operationId: initiateAuth
+      responses:
+        '200':
+          description: OAuth flow initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                redirectUrl: https://composio.example/auth
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/status:
+    post:
+      tags:
+        - Connections
+      summary: Check Composio connection status
+      description: Checks the status of a Composio connection. Previously at POST /api/n8n-workflow/auth/status.
+      operationId: getAuthStatus
+      responses:
+        '200':
+          description: Connection status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                status: connected
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/connections/auth/disconnect:
+    post:
+      tags:
+        - Connections
+      summary: Disconnect a Composio connection
+      description: Disconnects a Composio connection. Previously at POST /api/n8n-workflow/auth/disconnect.
+      operationId: disconnectAuth
+      responses:
+        '200':
+          description: Connection disconnected successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                success: true
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/apps/pending/all:
+    delete:
+      tags:
+        - Apps
+      summary: Clear all pending apps
+      description: Clears all pending apps from the user's wishlist in a single request. This endpoint is public in this specification using `security: []`, but it requires authentication in practice.
+      operationId: clearAllPendingApps
+      security: []
+      responses:
+        '200':
+          description: Pending apps cleared successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                success: true
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/property-options:
+    post:
+      tags:
+        - Marketplace
+      summary: Get dropdown options for a piece property
+      description: Fetches dropdown options for a specific piece property at runtime. Now handles trigger-level dropdowns by passing trigger context and reads piece versions from the flow node.
+      operationId: getPropertyOptions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+                - actionName
+              properties:
+                pieceName:
+                  type: string
+                  description: Name of the piece.
+                  example: slack
+                actionName:
+                  type: string
+                  description: Name of the action.
+                  example: send_message
+      responses:
+        '200':
+          description: Property options retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                options: []
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:

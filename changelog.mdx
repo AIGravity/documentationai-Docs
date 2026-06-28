@@ -3,50 +3,64 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
+## Release history
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+<Update label="2026-06-28" description="PR #160 — Binding Dynamic Dropdown Consolidation" tags={["breaking", "feature", "improvement"]}>
+
+### Breaking changes
+
+- **Endpoint URL changes**
+  - `POST /api/n8n-workflow/builder-fields` moved to `POST /api/marketplace/builder-fields`.
+  - Composio auth endpoints moved from ` /api/n8n-workflow/auth/*` to ` /api/connections/auth/*`.
 
 <Callout kind="alert">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+Update any clients, internal tooling, or published integrations that still call the old endpoint paths. Requests to the previous routes will no longer match the current API surface.
+
 
 </Callout>
 
-## Release history
+### New features
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- **Full consumer input support on the agent publish path**
+  - Dynamic cascade fields are now handled on publish, expanding support beyond `dynamic-dropdown` and `dynamic-multi-dropdown`.
+  - Refreshers, including dependent dropdown chains, now propagate through the agent publish flow.
+  - Node binding targets now persist and apply at run time, so one consumer answer can fan out to multiple workflow parameters.
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+- **Array field type support**
+  - AP `ARRAY` properties, including multi-recipient email fields, are now supported as consumer inputs.
+  - Scalar string values now split automatically on commas or newlines before being mapped into array inputs.
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Deployment mode and trigger metadata on agent publish**
+  - Scheduled agents now render the correct consumer UI card instead of defaulting to the on-demand experience.
+
+- **Credit cost auto-estimation**
+  - Published agents now show an estimated credit cost per run based on AI and agent node count.
+
+- **Clear all pending apps endpoint**
+  - `DELETE /api/apps/pending/all` now clears the entire pending-apps wishlist in a single request.
+
+### Improvements
+
+- **Trigger-level dropdown options**
+  - Trigger dropdowns now pass trigger context instead of always using action context.
+  - Piece versions now read from the flow node, which prevents stale frontend versions from causing validation errors.
+
+- **Typesense search indexing**
+  - Agent publish now indexes curated metadata, including name, summary, problem solved, use cases, workflow steps, and categories, instead of raw export names.
+
+### Removed
+
+- **Inngest decommissioned**
+  - Removed all Inngest environment variables: `INNGEST_DEV`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY`, and `INNGEST_ENV`.
+  - Removed the `/api/inngest` handler and all durable workflow functions.
+
+- **`AP_USER_PASSWORD_SECRET`**
+  - Removed `AP_USER_PASSWORD_SECRET`.
+  - Direct JWT minting through `AP_JWT_SECRET` now replaces the previous secret-based flow.
+
+
+</Update>
 
 ## How to read this changelog
 
@@ -57,12 +71,17 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 

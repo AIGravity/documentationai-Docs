@@ -1,6 +1,8 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: >-
+  Inventory of the repository’s current model-like definitions, response
+  schemas, and migration status across the API and AI services.
 ---
 
 ## Overview
@@ -12,6 +14,7 @@ What exists today is limited to two inline response shapes returned by health en
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+
 
 </Callout>
 
@@ -37,6 +40,7 @@ The repository is closer to a service scaffold than an application with domain e
 <Callout kind="danger">
 
 The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+
 
 </Callout>
 
@@ -87,11 +91,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,11 +135,122 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
 
 The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
+
+## Consumer input model
+
+Published agents now define a consumer input model that controls what a consumer sees and fills in before running a workflow. Each input maps a form field in the run experience to one or more workflow parameters.
+
+### ConsumerInput
+
+The `ConsumerInput` object represents one field in the published agent form. The platform uses this shape when publishing agents and when rendering the consumer run form.
+
+<ResponseField name="label" field-type="string" required="true">
+
+Display name shown to the consumer in the run form.
+
+
+</ResponseField>
+
+<ResponseField name="paramPath" field-type="string" required="true">
+
+Workflow parameter path that this input writes to.
+
+
+</ResponseField>
+
+<ResponseField name="type" field-type="ConsumerInputType" required="true">
+
+Input field type. Supported values are `text`, `dropdown`, `multi-dropdown`, `dynamic-dropdown`, `dynamic-multi-dropdown`, `dynamic-cascade`, `date`, `file`, and `array`.
+
+
+</ResponseField>
+
+<ResponseField name="refreshers" field-type="string[]" required="false">
+
+List of other input `paramPath` values whose answers trigger this input to refresh its available options. Use this for dependent fields such as a Worksheet selector that depends on the selected Spreadsheet.
+
+
+</ResponseField>
+
+<ResponseField name="targets" field-type="string[]" required="false">
+
+Additional workflow parameter paths that receive the same value as `paramPath`. When a consumer answers this field, the platform writes that answer to the primary path and to every path in `targets`.
+
+
+</ResponseField>
+
+<ResponseField name="required" field-type="boolean" required="false">
+
+Controls whether the consumer must provide a value before running the agent.
+
+
+</ResponseField>
+
+<ResponseField name="defaultValue" field-type="string" required="false">
+
+Pre-filled default value shown in the run form.
+
+
+</ResponseField>
+
+<ResponseField name="options" field-type="array" required="false">
+
+Static options used by dropdown-style inputs.
+
+
+</ResponseField>
+
+<Callout kind="info">
+
+The `array` type and `targets` field were introduced in the latest platform update. `dynamic-cascade` is now fully supported on the agent publish path.
+
+
+</Callout>
+
+### ConsumerInputType
+
+The `ConsumerInputType` union defines how the run form renders a field and how the platform interprets the submitted value.
+
+- `text` — Free-text input
+- `dropdown` — Single-select dropdown with static options
+- `multi-dropdown` — Multi-select dropdown with static options
+- `dynamic-dropdown` — Single-select dropdown whose options are fetched at runtime
+- `dynamic-multi-dropdown` — Multi-select dropdown whose options are fetched at runtime
+- `dynamic-cascade` — Cascading select whose options depend on the value of another field and is now supported on all publish paths
+- `date` — Date picker
+- `file` — File upload
+- `array` — Array input; scalar string values are auto-split on commas or newlines
+
+### Published workflow metadata
+
+Agent publish now records additional workflow metadata that affects how a published agent is displayed and run.
+
+<ResponseField name="deploymentMode" field-type="string" required="true">
+
+How the agent runs. Supported values are `on-demand` for manually triggered runs and `scheduled` for cron-based runs. The selected mode determines which consumer UI card the platform shows.
+
+
+</ResponseField>
+
+<ResponseField name="triggerMetadata" field-type="object" required="false">
+
+Scheduling metadata for `scheduled` agents, such as the cron expression and related trigger details.
+
+
+</ResponseField>
+
+<ResponseField name="creditCost" field-type="number" required="true">
+
+Estimated credit cost per run. The platform calculates this value at publish time from the workflow's AI and agent node count.
+
+
+</ResponseField>
 
 ## Validation schema and DTO status
 
@@ -155,6 +272,7 @@ No named validation layer is implemented in the analyzed repository.
 <Callout kind="info">
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+
 
 </Callout>
 
@@ -188,11 +306,16 @@ The current codebase exposes service health, but it does not yet define durable 
 
 Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
 
+
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>
