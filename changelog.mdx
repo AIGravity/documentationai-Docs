@@ -3,50 +3,34 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
-
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
-
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="2025-06-28" description="Binding & Dynamic Dropdown Consolidation" tags={["feature", "improvement", "bugfix"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Bind nodes** — When customizing an agent, you can now bind a single field across multiple workflow steps. One consumer answer fills all bound nodes automatically. A badge shows how many nodes are linked.
+- **New consumer input controls** — Agents now support date pickers, file uploads, and cascading dependent dropdowns when collecting inputs from users.
+- **Per-field property indicators** — Each tagged field in the agent customizer now shows a badge indicating what control type the consumer will see, including dropdown, cascade, date, and file.
+- **Clear all pending apps** — You can now clear your entire "to connect" wishlist in one action from the My Apps page.
+
+### Updates
+
+- **Real end-to-end test runs** — "Test your agent" now performs a genuine production run that executes real actions, then immediately disables the flow. Previously, test runs skipped gated action steps entirely.
+- **Accurate credit cost on deploy** — Agents published via the customize flow now show an estimated credit cost per run on the deploy card, based on the agent's structure. Previously, the cost displayed as 0 until the first real metered run.
+- **Improved agent discovery** — Agents published via the customize flow now appear correctly in search with their proper name and description, instead of being invisible or poorly ranked.
+- **Scheduled agents via customize flow** — Scheduled and subscription-based agents can now be published via the customize flow and correctly route to the "Schedule and Execute" card for consumers.
+- **Faster connected-apps loading** — The My Apps screen now fetches all connected app statuses in a single request instead of one request per app.
+
+### Bug fixes
+
+- **Dependent dropdowns broken on customized agents** — Agents published via the customize flow were missing dependency metadata, causing dependent dropdowns to fail at runtime. Both publish paths now use the same enrichment logic.
+- **Array inputs sent as scalars** — Multi-value fields like email recipient lists are now correctly passed as arrays instead of being flattened to a single string.
+- **Bound fields not deduplicated** — When the same field was tagged on multiple bound nodes, consumers were asked the same question multiple times. Bound fields are now collapsed into a single question.
+- **Builder form pagination stuck** — Inline agent form cards with incompatible fields could get stuck during pagination. The one-field-at-a-time flow now paginates correctly with Back, Next, and Run controls.
+
+
+</Update>
 
 ## How to read this changelog
 
@@ -57,12 +41,17 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 
