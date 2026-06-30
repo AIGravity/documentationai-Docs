@@ -1,11 +1,11 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
+  version: 1.1.0
   title: AIGravity Core API Service
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint and builder profile endpoints, including lifetime earnings derived from the creator earnings ledger.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,10 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Builder Profile
+    description: Builder profile and earnings management endpoints
+security:
+  - BearerAuth: []
 paths:
   /health:
     get:
@@ -41,7 +45,86 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /builders/me:
+    get:
+      tags:
+        - Builder Profile
+      summary: Get current builder profile
+      description: >
+        Returns the authenticated builder's profile, including lifetime earnings
+        derived from the creator earnings ledger. The totalEarnings field is a
+        legacy column that always returns 0; use lifetimeEarningsCredits and
+        lifetimeEarningsUsd for real earnings data.
+      operationId: getBuilderMe
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Builder profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuilderView'
+              example:
+                userId: usr_abc123
+                currency: USD
+                totalEarnings: 0
+                lifetimeEarningsCredits: 2450
+                lifetimeEarningsUsd: 24.5
+                createdAt: '2026-01-15T10:30:00.000Z'
+                updatedAt: '2026-06-30T14:20:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags:
+        - Builder Profile
+      summary: Update current builder profile
+      description: >
+        Updates the authenticated builder's profile settings. Currently only the
+        display currency can be changed. The response reflects the updated profile
+        and includes lifetime earnings from the creator earnings ledger.
+      operationId: updateBuilderMe
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBuilderProfileDto'
+            example:
+              currency: EUR
+      responses:
+        '200':
+          description: Builder profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuilderView'
+              example:
+                userId: usr_abc123
+                currency: EUR
+                totalEarnings: 0
+                lifetimeEarningsCredits: 2450
+                lifetimeEarningsUsd: 24.5
+                createdAt: '2026-01-15T10:30:00.000Z'
+                updatedAt: '2026-06-30T14:25:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: JWT bearer token authentication
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -49,6 +132,22 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Builder profile not found
+    Unauthorized:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
   schemas:
     HealthResponse:
       type: object
@@ -56,6 +155,69 @@ components:
       additionalProperties: true
       example:
         status: ok
+    BuilderView:
+      type: object
+      description: Builder profile response with lifetime earnings from the creator earnings ledger.
+      required:
+        - userId
+        - currency
+        - totalEarnings
+        - lifetimeEarningsCredits
+        - lifetimeEarningsUsd
+        - createdAt
+        - updatedAt
+      properties:
+        userId:
+          type: string
+          description: Unique identifier for the builder user.
+          example: usr_abc123
+        currency:
+          type: string
+          description: Display currency code for the builder's earnings.
+          example: USD
+        totalEarnings:
+          type: number
+          description: >
+            Legacy earnings column. Always returns 0 — no code path writes to
+            this field. Use lifetimeEarningsCredits and lifetimeEarningsUsd
+            instead.
+          example: 0
+          deprecated: true
+        lifetimeEarningsCredits:
+          type: integer
+          description: >
+            Total credits earned by the builder, summed from the
+            creator_earnings_ledger table. Includes positive earnings and
+            negative refund reversals.
+          example: 2450
+          minimum: 0
+        lifetimeEarningsUsd:
+          type: number
+          description: >
+            Lifetime earnings in USD, computed as lifetimeEarningsCredits
+            divided by 100 (1 credit = $0.01).
+          example: 24.5
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the builder profile was created.
+          example: '2026-01-15T10:30:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when the builder profile was last updated.
+          example: '2026-06-30T14:20:00.000Z'
+    UpdateBuilderProfileDto:
+      type: object
+      description: Request body for updating a builder profile.
+      properties:
+        currency:
+          type: string
+          description: >
+            Display currency code for earnings. Accepts supported ISO 4217
+            currency codes (e.g., USD, EUR, GBP).
+          example: EUR
     Error:
       type: object
       description: Generic error response.

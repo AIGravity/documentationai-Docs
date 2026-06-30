@@ -1,15 +1,19 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  API reference for the NestJS backend service, covering health checks and
+  builder profile endpoints including lifetime earnings from the creator
+  earnings ledger.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The code analysis found two endpoint groups: the health check endpoint `GET /health`, and the builder profile endpoints `GET /builders/me` and `PATCH /builders/me`.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
 
 </Callout>
 
@@ -17,9 +21,10 @@ Implementation details on this page were derived from code analysis of `apps/api
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
 
+
 </Callout>
 
-## Endpoint
+## Health endpoint
 
 ### GET `/health`
 
@@ -29,11 +34,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +48,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +68,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +76,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +86,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +94,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +129,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +154,338 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Builder profile endpoints
+
+These endpoints return and update the authenticated builder profile. Both endpoints also return lifetime earnings derived from the `creator_earnings_ledger` table.
+
+### GET `/builders/me`
+
+Use this endpoint to fetch the authenticated builder's profile, including lifetime earnings derived from the `creator_earnings_ledger` table. The `totalEarnings` field is a legacy column that always returns `0`; use `lifetimeEarningsCredits` and `lifetimeEarningsUsd` for actual earnings data.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/builders/me`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Requires authentication. The builder is identified from the authenticated user's session or token.
+
+
+</ParamField>
+
+#### Request details
+
+This endpoint does not accept request-specific inputs beyond the authenticated `GET` request.
+
+##### Path parameters
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None. The route is fixed at `GET /builders/me`.
+
+
+</ParamField>
+
+##### Query parameters
+
+<ParamField body="query parameters" param-type="none" required="false" show-location="false">
+
+None. The handler does not define or consume query string values.
+
+
+</ParamField>
+
+##### Headers
+
+<ParamField body="custom headers" param-type="none" required="false" show-location="false">
+
+None beyond standard authentication headers.
+
+
+</ParamField>
+
+##### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. `GET /builders/me` does not accept a request body.
+
+
+</ParamField>
+
+##### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i http://localhost:3001/builders/me \
+  -H "Authorization: Bearer <token>"
+```
+
+</CodeGroup>
+
+#### Response
+
+A successful request returns the authenticated builder profile and the current lifetime earnings projection.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "userId": "usr_abc123",
+  "currency": "USD",
+  "totalEarnings": 0,
+  "lifetimeEarningsCredits": 2450,
+  "lifetimeEarningsUsd": 24.50,
+  "createdAt": "2026-01-15T10:30:00.000Z",
+  "updatedAt": "2026-06-30T14:20:00.000Z"
+}
+```
+
+</CodeGroup>
+
+##### Response fields
+
+<ResponseField name="userId" field-type="string" required="true">
+
+Unique identifier for the builder user.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Display currency code for the builder's earnings, such as `USD`, `EUR`, or `GBP`.
+
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="number" required="true" deprecated="true">
+
+Legacy earnings column. Always returns `0`. No code path writes to this field. Use `lifetimeEarningsCredits` and `lifetimeEarningsUsd` instead.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsCredits" field-type="integer" required="true">
+
+Total credits earned by the builder, summed from the `creator_earnings_ledger` table. The total includes positive earnings and negative refund reversals. `1` credit equals `$0.01`.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsUsd" field-type="number" required="true">
+
+Lifetime earnings in USD, computed as `lifetimeEarningsCredits` divided by `100`.
+
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the builder profile was created.
+
+
+</ResponseField>
+
+<ResponseField name="updatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the builder profile was last updated.
+
+
+</ResponseField>
+
+#### Error responses
+
+##### 401 unauthorized
+
+A `401` response indicates that authentication is required or the supplied token is invalid.
+
+##### 404 not found
+
+A `404` response indicates that no builder profile exists for the authenticated user.
+
+##### 500 internal server error
+
+A `500` response indicates an unexpected server error. If the `creator_earnings_ledger` table is unavailable, the endpoint falls back to `lifetimeEarningsCredits` of `0` instead of failing the request.
+
+### PATCH `/builders/me`
+
+Use this endpoint to update the authenticated builder's profile settings. The response returns the updated profile and includes lifetime earnings from the `creator_earnings_ledger` table.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`PATCH`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/builders/me`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Requires authentication. The builder is identified from the authenticated user's session or token.
+
+
+</ParamField>
+
+#### Request details
+
+This endpoint updates profile settings for the authenticated builder.
+
+##### Path parameters
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None. The route is fixed at `PATCH /builders/me`.
+
+
+</ParamField>
+
+##### Query parameters
+
+<ParamField body="query parameters" param-type="none" required="false" show-location="false">
+
+None. The handler does not define or consume query string values.
+
+
+</ParamField>
+
+##### Headers
+
+<ParamField body="custom headers" param-type="none" required="false" show-location="false">
+
+None beyond standard authentication and content-type headers.
+
+
+</ParamField>
+
+##### Request body
+
+<ParamField body="currency" param-type="string" required="false" show-location="false">
+
+Display currency code for earnings. Accepts supported ISO 4217 currency codes such as `USD`, `EUR`, and `GBP`.
+
+
+</ParamField>
+
+##### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i -X PATCH http://localhost:3001/builders/me \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"currency": "EUR"}'
+```
+
+</CodeGroup>
+
+#### Response
+
+A successful request returns the updated builder profile in the same shape as `GET /builders/me`.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "userId": "usr_abc123",
+  "currency": "EUR",
+  "totalEarnings": 0,
+  "lifetimeEarningsCredits": 2450,
+  "lifetimeEarningsUsd": 24.50,
+  "createdAt": "2026-01-15T10:30:00.000Z",
+  "updatedAt": "2026-06-30T14:25:00.000Z"
+}
+```
+
+</CodeGroup>
+
+##### Response fields
+
+<ResponseField name="userId" field-type="string" required="true">
+
+Unique identifier for the builder user.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Display currency code for the builder's earnings, such as `USD`, `EUR`, or `GBP`.
+
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="number" required="true" deprecated="true">
+
+Legacy earnings column. Always returns `0`. No code path writes to this field. Use `lifetimeEarningsCredits` and `lifetimeEarningsUsd` instead.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsCredits" field-type="integer" required="true">
+
+Total credits earned by the builder, summed from the `creator_earnings_ledger` table. The total includes positive earnings and negative refund reversals. `1` credit equals `$0.01`.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsUsd" field-type="number" required="true">
+
+Lifetime earnings in USD, computed as `lifetimeEarningsCredits` divided by `100`.
+
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the builder profile was created.
+
+
+</ResponseField>
+
+<ResponseField name="updatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the builder profile was last updated.
+
+
+</ResponseField>
+
+#### Error responses
+
+##### 401 unauthorized
+
+A `401` response indicates that authentication is required or the supplied token is invalid.
+
+##### 404 not found
+
+A `404` response indicates that no builder profile exists for the authenticated user.
+
+##### 500 internal server error
+
+A `500` response indicates an unexpected server error.
+
+<Callout kind="info">
+
+The `PATCH` endpoint delegates to the same response path as `GET /builders/me` after applying the update, so the response always includes current lifetime earnings from the `creator_earnings_ledger` table. The legacy `totalEarnings` field is retained for backward compatibility but is never populated; it always returns `0`.
+
+
+</Callout>

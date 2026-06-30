@@ -1,6 +1,6 @@
 ---
 title: Configuration Reference
-description: Reference for the repository’s current environment variables, config files, hardcoded runtime settings, and workflow gates across the web, API, and AI services.
+description: Reference for the repository's current environment variables, config files, hardcoded runtime settings, database-stored pricing configuration, and workflow gates across the web, API, and AI services.
 ---
 
 ## Overview
@@ -10,6 +10,7 @@ This repository currently relies far more on static configuration than on enviro
 <Callout kind="info">
 
 This page reflects the current implementation in the repository, not an intended future configuration model. If a setting is listed here, it was found in source files, Dockerfiles, package scripts, or GitHub Actions workflows.
+
 
 </Callout>
 
@@ -33,6 +34,7 @@ Configuration is spread across a small number of concrete surfaces rather than a
 
 The repository does not currently expose a general configuration abstraction for ports, CORS origin, or deployment behavior. Several values that are often environment-driven in other projects are fixed directly in code or workflow files.
 
+
 </Callout>
 
 ## Environment variables
@@ -44,6 +46,7 @@ The inspected source code does not consume repository-defined application enviro
 <Callout kind="success">
 
 No `.env` files were found in the repository tree, and no application code reads of `process.env`, `import.meta.env`, `os.getenv`, `getenv`, or `dotenv` were found.
+
 
 </Callout>
 
@@ -59,6 +62,7 @@ No `.env` files were found in the repository tree, and no application code reads
 
 **Required:** No. The current codebase does not depend on a repo-defined `.env` file for local startup.
 
+
 </ParamField>
 
 <ParamField body="env-file-support" param-type="none" required="false" show-location="false">
@@ -70,6 +74,7 @@ No `.env` files were found in the repository tree, and no application code reads
 **Explicit value:** not implemented.
 
 **Required:** No. No `.env`, `.env.example`, or application dotenv loading was found.
+
 
 </ParamField>
 
@@ -89,6 +94,7 @@ The repository does use environment variables outside application code in Docker
 
 **Required:** No. The AI service Docker image sets this value internally.
 
+
 </ParamField>
 
 #### GitHub Actions workflow environment
@@ -103,6 +109,7 @@ The repository does use environment variables outside application code in Docker
 
 **Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
 
+
 </ParamField>
 
 <ParamField body="IMAGE_NAME" param-type="string" required="true" show-location="false">
@@ -114,6 +121,7 @@ The repository does use environment variables outside application code in Docker
 **Explicit values:** `gravity-api`, `gravity-web`, and `gravity-ai-service`.
 
 **Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
+
 
 </ParamField>
 
@@ -127,6 +135,7 @@ The repository does use environment variables outside application code in Docker
 
 **Required:** Yes for workflow execution paths that log in to GitHub Container Registry.
 
+
 </ParamField>
 
 <ParamField body="github-context-values" param-type="string" required="true" show-location="false">
@@ -138,6 +147,7 @@ The repository does use environment variables outside application code in Docker
 **Explicit values:** `github.ref`, `github.ref_name`, `github.actor`, `github.repository_owner`, and `github.event_name`.
 
 **Required:** Yes for the current workflow conditions and tagging logic.
+
 
 </ParamField>
 
@@ -200,6 +210,7 @@ await app.listen(3001);
 
 **Required:** Yes. The current bootstrap code passes this value directly to `app.enableCors(...)`.
 
+
 </ParamField>
 
 <ParamField body="credentials" param-type="boolean" required="true" show-location="false">
@@ -212,6 +223,7 @@ await app.listen(3001);
 
 **Required:** Yes. The current bootstrap code sets it directly.
 
+
 </ParamField>
 
 <ParamField body="port" param-type="number" required="true" show-location="false">
@@ -223,6 +235,7 @@ await app.listen(3001);
 **Explicit value:** `3001`.
 
 **Required:** Yes. The service binds with `app.listen(3001)` and does not read a port from environment variables.
+
 
 </ParamField>
 
@@ -258,6 +271,7 @@ def health():
 
 **Required:** Yes. The route is defined directly in application code.
 
+
 </ParamField>
 
 <ParamField body="dev-port" param-type="number" required="true" show-location="false">
@@ -269,6 +283,7 @@ def health():
 **Explicit value:** `8001`.
 
 **Required:** Yes for the current dev script, because the script passes `--port 8001`.
+
 
 </ParamField>
 
@@ -282,11 +297,63 @@ def health():
 
 **Required:** Yes for the current Docker runtime, because the container command passes `--port 8001`.
 
+
 </ParamField>
 
 ### Web service runtime notes
 
 The web app runtime port is not driven by a repository-defined environment variable. The inspected repository instead documents and hardcodes port expectations in multiple places, including `3000` in Docker and root documentation, with a separate development note referencing `5173`.
+
+## Pricing configuration (database-stored)
+
+The billing system reads runtime-configurable parameters from the `pricing_config` database table. These entries control the creator split behavior for run charges and chat charges. No database migration is required to change them — the application reads them at charge time and falls back to hardcoded defaults when the rows are absent.
+
+<ParamField body="platform_share_pct" param-type="integer (value_int)" required="false" show-location="false">
+
+**Purpose:** Set the platform's share of the creator split as a percentage. The creator earns 100 minus this value.
+
+**Type:** integer stored in the `value_int` column.
+
+**Explicit value:** No checked-in default in the database. The application falls back to `80` when the row is absent.
+
+**Required:** No. When absent, the default of `80` is used.
+
+**Valid range:** `0` through `100`.
+
+
+</ParamField>
+
+<ParamField body="creator_share_basis" param-type="string (value_text)" required="false" show-location="false">
+
+**Purpose:** Determine how the creator's share is calculated from each run charge.
+
+**Type:** string stored in the `value_text` column.
+
+**Explicit value:** No checked-in default in the database. The application falls back to `gross` when the row is absent.
+
+**Required:** No. When absent, the default of `gross` is used.
+
+**Accepted values:**
+
+- `gross` — The creator's share is a percentage of the full run charge.
+- `margin` — The creator's share is a percentage of the charge minus the measured LLM cost.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+When `creator_share_basis` is set to `gross`, the charge RPC receives `rawCost = 0`, so the creator earns a percentage of the full charge amount. When set to `margin`, the RPC receives the measured LLM cost, and the creator earns a percentage of the difference between the charge and the cost. The default behavior is `gross`.
+
+
+</Callout>
+
+<Callout kind="info">
+
+See the Data Models Reference for the full `pricing_config` table schema and the `creator_earnings_ledger` table that records per-run creator earnings.
+
+
+</Callout>
 
 ## Config files
 
@@ -304,6 +371,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes for consistent dependency installation and workspace behavior.
 
+
 </ParamField>
 
 <ParamField body="dev" param-type="script" required="false" show-location="false">
@@ -315,6 +383,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** present in `package.json`.
 
 **Required:** No. It is a convenience entrypoint rather than a runtime requirement.
+
 
 </ParamField>
 
@@ -328,6 +397,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** No.
 
+
 </ParamField>
 
 <ParamField body="dev:api" param-type="script" required="false" show-location="false">
@@ -339,6 +409,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** present in `package.json`.
 
 **Required:** No.
+
 
 </ParamField>
 
@@ -352,6 +423,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** No, but it is the current scripted AI service dev entrypoint.
 
+
 </ParamField>
 
 <ParamField body="packages" param-type="string[]" required="true" show-location="false">
@@ -364,6 +436,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes for workspace resolution.
 
+
 </ParamField>
 
 <ParamField body="ignoredBuiltDependencies" param-type="string[]" required="false" show-location="false">
@@ -375,6 +448,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `["esbuild"]`.
 
 **Required:** No.
+
 
 </ParamField>
 
@@ -390,6 +464,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes for the current Turbo task definition.
 
+
 </ParamField>
 
 <ParamField body="tasks.build.dependsOn" param-type="string[]" required="true" show-location="false">
@@ -402,6 +477,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes for the current build graph.
 
+
 </ParamField>
 
 <ParamField body="tasks.build.outputs" param-type="string[]" required="true" show-location="false">
@@ -413,6 +489,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `["dist/**"]`.
 
 **Required:** Yes for the current build task definition.
+
 
 </ParamField>
 
@@ -428,6 +505,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes in `apps/api/nest-cli.json`.
 
+
 </ParamField>
 
 <ParamField body="sourceRoot" param-type="string" required="true" show-location="false">
@@ -439,6 +517,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `src`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -452,6 +531,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="generateOptions.spec" param-type="boolean" required="true" show-location="false">
@@ -463,6 +543,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `false`.
 
 **Required:** Yes in the current Nest CLI config.
+
 
 </ParamField>
 
@@ -476,6 +557,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="compilerOptions.tsConfigPath" param-type="string" required="true" show-location="false">
@@ -487,6 +569,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `./tsconfig.build.json`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -500,6 +583,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="compilerOptions.deleteOutDir" param-type="boolean" required="true" show-location="false">
@@ -511,6 +595,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `true`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -524,6 +609,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="module" param-type="string" required="true" show-location="false">
@@ -535,6 +621,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `ESNext` in `apps/api/tsconfig.json`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -548,6 +635,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="outDir" param-type="string" required="true" show-location="false">
@@ -559,6 +647,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `./dist`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -572,6 +661,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="incremental" param-type="boolean" required="true" show-location="false">
@@ -583,6 +673,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `true`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -596,6 +687,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="exclude" param-type="string[]" required="true" show-location="false">
@@ -607,6 +699,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `["node_modules", "test", "dist", "**/*spec.ts"]`.
 
 **Required:** Yes in `apps/api/tsconfig.build.json`.
+
 
 </ParamField>
 
@@ -622,6 +715,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes for the current web build flow.
 
+
 </ParamField>
 
 <ParamField body="dev" param-type="script" required="false" show-location="false">
@@ -633,6 +727,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `remix vite:dev`.
 
 **Required:** No.
+
 
 </ParamField>
 
@@ -646,6 +741,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes for the current container start behavior.
 
+
 </ParamField>
 
 <ParamField body="plugins" param-type="array" required="true" show-location="false">
@@ -657,6 +753,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `tailwindcss()`, `remix()`, and `tsconfigPaths()`.
 
 **Required:** Yes for the current web build configuration.
+
 
 </ParamField>
 
@@ -670,6 +767,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="noEmit" param-type="boolean" required="true" show-location="false">
@@ -681,6 +779,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `true`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -696,6 +795,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes in `tsconfig.base.json`.
 
+
 </ParamField>
 
 <ParamField body="strict" param-type="boolean" required="true" show-location="false">
@@ -708,6 +808,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="resolveJsonModule" param-type="boolean" required="true" show-location="false">
@@ -719,6 +820,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `true`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -734,6 +836,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes in `apps/ai-service/.python-version`.
 
+
 </ParamField>
 
 <ParamField body="requires-python" param-type="string" required="true" show-location="false">
@@ -746,6 +849,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 
 **Required:** Yes in `apps/ai-service/pyproject.toml`.
 
+
 </ParamField>
 
 <ParamField body="dependencies" param-type="string[]" required="true" show-location="false">
@@ -757,6 +861,7 @@ These files define the monorepo’s build, toolchain, and service-level behavior
 **Explicit value:** `fastapi`, `pydantic`, and `uvicorn`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -795,6 +900,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="web-exposed-port" param-type="number" required="true" show-location="false">
@@ -806,6 +912,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 **Explicit value:** `3000`.
 
 **Required:** Yes in `apps/web/Dockerfile`.
+
 
 </ParamField>
 
@@ -819,6 +926,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="api-exposed-port" param-type="number" required="true" show-location="false">
@@ -830,6 +938,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 **Explicit value:** `3000`.
 
 **Required:** Yes in `apps/api/Dockerfile`.
+
 
 </ParamField>
 
@@ -843,6 +952,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="uv-source-image" param-type="string" required="true" show-location="false">
@@ -855,6 +965,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 **Required:** Yes in the current Dockerfile.
 
+
 </ParamField>
 
 <ParamField body="ai-exposed-port" param-type="number" required="true" show-location="false">
@@ -866,6 +977,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 **Explicit value:** `8001`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -885,6 +997,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes in the current workflow definitions.
 
+
 </ParamField>
 
 <ParamField body="environment-gate" param-type="mapping" required="true" show-location="false">
@@ -897,6 +1010,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes for current deployment targeting.
 
+
 </ParamField>
 
 <ParamField body="path-filters" param-type="static rules" required="true" show-location="false">
@@ -908,6 +1022,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 **Explicit value:** defined separately per service workflow.
 
 **Required:** Yes in the current CI setup.
+
 
 </ParamField>
 
@@ -923,6 +1038,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="web-image-name" param-type="string" required="true" show-location="false">
@@ -934,6 +1050,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 **Explicit value:** `gravity-web`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -947,6 +1064,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="node-version" param-type="string" required="true" show-location="false">
@@ -958,6 +1076,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 **Explicit value:** `20`.
 
 **Required:** Yes in current CI setup.
+
 
 </ParamField>
 
@@ -971,6 +1090,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="bun-version" param-type="string" required="true" show-location="false">
@@ -983,6 +1103,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes where Bun is installed in CI.
 
+
 </ParamField>
 
 <ParamField body="uv-version" param-type="string" required="true" show-location="false">
@@ -994,6 +1115,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 **Explicit value:** `latest`.
 
 **Required:** Yes where the AI service workflow installs `uv`.
+
 
 </ParamField>
 
@@ -1009,6 +1131,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="cancel-in-progress" param-type="boolean" required="true" show-location="false">
@@ -1020,6 +1143,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 **Explicit value:** `true`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -1033,6 +1157,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes in the current release automation.
 
+
 </ParamField>
 
 <ParamField body="latest-tag-gate" param-type="branch rule" required="true" show-location="false">
@@ -1044,6 +1169,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 **Explicit value:** enabled only on `main`.
 
 **Required:** Yes in current tag logic.
+
 
 </ParamField>
 
@@ -1057,6 +1183,7 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 **Required:** Yes in current tag logic.
 
+
 </ParamField>
 
 ## Feature flags
@@ -1066,6 +1193,7 @@ No true application feature flag system was found in the inspected codebase.
 <Callout kind="info">
 
 Boolean settings exist in the repository, but they are not feature flags unless application code uses them to enable or disable user-facing behavior at runtime. In this repository, the booleans that were found belong to bootstrap settings, build tools, or workflows.
+
 
 </Callout>
 
@@ -1081,6 +1209,7 @@ Boolean settings exist in the repository, but they are not feature flags unless 
 
 **Required:** No. No app-level feature flag framework or env-driven toggle system was found.
 
+
 </ParamField>
 
 ### Workflow and tool booleans that are not feature flags
@@ -1095,6 +1224,7 @@ Boolean settings exist in the repository, but they are not feature flags unless 
 
 **Required:** Yes.
 
+
 </ParamField>
 
 <ParamField body="turbo-dev-cache" param-type="boolean" required="true" show-location="false">
@@ -1106,6 +1236,7 @@ Boolean settings exist in the repository, but they are not feature flags unless 
 **Explicit value:** `false`.
 
 **Required:** Yes.
+
 
 </ParamField>
 
@@ -1119,6 +1250,7 @@ Boolean settings exist in the repository, but they are not feature flags unless 
 
 **Required:** Yes.
 
+
 </ParamField>
 
 ## Notable mismatches
@@ -1128,6 +1260,7 @@ A few current settings conflict across files or docs and can affect local setup 
 <Callout kind="alert">
 
 The API service listens on port `3001` in source code, but `apps/api/Dockerfile` exposes port `3000`. Treat this as an active mismatch until one side changes.
+
 
 </Callout>
 
@@ -1141,6 +1274,7 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 
 **Required:** No, but it is operationally important.
 
+
 </ParamField>
 
 <ParamField body="web-port-documentation-mismatch" param-type="documentation mismatch" required="false" show-location="false">
@@ -1152,6 +1286,7 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 **Explicit value:** root docs and API CORS expect `http://localhost:3000`, while the web app README mentions `http://localhost:5173`.
 
 **Required:** No, but it affects local integration expectations.
+
 
 </ParamField>
 
@@ -1165,6 +1300,7 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 
 **Required:** No, but it can mislead local setup and script interpretation.
 
+
 </ParamField>
 
 <ParamField body="env-abstraction-gap" param-type="architecture note" required="false" show-location="false">
@@ -1177,12 +1313,18 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 
 **Required:** No, but it is important when planning changes.
 
+
 </ParamField>
 
 ## Related docs
 
 <Columns cols={3}>
+
   <Card title="Quickstart" href="/quickstart" icon="rocket" cta="Open guide" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="code" cta="Review runtime behavior" />
+
   <Card title="Monorepo architecture" href="/monorepo-architecture" icon="folder" cta="Browse project layout" />
+
+
 </Columns>

@@ -1,48 +1,54 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Inventory of the repository's current model-like definitions, response schemas, database tables, and pricing configuration entries across the API and AI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+The AIGravity core repository defines response shapes for health endpoints, a builder profile response shape backed by database queries, and database tables for creator earnings and pricing configuration. The builder profile response shape, `BuilderView`, aggregates data from the `builders` table and the `creator_earnings_ledger` table to report lifetime earnings.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+The response shapes and database tables documented here were identified through code analysis of the builder profile service, Supabase service, and charges service.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
 
+
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now includes a small set of persistence-backed structures for builder earnings and pricing, alongside endpoint-local health responses.
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
+| Named domain models | Builder profile response shape (BuilderView) with lifetime earnings |
+| ORM or database models | Supabase-backed tables: builders, creator_earnings_ledger, pricing_config |
+| DTO classes | UpdateBuilderProfileDto for PATCH /builders/me |
 | Named validation schemas | None found in the analyzed code |
 | Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Inline response shapes | 3 found |
+| Persisted entities | creator_earnings_ledger, pricing_config, builders |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **Builder profile response (BuilderView)** — response shape for `GET /builders/me` and `PATCH /builders/me`, includes `lifetimeEarningsCredits` and `lifetimeEarningsUsd` from `creator_earnings_ledger`
+- **UpdateBuilderProfileDto** — request DTO for `PATCH /builders/me`, accepts a `currency` field
+- **creator_earnings_ledger** — database table tracking per-run creator earnings
+- **pricing_config** — database table with `platform_share_pct` and `creator_share_basis` entries for configurable creator split
 
-<Callout kind="danger">
+<Callout kind="info">
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+The builder profile and billing features use Supabase as their persistence layer. The `creator_earnings_ledger` and `pricing_config` tables are accessed through the Supabase service client.
+
 
 </Callout>
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The builder profile and billing features use Supabase as their data store. The Supabase service client provides methods to read from the `builders`, `creator_earnings_ledger`, and `pricing_config` tables. No ORM-based migration system is used — table structures are managed at the database level.
 
 Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
 
@@ -87,11 +93,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,22 +137,188 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
 
 The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
 
+## Builder profile response shape (BuilderView)
+
+The `BuilderView` interface is the serialized response body for both `GET /builders/me` and `PATCH /builders/me`. It aggregates data from the `builders` table and the `creator_earnings_ledger` table to report lifetime earnings.
+
+### Implemented shape
+
+<CodeGroup tabs="TypeScript">
+
+```ts
+interface BuilderView {
+  userId: string;
+  currency: string;
+  totalEarnings: number;             // legacy, always 0
+  lifetimeEarningsCredits: number;   // from creator_earnings_ledger
+  lifetimeEarningsUsd: number;       // lifetimeEarningsCredits / 100
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+</CodeGroup>
+
+### Classification
+
+- **Kind** — Response shape (interface)
+- **Named entity or DTO** — BuilderView interface
+- **Persistence-backed** — Yes, reads from `builders` and `creator_earnings_ledger` tables
+- **Relationships** — Aggregates builder profile data with ledger entries
+- **Validation rules** — Currency field validated through `UpdateBuilderProfileDto`
+
+### Response fields
+
+<ResponseField name="userId" field-type="string" required="true">
+
+Unique identifier for the builder user.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Display currency code for the builder's earnings.
+
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="number" required="true" deprecated="true">
+
+Legacy earnings column. Always returns `0` because no code path writes to this field. Use `lifetimeEarningsCredits` and `lifetimeEarningsUsd` instead.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsCredits" field-type="integer" required="true">
+
+Total credits earned by the builder, summed from the `creator_earnings_ledger` table. Includes positive earnings and negative refund reversals. One credit equals `0.01` USD.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsUsd" field-type="number" required="true">
+
+Lifetime earnings in USD, computed as `lifetimeEarningsCredits` divided by `100`.
+
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the builder profile was created.
+
+
+</ResponseField>
+
+<ResponseField name="updatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the builder profile was last updated.
+
+
+</ResponseField>
+
+### Notes
+
+<Callout kind="info">
+
+The `totalEarnings` field reads from the `builders.total_earnings` column, which is never written to and always returns `0`. The `lifetimeEarningsCredits` field is computed by summing all `credits_earned` rows in `creator_earnings_ledger` for the builder's user ID. If the ledger table is unavailable, the endpoint gracefully returns `0` rather than erroring.
+
+
+</Callout>
+
+## creator_earnings_ledger table
+
+The `creator_earnings_ledger` table is the source of truth for builder earnings. Each row records the credits earned by a creator for a specific run charge.
+
+### Table columns
+
+<ParamField body="creator_id" param-type="UUID" required="true" show-location="false">
+
+The builder's user ID.
+
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="UUID" required="true" show-location="false">
+
+The published workflow the run was for.
+
+
+</ParamField>
+
+<ParamField body="run_charge_id" param-type="UUID" required="true" show-location="false">
+
+Foreign key to the run charge record.
+
+
+</ParamField>
+
+<ParamField body="credits_earned" param-type="numeric" required="true" show-location="false">
+
+Credits earned for this run. Positive values record earnings, and negative values record refund reversals.
+
+
+</ParamField>
+
+### Constraints
+
+<Callout kind="info">
+
+A unique constraint prevents double-crediting: `UNIQUE(run_charge_id) WHERE credits_earned > 0`. This ensures each run charge can only produce one positive earnings entry.
+
+
+</Callout>
+
+### Read path
+
+The `SupabaseService.getCreatorEarningsCredits` method queries this table by `creator_id` and sums all `credits_earned` values. This sum is returned as `lifetimeEarningsCredits` in the `BuilderView` response.
+
+## pricing_config table
+
+The `pricing_config` table stores runtime-configurable billing parameters as key-value rows. Two entries control the creator split behavior.
+
+### Configuration entries
+
+<ParamField body="platform_share_pct" param-type="integer via value_int" required="true" show-location="false">
+
+Platform's share of the creator split as a percentage. The creator earns `100` minus this value. Valid range is `0` through `100`. If the row is absent, the application falls back to `80`.
+
+
+</ParamField>
+
+<ParamField body="creator_share_basis" param-type="text via value_text" required="true" show-location="false">
+
+Determines how the creator's share is calculated. `gross` means the share is a percentage of the full run charge. `margin` means the share is a percentage of the charge minus the measured LLM cost. If the row is absent, the application falls back to `gross`.
+
+
+</ParamField>
+
+### Behavior
+
+<Callout kind="info">
+
+No database migration is required to change these values — they are plain `pricing_config` rows. The application reads them at charge time and falls back to defaults, `80` percent platform share and `gross` basis, when the rows are absent.
+
+
+</Callout>
+
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+No named validation layer is implemented in the analyzed repository beyond the builder profile update DTO.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- UpdateBuilderProfileDto found — accepts a currency field for `PATCH /builders/me`
+- No `class-validator` usage found beyond the currency field validation
+- No `ValidationPipe` setup found at the global level
 
 ### FastAPI service
 
@@ -155,6 +329,7 @@ No named validation layer is implemented in the analyzed repository.
 <Callout kind="info">
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+
 
 </Callout>
 
@@ -172,27 +347,31 @@ No migration system is present in the analyzed code.
 
 ### Current implication
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+The repository has no implemented database schema migration workflow in code. Table structures are managed directly in Supabase rather than through a checked-in migration layer.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The current codebase exposes service health and builder earnings data, but it still uses a narrow set of response shapes and direct database access patterns. That has several practical implications for anyone reading the repository as a backend reference.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
+- **Builder profile and earnings data are defined as response shapes (`BuilderView`) rather than ORM entities** — the Supabase client handles persistence directly.
+- **No validation contract** — Request and response validation rules are not formalized beyond the builder profile update DTO.
+- **No migration history** — Schema changes cannot be tracked in the repository because no checked-in migration layer exists.
 - **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
 
-<Callout kind="danger">
+<Callout kind="info">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+The `BuilderView` response shape and `creator_earnings_ledger` table are the current source of truth for builder earnings. The legacy `totalEarnings` field should not be used for any earnings calculations.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>
