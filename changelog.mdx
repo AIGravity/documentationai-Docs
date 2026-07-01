@@ -1,68 +1,73 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: See what shipped in each release — new features, updates, and bug fixes.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Track notable product changes shipped in each release. Entries are organized by new features, updates, and bug fixes.
 
-<Callout kind="alert">
+<Update date="2026-07-01">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### New features
 
-</Callout>
+- **Screenshot annotation tools** — Arrow and text tools added to the screenshot annotator. Draw arrows to point things out, or click to add text labels directly on screenshots.
+- **Save requested agents** — Heart any requested agent to bookmark it for later. Saved agents persist across sessions and appear in a dedicated row.
+- **Bounty sorting** — Sort available bounties by newest, oldest, highest, or lowest value. Your preference is remembered between visits.
+- **Currency picker on Credits page** — Set your default currency directly from the Credits settings page.
+- **Clickable earnings card** — Builders can click the Total earnings stat on the dashboard to jump straight to the earnings page.
 
-## Release history
+### Updates
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- **Screenshot annotator redesign** — The annotator now opens as a focused floating dialog with a semi-transparent overlay, an icon-based toolbar, and contextual hints that adapt to the active tool.
+- **Settings reorganization** — Credits is now the default settings page and appears first in the sidebar. Credit balance and top-up controls have moved from Profile to Credits.
+- **Bounties load-more** — Replaced the all-or-nothing "Show all" toggle with progressive "Load more" pagination for smoother browsing.
+- **Category required for publishing** — Builders must select at least one category before publishing an agent.
+- **Published agents tab** — Hidden when empty, reducing unnecessary empty states for new builders.
+- **Bounties require sign-in** — The bounties page is now accessible only to signed-in builders.
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### Bug fixes
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Credit balance animation** — Fixed the count-up animation flashing the full balance before resetting to zero.
+- **Duplicate currency symbol** — Fixed the Add Credits input showing a doubled dollar sign.
+- **Session expiry** — Expired sessions now redirect to the dashboard instead of leaving a broken half-authenticated page.
+- **Bounty posted prompt bar** — The input bar is now fully hidden after posting a bounty instead of showing a disabled state.
+- **Onboarding dropdown** — Combobox fields now show all available options on focus instead of requiring typing first.
+- **Password field accessibility** — The show/hide password toggle is no longer in tab order and has a proper screen-reader label.
+- **Text annotation Esc key** — Pressing Esc while typing a text label now only cancels that label, not the entire annotation.
+
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Entries are listed newest first. Each entry is organized into **New features**, **Updates**, and **Bug fixes** so you can quickly find what matters to you.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
+
+
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
+
+
+
 </Card>
+
+
+
+
 
 </Columns>
 
