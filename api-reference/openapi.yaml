@@ -1,13 +1,17 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
+  version: 1.2.0
   title: AIGravity Core API Service
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint, telemetry endpoints for
+    client-side loading phase tracking, agent publishing, marketplace publishing,
+    marketplace introspection, and automation listing.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    The repository also contains a separate AI service implemented with FastAPI
+    that exposes its own GET /health endpoint. That endpoint is not described in
+    this API reference specification.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +25,14 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Telemetry
+    description: Client-side loading phase duration tracking
+  - name: Agents
+    description: Agent publishing and management operations
+  - name: Marketplace
+    description: Marketplace publishing and introspection operations
+  - name: Automations
+    description: Automation listing and subscription management
 paths:
   /health:
     get:
@@ -41,7 +53,247 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/telemetry/loading-durations:
+    get:
+      tags:
+        - Telemetry
+      summary: Get loading duration statistics
+      description: >
+        Returns a map of loading-phase keys to their rolling average duration and
+        sample count. This endpoint is unauthenticated and fails open — returns an
+        empty durations map if the database is unavailable.
+      operationId: getLoadingDurations
+      security: []
+      responses:
+        '200':
+          description: Loading duration statistics keyed by loading phase
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoadingDurationsResponse'
+              example:
+                durations:
+                  analyzing:submit_prompt:
+                    avgMs: 1200
+                    n: 15
+                  connecting:
+                    avgMs: 300
+                    n: 20
+                  executing:
+                    avgMs: 2000
+                    n: 18
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Telemetry
+      summary: Record a loading duration sample
+      description: >
+        Records a single loading-duration sample for a recognized loading phase.
+        The server maintains a rolling average of approximately 20 samples per key.
+        This endpoint is unauthenticated. Returns 200 OK on success.
+      operationId: recordLoadingDuration
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordLoadingDurationDto'
+            example:
+              opKey: analyzing:submit_prompt
+              durationMs: 1200
+      responses:
+        '200':
+          description: Sample recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordLoadingDurationResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/publish:
+    post:
+      tags:
+        - Agents
+      summary: Publish an agent
+      description: >
+        Publishes an agent workflow. Accepts an optional testRunId that, when
+        present, seeds the credit estimate from the measured LLM cost of the
+        builder's pre-publish test run instead of a structural node-count
+        estimate. Unknown or unmetered testRunId values silently fall back to
+        structural estimation.
+      operationId: publishAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentDto'
+      responses:
+        '200':
+          description: Agent published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishAgentResponse'
+              example:
+                id: flow-abc123
+                indexed: true
+                supabase: true
+                questionCount: 5
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/paste:
+    post:
+      tags:
+        - Marketplace
+      summary: Publish a paste to the marketplace
+      description: >
+        Publishes a workflow paste to the marketplace. The triggerType field
+        accepts 'manual' as a valid value for manually-triggered workflows.
+      operationId: publishPaste
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishPasteDto'
+      responses:
+        '200':
+          description: Paste published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/introspect:
+    post:
+      tags:
+        - Marketplace
+      summary: Introspect a workflow template
+      description: Analyzes an Activepieces SharedTemplate to classify its trigger, derive deployment mode, extract configurable steps and leaves, and report unsupported or unconfigured pieces. Requires JWT authentication. Returns 200 OK.
+      operationId: introspectTemplate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntrospectTemplateDto'
+            example:
+              template:
+                flows:
+                  - trigger:
+                      type: PIECE
+                      pieceName: '@activepieces/piece-manual-trigger'
+      responses:
+        '200':
+          description: Introspection result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntrospectionResult'
+              example:
+                trigger:
+                  kind: manual
+                  pieceName: '@activepieces/piece-manual-trigger'
+                deploymentMode: on-demand
+                steps:
+                  - name: step_2
+                    displayName: AI summary
+                    type: STEP_PIECE
+                    pieceName: '@activepieces/piece-openai'
+                    pieceVersion: 0.1.0
+                    actionName: ask_ai
+                    leaves:
+                      - paramPath: step_2.input.subject
+                        parameterKey: subject
+                        currentValue: Summarize this email
+                        excluded: null
+                        propertyMetadata:
+                          type: SHORT_TEXT
+                          kind: text
+                          displayName: Subject
+                          description: Email subject to summarize
+                          required: true
+                          defaultValue: null
+                          staticOptions: null
+                          refreshers: null
+                          markdownValue: null
+                          markdownVariant: null
+                        suggestSecret: false
+                triggerLeaves: null
+                unsupportedPieces: []
+                unconfiguredOauthPieces: []
+                meta:
+                  name: Manual workflow
+                  description: Template for manual execution
+                  tags:
+                    - productivity
+                  pieces:
+                    - '@activepieces/piece-manual-trigger'
+                    - '@activepieces/piece-openai'
+                  schemaVersion: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/automations:
+    get:
+      tags:
+        - Automations
+      summary: List automations
+      description: >
+        Returns a list of automation subscriptions. Response items include steps
+        (from published workflow metadata), creditsPerRun (rolling average or
+        structural estimate), and nextRunAt (computed for scheduled active
+        automations; null otherwise).
+      operationId: listAutomations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of automation subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AutomationView'
+              example:
+                - id: auto-1
+                  name: Daily Report
+                  status: active
+                  steps:
+                    - step-1
+                    - step-2
+                  creditsPerRun: 15
+                  nextRunAt: '2026-07-02T10:00:00Z'
+                  lastRunAt: '2026-07-01T10:00:00Z'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -49,6 +301,16 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Validation error for invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: opKey is not a recognized loading phase
+            error: Bad Request
+            statusCode: 400
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +328,578 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    RecordLoadingDurationDto:
+      type: object
+      description: Request body for recording a loading duration sample.
+      required:
+        - opKey
+        - durationMs
+      properties:
+        opKey:
+          type: string
+          description: >
+            Loading phase identifier. Must match one of: analyzing:submit_prompt,
+            analyzing:select_intent, analyzing:submit_tools, connecting, deploying,
+            executing, or executing:<agentId> where agentId is 1-128 characters of
+            [A-Za-z0-9_-]. Any other value returns 400.
+          example: analyzing:submit_prompt
+        durationMs:
+          type: integer
+          minimum: 1
+          maximum: 600000
+          description: Duration in milliseconds. Must be an integer between 1 and 600000.
+          example: 1200
+    LoadingDurationsResponse:
+      type: object
+      description: >
+        Response containing loading duration statistics keyed by loading phase.
+        May be empty if no samples have been recorded or if the database is
+        unavailable.
+      required:
+        - durations
+      properties:
+        durations:
+          type: object
+          description: >
+            Map of loading-phase keys to duration statistics. May be empty if no
+            samples have been recorded or if the database is unavailable.
+          additionalProperties:
+            $ref: '#/components/schemas/LoadingDurationEntry'
+    LoadingDurationEntry:
+      type: object
+      description: Rolling average duration and sample count for a single loading phase.
+      required:
+        - avgMs
+        - n
+      properties:
+        avgMs:
+          type: integer
+          description: Rolling average duration in milliseconds.
+          example: 1200
+        n:
+          type: integer
+          description: Number of samples included in the rolling average.
+          example: 15
+    RecordLoadingDurationResponse:
+      type: object
+      description: Confirmation that a loading duration sample was recorded.
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          description: Confirmation that the sample was recorded.
+          example: true
+    PublishAgentDto:
+      type: object
+      description: >
+        Request body for publishing an agent. Additional fields beyond testRunId
+        are accepted but not enumerated in this spec.
+      additionalProperties: true
+      properties:
+        testRunId:
+          type: string
+          maxLength: 64
+          description: >
+            Optional identifier of the builder's pre-publish test run. When
+            present, the credit estimate is seeded from the measured LLM cost of
+            that run. Unknown or unmetered values silently fall back to structural
+            estimation.
+          example: abc123def456
+    PublishAgentResponse:
+      type: object
+      description: Response from publishing an agent.
+      required:
+        - id
+        - indexed
+        - supabase
+        - questionCount
+      properties:
+        id:
+          type: string
+          description: Published workflow identifier.
+          example: flow-abc123
+        indexed:
+          type: boolean
+          description: Whether the workflow was indexed for search.
+          example: true
+        supabase:
+          type: boolean
+          description: Whether the workflow was persisted to Supabase.
+          example: true
+        questionCount:
+          type: integer
+          description: Number of questions in the published workflow.
+          example: 5
+    PublishPasteDto:
+      type: object
+      description: >
+        Request body for publishing a paste to the marketplace. Additional fields
+        beyond triggerType are accepted but not enumerated in this spec.
+      required:
+        - triggerType
+      additionalProperties: true
+      properties:
+        triggerType:
+          type: string
+          enum:
+            - webhook
+            - form
+            - manual
+            - polling
+            - webhook-piece
+            - scheduled
+          description: >
+            Type of trigger for the workflow. 'manual' is a valid value for
+            manually-triggered workflows.
+          example: manual
+    IntrospectTemplateDto:
+      type: object
+      description: Request body for introspecting a workflow template. The template field accepts any object and is structurally validated by the introspector service.
+      required:
+        - template
+      additionalProperties: false
+      properties:
+        template:
+          type: object
+          additionalProperties: true
+          description: Activepieces SharedTemplate object. Must contain a flows array with at least one flow, each having a trigger node.
+          example:
+            flows:
+              - trigger:
+                  type: PIECE
+                  pieceName: '@activepieces/piece-manual-trigger'
+    IntrospectionResult:
+      type: object
+      description: Result of introspecting a workflow template, including trigger classification, deployment mode, configurable steps, and piece compatibility checks.
+      required:
+        - trigger
+        - deploymentMode
+        - steps
+        - unsupportedPieces
+        - unconfiguredOauthPieces
+        - meta
+      properties:
+        trigger:
+          description: Trigger classification for the workflow.
+          oneOf:
+            - $ref: '#/components/schemas/IntrospectionTriggerForm'
+            - $ref: '#/components/schemas/IntrospectionTriggerWebhook'
+            - $ref: '#/components/schemas/IntrospectionTriggerManual'
+            - $ref: '#/components/schemas/IntrospectionTriggerPolling'
+            - $ref: '#/components/schemas/IntrospectionTriggerWebhookPiece'
+            - $ref: '#/components/schemas/IntrospectionTriggerScheduled'
+        deploymentMode:
+          type: string
+          enum:
+            - on-demand
+            - subscription
+            - scheduled
+          description: Derived from trigger.kind. 'form', 'webhook', and 'manual' map to 'on-demand'. 'polling' and 'webhook-piece' map to 'subscription'. 'scheduled' maps to 'scheduled'.
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntrospectedStep'
+          description: Downstream action steps the builder can tag.
+        triggerLeaves:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/IntrospectedLeaf'
+          description: Trigger-level config leaves. Only present for 'polling' and 'webhook-piece' triggers.
+        unsupportedPieces:
+          type: array
+          items:
+            type: string
+          description: Piece slugs not installed in the AP instance. Publish is blocked while non-empty.
+        unconfiguredOauthPieces:
+          type: array
+          items:
+            type: string
+          description: Piece slugs using OAuth without a broker mapping. Publish proceeds with a warning.
+        meta:
+          $ref: '#/components/schemas/IntrospectionMeta'
+    IntrospectionMeta:
+      type: object
+      description: Display and discovery metadata extracted from the template.
+      required:
+        - name
+        - description
+        - tags
+        - pieces
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        pieces:
+          type: array
+          items:
+            type: string
+          description: Raw AP piece slugs from the template.
+        schemaVersion:
+          type: string
+          nullable: true
+    IntrospectionTriggerForm:
+      type: object
+      description: Form trigger from @activepieces/piece-forms. Consumer fills a form then clicks Run.
+      required:
+        - kind
+        - pieceName
+        - formProps
+      properties:
+        kind:
+          type: string
+          enum:
+            - form
+          description: Discriminator for form triggers.
+        pieceName:
+          type: string
+          description: Always @activepieces/piece-forms.
+          example: '@activepieces/piece-forms'
+        formProps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FormProp'
+          description: Form input fields the consumer fills before running.
+    FormProp:
+      type: object
+      required:
+        - name
+        - displayName
+        - type
+        - required
+      properties:
+        name:
+          type: string
+          description: Key derived from the form input display name.
+        displayName:
+          type: string
+        type:
+          type: string
+          description: Input type: TEXT, TEXT_AREA, DROPDOWN, FILE, etc.
+        required:
+          type: boolean
+        options:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Available options for DROPDOWN type.
+    IntrospectionTriggerWebhook:
+      type: object
+      description: Webhook trigger from @activepieces/piece-webhook. Consumer sends an HTTP POST to a generated URL.
+      required:
+        - kind
+        - pieceName
+      properties:
+        kind:
+          type: string
+          enum:
+            - webhook
+        pieceName:
+          type: string
+          example: '@activepieces/piece-webhook'
+    IntrospectionTriggerManual:
+      type: object
+      description: Manual trigger from @activepieces/piece-manual-trigger. Consumer clicks Run once; the workflow never auto-fires. Maps to on-demand deployment mode but executes via the whole-flow test path rather than a webhook sync POST.
+      required:
+        - kind
+        - pieceName
+      properties:
+        kind:
+          type: string
+          enum:
+            - manual
+          description: Discriminator for manual triggers. NEW: consumers that switch on trigger.kind must handle this value.
+        pieceName:
+          type: string
+          example: '@activepieces/piece-manual-trigger'
+    IntrospectionTriggerPolling:
+      type: object
+      description: Piece trigger that polls on AP's default interval. Examples: Gmail new email, Slack new message.
+      required:
+        - kind
+        - pieceName
+        - triggerName
+      properties:
+        kind:
+          type: string
+          enum:
+            - polling
+        pieceName:
+          type: string
+          example: '@activepieces/piece-gmail'
+        triggerName:
+          type: string
+          example: new_email
+    IntrospectionTriggerWebhookPiece:
+      type: object
+      description: Piece trigger that registers a webhook subscription on an external service. Examples: Stripe, Calendly. Classified when the AP trigger strategy is 'WEBHOOK' or 'APP_WEBHOOK' (singular).
+      required:
+        - kind
+        - pieceName
+        - triggerName
+      properties:
+        kind:
+          type: string
+          enum:
+            - webhook-piece
+        pieceName:
+          type: string
+          example: '@activepieces/piece-stripe'
+        triggerName:
+          type: string
+          example: new_event
+    IntrospectionTriggerScheduled:
+      type: object
+      description: Schedule trigger from @activepieces/piece-schedule. Consumer configures schedule props before activating.
+      required:
+        - kind
+        - pieceName
+        - triggerName
+        - scheduleProps
+      properties:
+        kind:
+          type: string
+          enum:
+            - scheduled
+        pieceName:
+          type: string
+          example: '@activepieces/piece-schedule'
+        triggerName:
+          type: string
+          example: every_x_minutes
+        scheduleProps:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleProp'
+    ScheduleProp:
+      type: object
+      required:
+        - name
+        - displayName
+        - type
+        - required
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        type:
+          type: string
+          enum:
+            - number
+            - dropdown
+            - checkbox
+            - cron
+        required:
+          type: boolean
+        defaultValue:
+          nullable: true
+        options:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/SchedulePropOption'
+    SchedulePropOption:
+      type: object
+      properties:
+        label:
+          type: string
+        value:
+          nullable: true
+    IntrospectedStep:
+      type: object
+      description: A single action step in the workflow tree that the builder can tag.
+      required:
+        - name
+        - displayName
+        - type
+        - leaves
+      properties:
+        name:
+          type: string
+          description: AP step name, e.g. step_2 — stable unique id.
+          example: step_2
+        displayName:
+          type: string
+          example: AI summary
+        type:
+          type: string
+          description: AP step type: STEP_PIECE, LOOP_ON_ITEMS, ROUTER, CODE.
+          example: STEP_PIECE
+        pieceName:
+          type: string
+          nullable: true
+          description: Piece slug for STEP_PIECE nodes.
+        pieceVersion:
+          type: string
+          nullable: true
+        actionName:
+          type: string
+          nullable: true
+          example: ask_ai
+        leaves:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntrospectedLeaf'
+    IntrospectedLeaf:
+      type: object
+      description: One addressable primitive inside a step's settings.input.
+      required:
+        - paramPath
+        - parameterKey
+        - currentValue
+      properties:
+        paramPath:
+          type: string
+          description: Stable round-trip key, e.g. step_2.input.subject.
+          example: step_2.input.subject
+        parameterKey:
+          type: string
+          description: Trailing key or dotted suffix.
+          example: subject
+        currentValue:
+          nullable: true
+          description: Builder's configured value on AP Cloud.
+        excluded:
+          type: string
+          nullable: true
+          enum:
+            - template-ref
+            - connection-ref
+            - auth-field
+            - non-literal
+          description: Reason the leaf was excluded from tagging.
+        propertyMetadata:
+          nullable: true
+          $ref: '#/components/schemas/PropertyMetadata'
+        suggestSecret:
+          type: boolean
+          nullable: true
+          description: Advisory flag indicating the value looks like a credential.
+    PropertyMetadata:
+      type: object
+      description: AP property metadata that drives the badge and form renderer for a leaf.
+      required:
+        - type
+        - kind
+        - displayName
+        - required
+      properties:
+        type:
+          type: string
+          description: Raw AP PropertyType, e.g. DROPDOWN, SHORT_TEXT.
+          example: DROPDOWN
+        kind:
+          type: string
+          description: Narrow UI classification.
+        displayName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        required:
+          type: boolean
+        defaultValue:
+          nullable: true
+        staticOptions:
+          type: array
+          nullable: true
+          items:
+            $ref: '#/components/schemas/StaticOption'
+          description: Present for STATIC_DROPDOWN type.
+        refreshers:
+          type: array
+          nullable: true
+          items:
+            type: string
+          description: Dynamic props: re-fetch trigger when these sibling values change.
+        markdownValue:
+          type: string
+          nullable: true
+        markdownVariant:
+          type: string
+          nullable: true
+          enum:
+            - INFO
+            - WARNING
+            - TIP
+    StaticOption:
+      type: object
+      properties:
+        label:
+          type: string
+        value:
+          nullable: true
+    AutomationView:
+      type: object
+      description: A single automation subscription in the list response.
+      required:
+        - id
+        - name
+        - status
+        - steps
+        - creditsPerRun
+        - nextRunAt
+        - lastRunAt
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          description: Automation identifier.
+          example: auto-1
+        name:
+          type: string
+          description: Display name of the automation.
+          example: Daily Report
+        status:
+          type: string
+          enum:
+            - active
+            - paused
+          description: Current status of the automation.
+          example: active
+        steps:
+          type: array
+          items:
+            type: string
+          description: >
+            Workflow step identifiers from published workflow metadata.
+            Previously always returned as an empty array; now populated with
+            actual step data.
+          example:
+            - step-1
+            - step-2
+        creditsPerRun:
+          type: integer
+          description: >
+            Estimated credits per run. Uses the rolling average
+            (est_credits_per_run) when available, otherwise falls back to the
+            structural estimate (credit_cost), or 0 if neither is present.
+          example: 15
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Next scheduled run time in ISO 8601 format. Only non-null for
+            scheduled automations with active status. Null for paused
+            automations, non-scheduled modes, or unrecognized cron schedules.
+          example: '2026-07-02T10:00:00Z'
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >
+            Timestamp of the most recent run, or null if the automation has
+            never run.
+          example: '2026-07-01T10:00:00Z'

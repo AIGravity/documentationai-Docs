@@ -11,20 +11,24 @@ This changelog tracks notable documentation and platform updates in a template f
 
 Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
 
+
 </Callout>
 
 ## Release history
 
 1. **Unreleased**
+   - **API**
+     - Added `GET /api/telemetry/loading-durations` and `POST /api/telemetry/loading-durations` endpoints for client-side loading phase duration tracking. Both endpoints are unauthenticated.
+     - Added optional `testRunId` field to `POST /api/agents/publish` for seeding credit estimates from measured test-run LLM costs.
+     - Added `manual` as a valid `triggerType` value on `POST /api/marketplace/paste` for manually-triggered workflows.
+     - Updated `GET /api/automations` response: `steps`, `creditsPerRun`, and `nextRunAt` fields are now populated with real data instead of placeholder values.
+     - Added `manual` kind to the `IntrospectionTrigger` type union, mapping to the `on-demand` deployment mode.
    - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
+     - Added Telemetry API reference page documenting both loading-duration endpoints with parameter specs, validation rules, and examples.
+     - Updated NestJS API reference page with agent publishing, marketplace publishing, and automation listing endpoint documentation.
+     - Expanded OpenAPI specification to include telemetry, agents, marketplace, and automations endpoints with schemas and examples.
    - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+     - Corrected `APP_WEBHOOK` trigger strategy classification so webhook-piece triggers are properly recognized.
 
 2. **Latest**
    - **Docs**
@@ -57,12 +61,17 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 

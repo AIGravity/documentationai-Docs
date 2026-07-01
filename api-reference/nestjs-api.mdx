@@ -1,21 +1,27 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: API reference for the NestJS backend service covering health checks, agent publishing, marketplace publishing, marketplace introspection, and automation listing.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes implemented in the AIGravity core repository. The service exposes health, agent publishing, marketplace publishing, marketplace introspection, and automation listing endpoints. See the dedicated [Telemetry](/api-reference/telemetry) page for loading-duration tracking endpoints.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
+
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
+
+
 
 </Callout>
 
@@ -29,11 +35,17 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
+
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
+
+
 
 </ParamField>
 
@@ -41,11 +53,17 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
+
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
+
+
 
 </Callout>
 
@@ -59,6 +77,9 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
+
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +87,9 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
+
+
 
 </ParamField>
 
@@ -75,6 +99,9 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
+
+
 </ParamField>
 
 ### Request body
@@ -82,6 +109,9 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
+
+
 
 </ParamField>
 
@@ -116,11 +146,17 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
+
+
 
 </ResponseField>
 
@@ -139,3 +175,419 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Agent publishing
+
+Publishes an agent workflow to the platform. Requires JWT authentication.
+
+### POST `/api/agents/publish`
+
+<Callout kind="info">
+
+The `testRunId` field is optional. When present, the server seeds the initial credit estimate from the measured LLM cost of the builder's pre-publish test run. Unknown or unmetered IDs silently fall back to structural estimation — no error is returned.
+
+
+
+
+</Callout>
+
+### Request body
+
+<ParamField body="testRunId" param-type="string" required="false">
+
+Identifier of the builder's pre-publish test run. When provided, the credit estimate is derived from the measured LLM cost of that run instead of a structural node-count estimate. Maximum 64 characters.
+
+
+
+
+</ParamField>
+
+### Example response
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "id": "flow-abc123",
+  "indexed": true,
+  "supabase": true,
+  "questionCount": 5
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Published workflow identifier.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="indexed" field-type="boolean" required="true">
+
+Whether the workflow was indexed for search.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="supabase" field-type="boolean" required="true">
+
+Whether the workflow was persisted to Supabase.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="questionCount" field-type="integer" required="true">
+
+Number of questions in the published workflow.
+
+
+
+
+</ResponseField>
+
+## Marketplace publishing
+
+Publishes a workflow paste to the marketplace. Requires JWT authentication.
+
+### POST `/api/marketplace/paste`
+
+<Callout kind="info">
+
+The `triggerType` field now accepts `manual` for manually-triggered workflows. Previously, submitting `manual` would return a 400 validation error. See [Marketplace introspection](#marketplace-introspection) below for details on the `manual` trigger kind and its deployment mode.
+
+
+
+
+</Callout>
+
+### Request body
+
+<ParamField body="triggerType" param-type="string" required="true" enum="webhook,form,manual,polling,webhook-piece,scheduled">
+
+Type of trigger for the workflow. Accepted values: `webhook`, `form`, `manual`, `polling`, `webhook-piece`, `scheduled`.
+
+
+
+
+</ParamField>
+
+## Marketplace introspection
+
+Analyzes an Activepieces SharedTemplate to classify its trigger, derive deployment mode, extract configurable steps, and report piece compatibility. Requires JWT authentication. Returns `200 OK` on success.
+
+<Callout kind="info">
+
+The `manual` trigger kind is new. Consumers that switch on `trigger.kind` must handle this value or their default branch will absorb it. Manual triggers map to the `on-demand` deployment mode but execute via the whole-flow test path rather than a webhook sync POST.
+
+
+
+
+</Callout>
+
+<Callout kind="alert">
+
+The trigger strategy string `APP_WEBHOOKS` (plural) has been corrected to `APP_WEBHOOK` (singular) to match Activepieces' `TriggerStrategy` enum. Piece triggers using `APP_WEBHOOK` strategy, such as Stripe and Calendly, are now correctly classified as `webhook-piece`. The unsupported-trigger error message now reads: Form, Webhook, Manual, Schedule, or a piece-trigger.
+
+
+
+
+</Callout>
+
+### POST `/api/marketplace/introspect`
+
+### Request body
+
+<ParamField body="template" param-type="object" required="true">
+
+Activepieces SharedTemplate object. Must contain a flows array with at least one flow, each having a trigger node. The field accepts any object and is structurally validated by the introspector service.
+
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/introspect \
+  -H "Authorization: Bearer <JWT>" \
+  -H "Content-Type: application/json" \
+  -d '{"template":{"flows":[{"trigger":{"type":"PIECE","pieceName":"@activepieces/piece-manual-trigger"}}]}}'
+```
+
+```json
+{
+  "template": {
+    "flows": [
+      {
+        "trigger": {
+          "type": "PIECE",
+          "pieceName": "@activepieces/piece-manual-trigger"
+        }
+      }
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+### Example response
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "trigger": {
+    "kind": "manual",
+    "pieceName": "@activepieces/piece-manual-trigger"
+  },
+  "deploymentMode": "on-demand",
+  "steps": [
+    {
+      "name": "step_2",
+      "displayName": "AI summary",
+      "type": "STEP_PIECE",
+      "pieceName": "@activepieces/piece-openai",
+      "actionName": "ask_ai",
+      "leaves": [
+        {
+          "paramPath": "step_2.input.subject",
+          "parameterKey": "subject",
+          "currentValue": "Summarize this email"
+        }
+      ]
+    }
+  ],
+  "triggerLeaves": null,
+  "unsupportedPieces": [],
+  "unconfiguredOauthPieces": [],
+  "meta": {
+    "name": "Manual workflow",
+    "description": "Template for manual execution",
+    "tags": ["productivity"],
+    "pieces": ["@activepieces/piece-manual-trigger", "@activepieces/piece-openai"]
+  }
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="trigger" field-type="object" required="true">
+
+Trigger classification. Discriminated by the `kind` field. Possible values: `form`, `webhook`, `manual`, `polling`, `webhook-piece`, `scheduled`.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="deploymentMode" field-type="string" required="true">
+
+Derived from trigger.kind. `form`, `webhook`, and `manual` map to `on-demand`. `polling` and `webhook-piece` map to `subscription`. `scheduled` maps to `scheduled`.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="steps" field-type="array" required="true">
+
+Downstream action steps the builder can tag. Each step has name, displayName, type, pieceName, pieceVersion, actionName, and leaves.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="triggerLeaves" field-type="array or null" required="false">
+
+Trigger-level config leaves. Only present for `polling` and `webhook-piece` triggers.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="unsupportedPieces" field-type="array of strings" required="true">
+
+Piece slugs not installed in the AP instance. Publish is blocked while non-empty.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="unconfiguredOauthPieces" field-type="array of strings" required="true">
+
+Piece slugs using OAuth without a broker mapping. Publish proceeds with a warning.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="meta" field-type="object" required="true">
+
+Display and discovery metadata: name, description, tags, pieces, and optional schemaVersion.
+
+
+
+
+</ResponseField>
+
+| Trigger kind | Piece | Deployment mode | Consumer action |
+| --- | --- | --- | --- |
+| `form` | piece-forms | `on-demand` | Run once |
+| `webhook` | piece-webhook | `on-demand` | Run once |
+| `manual` | piece-manual-trigger | `on-demand` | Run once (whole-flow test path) |
+| `polling` | any POLLING strategy piece | `subscription` | Activate |
+| `webhook-piece` | any WEBHOOK or APP_WEBHOOK strategy piece | `subscription` | Activate |
+| `scheduled` | piece-schedule | `scheduled` | Activate |
+
+## Automation listing
+
+Returns a list of automation subscriptions. Requires JWT authentication.
+
+### GET `/api/automations`
+
+<Callout kind="info">
+
+Three response fields that previously returned placeholder values are now populated with real data: `steps`, `creditsPerRun`, and `nextRunAt`.
+
+
+
+
+</Callout>
+
+### Example response
+
+<CodeGroup tabs="JSON">
+
+```json
+[
+  {
+    "id": "auto-1",
+    "name": "Daily Report",
+    "status": "active",
+    "steps": ["step-1", "step-2"],
+    "creditsPerRun": 15,
+    "nextRunAt": "2026-07-02T10:00:00Z",
+    "lastRunAt": "2026-07-01T10:00:00Z"
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Automation identifier.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Display name of the automation.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current status. Values: `active` or `paused`.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="steps" field-type="array of strings" required="true">
+
+Workflow step identifiers from published workflow metadata. Previously always returned as an empty array.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="creditsPerRun" field-type="integer" required="true">
+
+Estimated credits per run. Uses the rolling average when available, otherwise falls back to the structural estimate, or `0` if neither is present.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="nextRunAt" field-type="string or null" required="true">
+
+Next scheduled run time in ISO 8601 format. Only non-null for scheduled automations with active status. Null for paused automations, non-scheduled modes, or unrecognized cron schedules.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="lastRunAt" field-type="string or null" required="true">
+
+Timestamp of the most recent run, or null if the automation has never run.
+
+
+
+
+</ResponseField>
+
+## Error responses
+
+The agent publishing, marketplace publishing, marketplace introspection, and automation listing endpoints return standard HTTP error responses for validation failures and server errors.
+
+### 400 bad request
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "message": "Validation error message",
+  "error": "Bad Request",
+  "statusCode": 400
+}
+```
+
+</CodeGroup>
+
+### 401 unauthorized
+
+A `401` response indicates that the request is missing a JWT or includes an invalid JWT.
+
+### 500 internal server error
+
+A `500` response indicates that the server failed while processing the request.
+
+<Callout kind="info">
+
+Requests that depend on Activepieces now time out after 15 seconds when the AP instance is unresponsive, instead of stalling until the OS socket timeout (~60 seconds). A timed-out request returns a `500` or `503` error rather than hanging indefinitely.
+
+
+</Callout>

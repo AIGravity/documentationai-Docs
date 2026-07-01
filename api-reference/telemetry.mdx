@@ -1,0 +1,269 @@
+---
+title: Telemetry
+description: Track and retrieve client-side loading phase durations to monitor builder UX performance across workflow publishing and execution.
+---
+
+## Overview
+
+Use the telemetry endpoints to record and retrieve client-side loading phase durations for workflow publishing and execution flows.
+
+<Callout kind="info">
+
+Both telemetry endpoints are unauthenticated. Send requests without a JWT or API key.
+
+
+</Callout>
+
+The API exposes one endpoint for reading rolling averages and one endpoint for writing individual samples. For other backend routes, see the [NestJS API](/api-reference/nestjs-api).
+
+### GET `/api/telemetry/loading-durations`
+
+Retrieve rolling-average loading durations for all tracked phases.
+
+## Request details
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/telemetry/loading-durations`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -i http://localhost:3001/api/telemetry/loading-durations
+```
+
+```json
+{}
+```
+
+</CodeGroup>
+
+## Response
+
+The response body contains a `durations` object. Each key is a loading phase, and each value contains the rolling average duration in milliseconds and the number of samples included in that average.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "durations": {
+    "analyzing:submit_prompt": { "avgMs": 1200, "n": 15 },
+    "connecting": { "avgMs": 300, "n": 20 },
+    "executing": { "avgMs": 2000, "n": 18 }
+  }
+}
+```
+
+</CodeGroup>
+
+<Callout kind="info">
+
+This endpoint fails open. If telemetry data is unavailable, the API returns `{"durations": {}}` instead of a server error.
+
+
+</Callout>
+
+### Response fields
+
+<ResponseField name="durations" field-type="object" required="true">
+
+Map of loading-phase keys to duration statistics. The object may be empty when no samples have been recorded or telemetry data cannot be loaded.
+
+
+</ResponseField>
+
+<ResponseField name="durations.avgMs" field-type="integer" required="true">
+
+Rolling average duration in milliseconds for a single loading phase.
+
+
+</ResponseField>
+
+<ResponseField name="durations.n" field-type="integer" required="true">
+
+Number of samples currently included in the rolling average for a single loading phase.
+
+
+</ResponseField>
+
+### Recognized loading phases
+
+Use these keys when interpreting the `durations` map and when sending samples to the write endpoint.
+
+| Loading phase | Description |
+| --- | --- |
+| `analyzing:submit_prompt` | Prompt analysis phase |
+| `analyzing:select_intent` | Intent selection phase |
+| `analyzing:submit_tools` | Tool selection phase |
+| `connecting` | Connection establishment phase |
+| `deploying` | Deployment phase |
+| `executing` | Generic execution phase |
+| `executing:agentId` | Execution phase for a specific agent, where `agentId` is 1 to 128 characters from `A-Za-z0-9_-` |
+
+### POST `/api/telemetry/loading-durations`
+
+Record a single loading-duration sample for a recognized loading phase.
+
+## Request details
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/telemetry/loading-durations`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+<ParamField body="httpStatus" param-type="string" required="true" show-location="false">
+
+`200 OK`
+
+
+</ParamField>
+
+### Request body
+
+Send a JSON object with the loading phase key and measured duration.
+
+<ParamField body="opKey" param-type="string" required="true">
+
+Loading phase identifier. Accepted values are `analyzing:submit_prompt`, `analyzing:select_intent`, `analyzing:submit_tools`, `connecting`, `deploying`, `executing`, or `executing:agentId`. The `agentId` segment must be 1 to 128 characters and may contain `A-Z`, `a-z`, `0-9`, `_`, and `-`. Any other value returns `400 Bad Request`.
+
+
+</ParamField>
+
+<ParamField body="durationMs" param-type="integer" required="true">
+
+Duration in milliseconds. Send an integer from `1` to `600000`.
+
+
+</ParamField>
+
+<Callout kind="alert">
+
+Values from `1` to `49` pass request validation but are clamped to `50` milliseconds before aggregation.
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/telemetry/loading-durations \
+  -H "Content-Type: application/json" \
+  -d '{"opKey":"analyzing:submit_prompt","durationMs":1200}'
+```
+
+```json
+{
+  "opKey": "analyzing:submit_prompt",
+  "durationMs": 1200
+}
+```
+
+</CodeGroup>
+
+## Response
+
+The API returns `200 OK` when it accepts the request.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "ok": true
+}
+```
+
+</CodeGroup>
+
+<Callout kind="info">
+
+This endpoint is best-effort. If the telemetry sample cannot be persisted, the API still returns `{"ok": true}` so telemetry collection does not interrupt the client flow.
+
+
+</Callout>
+
+### Response fields
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Indicates that the API accepted the telemetry request.
+
+
+</ResponseField>
+
+## Error responses
+
+The API validates `opKey` and `durationMs` before processing the sample.
+
+### 400 bad request
+
+Returned when `opKey` does not match a recognized loading phase, or when `durationMs` is missing, not an integer, or outside the allowed range.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "message": "opKey is not a recognized loading phase",
+  "error": "Bad Request",
+  "statusCode": 400
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Validation error message returned by the API.
+
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="true">
+
+HTTP error label. Validation failures return `Bad Request`.
+
+
+</ResponseField>
+
+<ResponseField name="statusCode" field-type="integer" required="true">
+
+HTTP status code for the error response.
+
+
+</ResponseField>
