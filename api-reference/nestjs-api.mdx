@@ -1,21 +1,25 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  API reference for the NestJS backend health endpoint and telemetry endpoints
+  for rolling-average loading duration tracking.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The code analysis found a public health endpoint at `GET /health` and telemetry endpoints at `/api/telemetry/loading-durations` for loading duration tracking.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Implementation details on this page were derived from code analysis of the NestJS backend implementation, rather than direct file reads through the docs repository tool.
+
 
 </Callout>
 
 <Callout kind="alert">
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active for the health endpoint.
+
 
 </Callout>
 
@@ -29,11 +33,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +47,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +67,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +75,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +85,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +93,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +128,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -136,6 +150,150 @@ A `404` response is likely when you request the wrong path or use the wrong HTTP
 
 A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
 
+## Telemetry endpoints
+
+Two unauthenticated endpoints track rolling-average durations for loading phases. Anonymous visitors generate most loads, so no authentication is required.
+
+### GET `/api/telemetry/loading-durations`
+
+Retrieve the global rolling-average duration for each tracked loading phase.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/telemetry/loading-durations`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication required. These endpoints are intentionally unauthenticated.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i http://localhost:3001/api/telemetry/loading-durations
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns a JSON object mapping each operation key to its rolling-average duration and sample count.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "durations": {
+    "analyzing:submit_prompt": { "avgMs": 6000, "n": 42 },
+    "connecting": { "avgMs": 2000, "n": 18 },
+    "executing": { "avgMs": 20000, "n": 7 }
+  }
+}
+```
+
+</CodeGroup>
+
+##### Response fields
+
+<ResponseField name="durations" field-type="object" required="true">
+
+A map of operation keys to their duration statistics. Each value contains `avgMs` (rolling-average duration in milliseconds) and `n` (number of samples recorded).
+
+
+</ResponseField>
+
+#### Allowed operation keys
+
+The following operation keys are tracked:
+
+| Key | Description |
+| --- | --- |
+| `analyzing:submit_prompt` | Time to process a submitted prompt |
+| `analyzing:select_intent` | Time to select an automation intent |
+| `analyzing:submit_tools` | Time to process selected tools |
+| `connecting` | Time to set up an agent connection |
+| `deploying` | Time to deploy an agent |
+| `executing` | Time to execute an agent run |
+| `executing:` followed by an agent identifier | Per-agent execution time for a specific agent |
+
+### POST `/api/telemetry/loading-durations`
+
+Record a single completed loading-phase duration into its rolling average.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/telemetry/loading-durations`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication required.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="opKey" param-type="string" required="true">
+
+The operation key identifying which loading phase was measured. Must be one of the allowed values listed above.
+
+
+</ParamField>
+
+<ParamField body="durationMs" param-type="number" required="true">
+
+The duration of the loading phase in milliseconds. Values are clamped to the range `50` to `600000` milliseconds before being recorded.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i -X POST http://localhost:3001/api/telemetry/loading-durations \
+  -H "Content-Type: application/json" \
+  -d '{"opKey": "connecting", "durationMs": 1800}'
+```
+
+</CodeGroup>
+
+#### Response
+
+A successful request returns a `201` status with no response body.
+
+<Callout kind="info">
+
+The rolling average uses a capped incremental mean. For the first approximately 20 samples, the average is a true mean. After that, it transitions to a recency-weighted rolling average with an effective window of about 20 samples.
+
+
+</Callout>
+
 ## Notes
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration. The application also exposes telemetry endpoints under the `/api/telemetry` path.
