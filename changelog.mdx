@@ -1,52 +1,43 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track user-facing changes, bug fixes, and platform improvements across Gravity releases.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks user-facing changes, bug fixes, and platform improvements. Entries are organized by release, with Platform changes and Fixes under each entry.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="2026-07-01" description="Chat UI fixes and user experience improvements">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### Platform changes
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- Bounties page now requires authentication — unauthenticated users see a sign-in prompt.
+- Requested Agents page now requires authentication — unauthenticated users see a sign-in prompt.
+- Bounties page gains a sort dropdown with `Newest`, `Oldest`, `Highest`, and `Lowest first`, with preference persisted across sessions.
+- Bounties and Requested Agents pages now use paginated `Load more` instead of showing all items at once, with 10 per page for bounties and 14 for requested agents.
+- Requested Agents cards include a save button; saved agents appear in a dedicated `Saved` section and persist across sessions.
+- Settings default route changed from Profile to Credits. The sidebar gear icon and `/settings` now navigate to `/settings/credits`, and Credits is the first tab in the settings sidebar.
+- Currency picker moved from the Profile settings tab to the Credits settings tab, available to all users.
+- Credit balance row removed from Profile settings — credit info is consolidated on the Credits tab.
+- Agent publishing now requires at least one category before proceeding, with an inline error if none is selected.
+- Builder dashboard earnings card is now clickable, navigating to the earnings page.
+- Builder dashboard hides the `Published` tab for new builders with pending submissions but no published agents.
+- Onboarding combobox dropdowns show the full option list on focus instead of remaining empty until typing.
+- Screenshot annotator redesigned as a floating modal with icon-based toolbar. New tools: Arrow and Text. Action button label changed from `Save` to `Done`.
+
+### Fixes
+
+- Session expiry now triggers a clean sign-out with redirect to `/dashboard` instead of leaving you on a broken page.
+- Protected pages proactively validate session on mount, catching revoked sessions immediately.
+- Credit balance animation no longer flashes the full number before animating from zero on page load.
+- Add Credits amount field rejects non-numeric input and no longer shows a duplicate currency symbol in the placeholder.
+- Dashboard prompt bar hides after bounty posting instead of showing a disabled, purposeless input.
+- Password show/hide toggle button is excluded from keyboard tab order and now includes proper aria labels for screen readers.
+
+
+</Update>
 
 ## How to read this changelog
 
@@ -57,12 +48,17 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 

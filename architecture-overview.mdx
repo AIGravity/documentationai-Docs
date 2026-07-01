@@ -1,17 +1,30 @@
 ---
 title: Architecture overview
-description: Evaluate the Gravity monorepo structure, service boundaries, tooling, and current implementation gaps across web, API, and AI services.
+description: >-
+  Evaluate the Gravity monorepo structure, service boundaries, tooling, and
+  current implementation gaps across web, API, and AI services.
 ---
 
 ## Overview
 
 Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, but the application layer is still intentionally thin.
 
-The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, no persistence layer, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
+The practical architecture today is best understood as a deployment-ready foundation with an emerging application layer. Each service starts, builds, and ships independently. The frontend now includes authentication, session management, an API client, and product-specific routes for bounties, requested agents, the builder dashboard, and settings. The API and AI service remain thin. There are no shared packages and no persistence layer yet.
 
 <Callout kind="info">
 
 `pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
+
+
+
+
+
+
+
+
+
+
+
 
 </Callout>
 
@@ -54,22 +67,42 @@ The root `package.json` defines workspace-level commands such as `dev:web`, `dev
 
 The root script `dev:py` points to `apps/py-service`, but the actual Python service lives at `apps/ai-service`. That script is stale relative to the repository tree.
 
+
+
+
+
+
+
+
+
+
+
+
 </Callout>
 
 ## Service architecture
 
 ### `apps/web`: Remix frontend
 
-`apps/web` is the user-facing frontend. It uses Remix with Vite and React, and the current code remains close to a starter application rather than an integrated product UI.
+`apps/web` is the user-facing frontend. It uses Remix with Vite and React, and the application has grown beyond the starter scaffold into a product UI with authentication, session management, an API client layer, and multiple feature routes.
 
 The main entry file is `apps/web/app/root.tsx`. That file defines the document shell, global styles, font links, an `ErrorBoundary`, and the route outlet. The exported app component returns an `Outlet`, so request handling follows standard Remix nested routing.
 
-Current route files are minimal:
+Product routes now include:
 
-- `apps/web/app/routes/_index.tsx`
-- `apps/web/app/routes/home.tsx`
+- `apps/web/app/routes/dashboard._index.tsx` — main dashboard with chat-driven bounty posting
+- `apps/web/app/routes/bounties._index.tsx` — bounty browsing with sorting and pagination
+- `apps/web/app/routes/requested-agents._index.tsx` — requested agents listing with save and pagination
+- `apps/web/app/routes/builder-dashboard.tsx` — builder overview with earnings, published, and pending agents
+- `apps/web/app/routes/customize-agent.tsx` — agent publishing flow with category selection
+- `apps/web/app/routes/settings.*.tsx` — settings pages for credits, profile, and accounts
 
-Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, no data fetching helpers, and no API client layer in the current frontend tree.
+The frontend also includes shared infrastructure beyond route modules:
+
+- An API client layer handles authenticated requests, 401 session-expiry detection, and automatic sign-out with redirect
+- An authentication context manages user state, session lifecycle, and sign-out events
+- A `RequireAuth` component gates protected routes and proactively validates session liveness on page mount
+- localStorage persistence modules support saved bounties and saved requested agents across sessions
 
 `apps/web/vite.config.ts` shows the active frontend stack:
 
@@ -78,7 +111,7 @@ Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. T
 - Tailwind CSS
 - TypeScript path support
 
-The relationship to the rest of the repo is mostly implicit. The API service enables CORS for `http://localhost:3000`, which indicates the frontend is expected to call the API, but no such calls are implemented in the frontend code today.
+The relationship to the API service is now explicit. The frontend API client makes authenticated calls to the API, and the API service enables CORS for `http://localhost:3000` to allow those browser requests.
 
 ### `apps/api`: NestJS API on Bun
 
@@ -104,6 +137,17 @@ The Python project configuration lives in `apps/ai-service/pyproject.toml`. Depe
 
 Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
 
+
+
+
+
+
+
+
+
+
+
+
 </Callout>
 
 ## Entry points and request handling
@@ -114,12 +158,16 @@ Each application has a clear entry point, but request handling remains shallow.
 
 The frontend entry point is `apps/web/app/root.tsx`, with route modules under `apps/web/app/routes/`.
 
-Current route behavior:
+The starter routes (`/` and `/home`) render the same welcome component. Product routes have been added on top of the shell:
 
-- `/` is defined by `apps/web/app/routes/_index.tsx`
-- `/home` is defined by `apps/web/app/routes/home.tsx`
+- `/dashboard` — main chat interface for posting bounties and interacting with the platform
+- `/bounties` — bounty browsing with sort controls and pagination (requires authentication)
+- `/requested-agents` — requested agents listing with save and pagination (requires authentication)
+- `/builder-dashboard` — builder overview with earnings, published agents, and pending submissions
+- `/customize-agent` — agent publishing flow with mandatory category selection
+- `/settings/credits`, `/settings/profile`, `/settings/accounts` — settings pages (credits is the default landing tab)
 
-Both route modules render the same welcome component. There are no loaders, actions, or backend requests in those routes.
+Protected routes use a `RequireAuth` wrapper that validates session liveness on mount and redirects unauthenticated users to a sign-in prompt.
 
 ### API routes
 
@@ -149,22 +197,21 @@ The repository has strong top-level separation and very thin internal layering. 
 - `apps/api` for the TypeScript backend
 - `apps/ai-service` for the Python backend
 
-Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
+Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend has introduced an API client layer and shared infrastructure (auth context, persistence modules), but does not yet separate domain packages or shared contracts into a reusable `packages/` structure.
 
-That means the current architecture is macro-separated but not yet layered. The repo signals where responsibilities will likely live, but those responsibilities are not implemented in code yet.
+That means the current architecture is macro-separated but not yet fully layered. The repo signals where responsibilities will likely live, and the frontend has begun implementing those responsibilities in code, while the API and AI service remain shells.
 
 ### Current cross-service wiring
 
-Expected relationships are visible in naming and configuration, not in running integrations.
+The frontend now makes authenticated API calls to the backend, but backend-to-backend integration is not yet implemented.
 
-- `apps/api/src/main.ts` allows CORS from `http://localhost:3000`, implying browser calls from the web app.
+- `apps/api/src/main.ts` allows CORS from `http://localhost:3000`, enabling browser calls from the web app.
+- The frontend API client makes authenticated requests to the API, including session validation via `GET /auth/me`.
 - The repository README describes a future shared-contract pattern through planned packages.
 - The presence of both `apps/api` and `apps/ai-service` implies a future backend-to-backend relationship.
 
-No direct wiring exists today:
+What does not exist yet:
 
-- no frontend fetches to the API in `apps/web`
-- no API client or SDK package
 - no API calls from `apps/api` to `apps/ai-service`
 - no shared `packages/` code
 - no shared schema or contract definitions
@@ -172,6 +219,17 @@ No direct wiring exists today:
 <Callout kind="alert">
 
 Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
+
+
+
+
+
+
+
+
+
+
+
 
 </Callout>
 
@@ -190,32 +248,28 @@ Notably absent from the tree:
 - Redis or cache clients
 - `.env.example` with database connection variables
 
-The practical result is a stateless system. The frontend renders starter UI, the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
+The practical result is a stateless backend system. The frontend renders product UI with localStorage-based persistence for user preferences (saved bounties, saved requested agents, sort preferences, currency selection), the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
 
 ### Middleware
 
 Middleware is also minimal across all services.
 
 - In `apps/api/src/main.ts`, the only visible platform-level request configuration is CORS.
-- In `apps/web`, there is no evidence of session middleware, CSRF protection, cookie handling, or request interception.
+- In `apps/web`, the frontend API client layer intercepts responses to detect 401 session-expiry and triggers automatic sign-out with redirect. Session liveness is validated on mount of protected routes. CSRF protection and cookie-based session middleware are not present.
 - In `apps/ai-service/main.py`, there is no middleware configured.
 
-This absence matters architecturally because cross-cutting concerns have not yet been formalized. Logging, validation, auth enforcement, and request context propagation are still future concerns.
+Cross-cutting concerns are beginning to formalize in the frontend (auth enforcement, request interception, session validation), but remain absent in the API and AI service. Logging, validation, and request context propagation in the backend services are still future concerns.
 
 ### Authentication and authorization
 
-No authentication or authorization layer exists today.
+The frontend implements session-based authentication with the following components:
 
-There are no signs of:
+- An authentication context manages user state, sign-in, and sign-out lifecycle using localStorage keys (`gravity_session`, `gravity_user`)
+- An API client layer attaches auth tokens to requests and detects 401 responses to trigger session-expiry handling
+- A `RequireAuth` component wraps protected routes, validates session liveness on mount via `GET /auth/me`, and redirects unauthenticated users to a sign-in prompt
+- On session expiry, the app clears state and storage, resets analytics identity, and hard-redirects to `/dashboard`
 
-- login or logout endpoints
-- JWT or session cookies
-- Passport or strategy modules in Nest
-- Remix session storage
-- user identity models
-- authorization guards or policy enforcement
-
-The absence is consistent across all three applications. Any future protected routes, user-specific state, or service-to-service trust model will need to be added from scratch.
+Authorization is enforced at the route level: bounties, requested agents, builder dashboard, and settings pages require authentication. The API and AI service do not implement their own auth guards or token verification yet.
 
 ### External services and integrations
 
@@ -226,6 +280,8 @@ Present today:
 - browser-to-API CORS allowance for `http://localhost:3000` in `apps/api/src/main.ts`
 - Google Fonts references in `apps/web/app/root.tsx`
 - GitHub Container Registry publishing in `.github/workflows/web.yml`, `.github/workflows/api.yml`, and `.github/workflows/ai-service.yml`
+- PostHog product analytics in the frontend (event tracking and identity reset on sign-out)
+- Frontend session-based auth with `GET /auth/me` session validation
 
 Not present today:
 
@@ -237,7 +293,6 @@ Not present today:
 - email or SMS providers
 - payment providers
 - OAuth providers
-- observability or APM tooling
 - feature flag systems
 
 ## Build, release, and deployment tooling
@@ -302,27 +357,61 @@ The Python service declares `pytest`, and the workflows reference verification s
 
 <Callout kind="info">
 
-The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
+The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is backend application depth: no domain modules, no persistence, no backend auth guards, and no implemented service-to-service flows. The frontend has begun filling in application-level concerns (auth, API client, product routes), but the backend services remain shells.
+
+
+
+
+
+
+
+
+
+
+
 
 </Callout>
 
 ## What this architecture means today
 
-Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. That gives the repository a stable foundation for future feature work.
+Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. The frontend has begun answering application-level questions: users authenticate through session-based auth, product routes handle bounties, requested agents, and builder workflows, and an API client bridges the frontend to the backend.
 
-What it has not answered yet are the application-level questions: where domain logic lives, how contracts are shared, how state is stored, how users authenticate, and how the API and AI service collaborate. Until those layers exist, the repo should be evaluated as a well-structured platform skeleton rather than as an implemented distributed system.
+What it has not answered yet are the remaining application-level questions: where domain logic lives, how contracts are shared, how state is stored, how the API and AI service collaborate, and how the backend enforces auth and authorization independently. Until those layers exist, the repo should be evaluated as a well-structured platform with an emerging frontend application layer and backend services that remain shells.
 
 ## Related pages
 
 <Columns cols={2}>
+
   <Card title="Introduction" href="/introduction" icon="book-open">
 
     Get the high-level orientation for the documentation set and how the project is presented.
+
+
+
+
+
+
+
+
+
+
+
 
   </Card>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
     Follow the shortest path to running the project and validating the local setup.
+
+
+
+
+
+
+
+
+
+
+
 
   </Card>
 
@@ -330,10 +419,43 @@ What it has not answered yet are the application-level questions: where domain l
 
     Review the documented capabilities and compare them with the current implementation state.
 
+
+
+
+
+
+
+
+
+
+
+
   </Card>
   <Card title="Help center" href="/help-center/help-center" icon="help-circle">
 
     Find troubleshooting and support-oriented guidance for common setup and usage issues.
 
+
+
+
+
+
+
+
+
+
+
+
   </Card>
+
+
+
+
+
+
+
+
+
+
+
 </Columns>
