@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint exposed at `GET /health` and admin billing endpoints under `/api/admin/billing/` that require an authenticated Supabase session with admin privileges.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Admin Billing
+    description: Admin-only billing, revenue, and user-level billing diagnostics. All endpoints require an authenticated Supabase session with admin privileges.
 paths:
   /health:
     get:
@@ -41,7 +43,234 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/admin/billing/overview:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get billing overview
+      description: Returns aggregate billing and revenue overview metrics for administrators.
+      operationId: getBillingOverview
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          description: Optional flag indicating whether test data should be excluded from the billing overview.
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Billing overview returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingOverview'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Authenticated user lacks admin privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/billing/top-workflows:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get top workflows by billing activity
+      description: Returns the top workflows ranked by billing-related activity for administrators.
+      operationId: getTopWorkflows
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          description: Optional flag indicating whether test data should be excluded from the workflow ranking.
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Top workflows returned successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopWorkflow'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Authenticated user lacks admin privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/billing/top-creators:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get top creators by billing activity
+      description: Returns the top creators ranked by billing-related activity for administrators.
+      operationId: getTopCreators
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          description: Optional flag indicating whether test data should be excluded from the creator ranking.
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Top creators returned successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopCreator'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Authenticated user lacks admin privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/billing/leakage:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get billing leakage diagnostics
+      description: Returns billing leakage diagnostics and related metrics for administrators.
+      operationId: getBillingLeakage
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          description: Optional flag indicating whether test data should be excluded from leakage diagnostics.
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Billing leakage diagnostics returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingLeakage'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Authenticated user lacks admin privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/billing/users/search:
+    get:
+      tags:
+        - Admin Billing
+      summary: Search billing users
+      description: Searches for users by a query string to inspect billing-related details.
+      operationId: searchBillingUsers
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Search query used to find users by billing-related identifiers or attributes.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching users returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSearchResult'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Authenticated user lacks admin privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/admin/billing/users/{id}:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get user billing detail
+      description: Returns detailed billing diagnostics for a specific user by UUID.
+      operationId: getUserBillingDetail
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Unique identifier of the user whose billing details should be returned.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User billing detail returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserDetail'
+        '400':
+          description: Invalid UUID format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Authenticated user lacks admin privileges
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 components:
+  securitySchemes:
+    AdminAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Bearer token from a Supabase admin session.
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -66,3 +295,248 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    CurrencyAmount:
+      type: object
+      required:
+        - currency
+        - amount
+      properties:
+        currency:
+          type: string
+        amount:
+          type: number
+    BillingOverview:
+      type: object
+      required:
+        - revenueToday
+        - revenueWeek
+        - revenueAllTime
+        - chargedRuns
+        - failedCharges
+        - failedBreakdown
+        - llmCostCredits
+        - marginPct
+        - moneyIn
+        - creatorLiability
+      properties:
+        revenueToday:
+          type: number
+        revenueWeek:
+          type: number
+        revenueAllTime:
+          type: number
+        chargedRuns:
+          type: number
+        failedCharges:
+          type: number
+        failedBreakdown:
+          type: object
+          required:
+            - insufficientBalance
+            - runFailed
+          properties:
+            insufficientBalance:
+              type: number
+            runFailed:
+              type: number
+        llmCostCredits:
+          type: number
+        marginPct:
+          type: number
+          nullable: true
+        moneyIn:
+          type: object
+          required:
+            - purchasedCredits
+            - grantedCredits
+            - floatCredits
+            - cashCollected
+          properties:
+            purchasedCredits:
+              type: number
+            grantedCredits:
+              type: number
+            floatCredits:
+              type: number
+            cashCollected:
+              type: array
+              items:
+                $ref: '#/components/schemas/CurrencyAmount'
+        creatorLiability:
+          type: object
+          required:
+            - earnedCredits
+            - paidOut
+            - netOwedCredits
+          properties:
+            earnedCredits:
+              type: number
+            paidOut:
+              type: array
+              items:
+                $ref: '#/components/schemas/CurrencyAmount'
+            netOwedCredits:
+              type: number
+    TopWorkflow:
+      type: object
+      required:
+        - workflow
+        - runs
+        - credits
+        - creatorCredits
+      properties:
+        workflow:
+          type: string
+        runs:
+          type: number
+        credits:
+          type: number
+        creatorCredits:
+          type: number
+    TopCreator:
+      type: object
+      required:
+        - creator
+        - earnedCredits
+        - runs
+      properties:
+        creator:
+          type: string
+        earnedCredits:
+          type: number
+        runs:
+          type: number
+    BillingLeakage:
+      type: object
+      required:
+        - unspentFloat
+        - failedCharges
+        - coveragePct
+      properties:
+        unspentFloat:
+          type: number
+        failedCharges:
+          type: object
+          required:
+            - total
+            - insufficient
+            - runFailed
+          properties:
+            total:
+              type: number
+            insufficient:
+              type: number
+            runFailed:
+              type: number
+        coveragePct:
+          type: number
+    UserSearchResult:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSearchItem'
+    UserSearchItem:
+      type: object
+      required:
+        - id
+        - full_name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          nullable: true
+        email:
+          type: string
+    AdminUserDetail:
+      type: object
+      required:
+        - generatedAt
+        - approx
+        - user
+        - balance
+        - purchased
+        - granted
+        - refunded
+        - totalSpent
+        - chargedRuns
+        - failedRuns
+        - creatorEarnings
+        - recentRuns
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        approx:
+          type: boolean
+        user:
+          type: object
+          required:
+            - id
+            - name
+            - email
+            - joinedAt
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+              nullable: true
+            email:
+              type: string
+            joinedAt:
+              type: string
+              format: date-time
+        balance:
+          type: number
+        purchased:
+          type: number
+        granted:
+          type: number
+        refunded:
+          type: number
+        totalSpent:
+          type: number
+        chargedRuns:
+          type: number
+        failedRuns:
+          type: number
+        creatorEarnings:
+          type: number
+        recentRuns:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentRun'
+    RecentRun:
+      type: object
+      required:
+        - id
+        - workflow
+        - kind
+        - status
+        - credits
+        - at
+      properties:
+        id:
+          type: string
+        workflow:
+          type: string
+        kind:
+          type: string
+          enum:
+            - cron
+            - manual
+        status:
+          type: string
+        credits:
+          type: number
+        at:
+          type: string
+          format: date-time

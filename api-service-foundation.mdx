@@ -1,15 +1,18 @@
 ---
 title: API Service Foundation
-description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+description: >-
+  How the NestJS API service boots, wires modules, enables CORS, exposes health
+  checks, and builds for local and containerized execution.
 ---
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The service now includes an admin billing module with authentication guards, a service layer, and a Supabase-backed Postgres persistence layer managed through SQL migrations. DTOs, OpenAPI/Swagger setup, and environment-based configuration are not yet implemented.
 
 <Callout kind="info">
 
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+The service exposes a public health endpoint at `GET /health` and a set of admin-protected billing endpoints under `/api/admin/billing/`. The module graph now includes the admin billing module alongside the health controller.
+
 
 </Callout>
 
@@ -63,11 +66,12 @@ The service binds to port `3001` with `app.listen(3001)`. There is no `process.e
 
 The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
 
+
 </Callout>
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
+`AppModule` is the full application root, and it wires the health controller and an admin billing module. The admin billing module contributes a controller, a service layer, and authentication guards.
 
 <CodeGroup tabs="app.module.ts,Current application graph">
 
@@ -80,7 +84,11 @@ export class AppModule {}
 
 ```text
 AppModule
-└── HealthController
+├── HealthController
+└── AdminBillingModule
+    ├── AdminBillingController
+    ├── AdminBillingService
+    └── SupabaseAuthGuard + AdminGuard
 ```
 
 </CodeGroup>
@@ -89,33 +97,29 @@ AppModule
 
 The module graph is intentionally small:
 
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
+- `AppModule` declares the health controller and imports the admin billing module
+- `AppModule` imports the admin billing feature module
 
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+Runtime behavior now includes a health controller for service availability and an admin billing module that provides billing diagnostics, user lookup, and revenue reporting through a service layer backed by a Supabase Postgres database.
 
 ### What is not wired yet
 
 Several common Nest application concerns are absent from the inspected files:
 
-- auth modules, guards, JWT, or session handling
 - DTO classes and validation pipes
-- database configuration, repositories, entities, or migrations
-- domain-specific modules and services
 - `ConfigModule` or other environment-driven configuration
 - OpenAPI or Swagger setup
 
 <Callout kind="info">
 
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
+The module graph now includes a service layer for billing operations, but DTOs and validation pipes are not yet formalized. Request validation relies on inline checks rather than class-validator decorators.
+
 
 </Callout>
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+The health endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
 
 <CodeGroup tabs="health.controller.ts,Response example">
 
@@ -149,11 +153,15 @@ Because there is no API versioning or prefix configuration in the bootstrap file
 The response is a small JSON object with two fields.
 
 <ResponseField name="status" field-type="string" required="true">
+
 Returns `ok` in the current implementation.
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
+
 Returns `api` in the current implementation.
+
 </ResponseField>
 
 ### What the endpoint does not include
@@ -206,6 +214,7 @@ The package metadata and runtime scripts point to different built entrypoints. `
 <Callout kind="alert">
 
 The compiled output path is likely inconsistent with the `start` script. With `rootDir` set to `./` and the source entrypoint at `src/main.ts`, emitted files likely land under `dist/src/`, which makes `bun dist/main.js` a probable mismatch.
+
 
 </Callout>
 
@@ -374,6 +383,7 @@ The deploy job exists, but it does not perform a real deployment yet. The inspec
 
 The CI pipeline includes release and deployment scaffolding, but deployment is not implemented. The deploy job is placeholder-only in the current workflow.
 
+
 </Callout>
 
 ## Current limitations
@@ -383,14 +393,12 @@ The CI pipeline includes release and deployment scaffolding, but deployment is n
 The inspected API service is a foundation app, not a feature-complete backend. It currently has:
 
 - no DTOs
-- no auth
-- no persistence or database integration
-- no domain modules or services
 - no environment-based configuration
 - no OpenAPI or Swagger setup
 - no active test step in CI
 - no lint step, even though the workflow job is labeled Build and Lint
 
+
 </Callout>
 
-The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.
+The implementation boots a Nest service, answers a health check, provides admin billing diagnostics through a service layer backed by Postgres, builds with TypeScript, packages into a container, and publishes through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.

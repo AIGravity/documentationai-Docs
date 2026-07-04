@@ -1,21 +1,26 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  Health check and admin billing endpoints for the AIGravity NestJS backend,
+  including billing overview, leakage analysis, user lookup, and creator
+  earnings.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The service exposes a public health endpoint at `GET /health` plus a group of admin-protected billing endpoints under `/api/admin/billing/` that require authentication and admin privileges.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
 
 </Callout>
 
@@ -29,11 +34,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +48,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +68,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +76,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +86,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +94,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +129,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +154,684 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Admin Billing
+
+These endpoints expose billing, revenue, and user-level billing diagnostics for administrators.
+
+<Callout kind="alert">
+
+All admin billing endpoints require authentication through a Supabase session and an authenticated user with admin privileges. Requests without a valid session receive `401` responses, and authenticated non-admin users receive `403` responses.
+
+
+</Callout>
+
+### GET `/api/admin/billing/overview`
+
+Use this endpoint to retrieve a high-level summary of billing performance, collected credits, liability, and margin.
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude test accounts from all metrics. When omitted, the response includes all accounts.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/admin/billing/overview?excludeTest=true"
+```
+
+</CodeGroup>
+
+### Response
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "revenueToday": 420,
+  "revenueWeek": 3100,
+  "revenueAllTime": 18400,
+  "chargedRuns": 1280,
+  "failedCharges": 10,
+  "failedBreakdown": { "insufficientBalance": 3, "runFailed": 7 },
+  "llmCostCredits": 9200,
+  "marginPct": 50.0,
+  "moneyIn": {
+    "purchasedCredits": 20000,
+    "grantedCredits": 1500,
+    "floatCredits": 3200,
+    "cashCollected": [{ "currency": "INR", "amount": 4200 }, { "currency": "USD", "amount": 120 }]
+  },
+  "creatorLiability": {
+    "earnedCredits": 2800,
+    "paidOut": [{ "currency": "INR", "amount": 560 }],
+    "netOwedCredits": 2240
+  }
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="revenueToday" field-type="number" required="true">
+
+Credits collected today, using the IST midnight boundary.
+
+
+</ResponseField>
+
+<ResponseField name="revenueWeek" field-type="number" required="true">
+
+Credits collected in the last 7 days.
+
+
+</ResponseField>
+
+<ResponseField name="revenueAllTime" field-type="number" required="true">
+
+Total credits collected across all time.
+
+
+</ResponseField>
+
+<ResponseField name="chargedRuns" field-type="number" required="true">
+
+Total number of successfully charged runs.
+
+
+</ResponseField>
+
+<ResponseField name="failedCharges" field-type="number" required="true">
+
+Total failed charges, calculated as the sum of insufficient balance failures and run failures.
+
+
+</ResponseField>
+
+<ResponseField name="failedBreakdown" field-type="object" required="true">
+
+Breakdown of failed charges by failure reason.
+
+
+</ResponseField>
+
+<ResponseField name="llmCostCredits" field-type="number" required="true">
+
+All-time metered LLM cost in credits.
+
+
+</ResponseField>
+
+<ResponseField name="marginPct" field-type="number | null" required="true">
+
+Gross margin percentage. The value is `null` when no revenue has been recorded.
+
+
+</ResponseField>
+
+<ResponseField name="moneyIn" field-type="object" required="true">
+
+Aggregate incoming credit and cash metrics.
+
+
+</ResponseField>
+
+<ResponseField name="creatorLiability" field-type="object" required="true">
+
+Aggregate creator earnings, payouts, and net credits still owed.
+
+
+</ResponseField>
+
+### Nested response fields
+
+<ResponseField name="failedBreakdown.insufficientBalance" field-type="number" required="true">
+
+Count of failed charges caused by insufficient balance.
+
+
+</ResponseField>
+
+<ResponseField name="failedBreakdown.runFailed" field-type="number" required="true">
+
+Count of failed charges caused by run failures.
+
+
+</ResponseField>
+
+<ResponseField name="moneyIn.purchasedCredits" field-type="number" required="true">
+
+Credits purchased by users.
+
+
+</ResponseField>
+
+<ResponseField name="moneyIn.grantedCredits" field-type="number" required="true">
+
+Credits granted outside of purchases.
+
+
+</ResponseField>
+
+<ResponseField name="moneyIn.floatCredits" field-type="number" required="true">
+
+Credits currently held as float.
+
+
+</ResponseField>
+
+<ResponseField name="moneyIn.cashCollected" field-type="array" required="true">
+
+Cash collected, grouped by currency and amount.
+
+
+</ResponseField>
+
+<ResponseField name="creatorLiability.earnedCredits" field-type="number" required="true">
+
+Total credits earned by creators.
+
+
+</ResponseField>
+
+<ResponseField name="creatorLiability.paidOut" field-type="array" required="true">
+
+Creator payouts, grouped by currency and amount.
+
+
+</ResponseField>
+
+<ResponseField name="creatorLiability.netOwedCredits" field-type="number" required="true">
+
+Net creator liability in credits after recorded payouts.
+
+
+</ResponseField>
+
+### GET `/api/admin/billing/top-workflows`
+
+Use this endpoint to identify the workflows generating the most runs, billed credits, and creator earnings.
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude test accounts. When omitted, the response includes all accounts.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/admin/billing/top-workflows?excludeTest=1"
+```
+
+</CodeGroup>
+
+### Response
+
+<CodeGroup tabs="JSON">
+
+```json
+[
+  { "workflow": "daily-report-gen", "runs": 320, "credits": 960, "creatorCredits": 192 },
+  { "workflow": "invoice-parser", "runs": 180, "credits": 540, "creatorCredits": 108 }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="workflow" field-type="string" required="true">
+
+Workflow identifier or slug.
+
+
+</ResponseField>
+
+<ResponseField name="runs" field-type="number" required="true">
+
+Number of runs attributed to the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="credits" field-type="number" required="true">
+
+Total billed credits attributed to the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="creatorCredits" field-type="number" required="true">
+
+Total creator earnings attributed to the workflow.
+
+
+</ResponseField>
+
+### GET `/api/admin/billing/top-creators`
+
+Use this endpoint to rank creators by total earned credits and associated run volume.
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude test accounts. When omitted, the response includes all accounts.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/admin/billing/top-creators?excludeTest=true"
+```
+
+</CodeGroup>
+
+### Response
+
+<CodeGroup tabs="JSON">
+
+```json
+[
+  { "creator": "Jane Developer", "earnedCredits": 840, "runs": 420 },
+  { "creator": "Acme Workflows", "earnedCredits": 560, "runs": 280 }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="creator" field-type="string" required="true">
+
+Creator name.
+
+
+</ResponseField>
+
+<ResponseField name="earnedCredits" field-type="number" required="true">
+
+Total credits earned by the creator.
+
+
+</ResponseField>
+
+<ResponseField name="runs" field-type="number" required="true">
+
+Number of runs associated with the creator's workflows.
+
+
+</ResponseField>
+
+### GET `/api/admin/billing/leakage`
+
+Use this endpoint to inspect unspent credit float, failed charge categories, and billing coverage.
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude test accounts. When omitted, the response includes all accounts.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/admin/billing/leakage?excludeTest=true"
+```
+
+</CodeGroup>
+
+### Response
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "unspentFloat": 3200,
+  "failedCharges": { "total": 10, "insufficient": 3, "runFailed": 7 },
+  "coveragePct": 99.2
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="unspentFloat" field-type="number" required="true">
+
+Net unspent credits across all users.
+
+
+</ResponseField>
+
+<ResponseField name="failedCharges" field-type="object" required="true">
+
+Failed charge totals and category counts.
+
+
+</ResponseField>
+
+<ResponseField name="coveragePct" field-type="number" required="true">
+
+Percentage of runs that were successfully charged.
+
+
+</ResponseField>
+
+### Nested response fields
+
+<ResponseField name="failedCharges.total" field-type="number" required="true">
+
+Total failed charges.
+
+
+</ResponseField>
+
+<ResponseField name="failedCharges.insufficient" field-type="number" required="true">
+
+Count of `INSUFFICIENT_BALANCE` failures.
+
+
+</ResponseField>
+
+<ResponseField name="failedCharges.runFailed" field-type="number" required="true">
+
+Count of `RUN_FAILED_NO_CHARGE` failures.
+
+
+</ResponseField>
+
+### GET `/api/admin/billing/users/search`
+
+Use this endpoint to find users by name fragment, email fragment, or exact UUID.
+
+<ParamField query="q" param-type="string" required="true">
+
+Search string to match against name fragments, email fragments, or an exact UUID. Name and email searches return up to 20 matches. Exact UUID lookups return 0 or 1 result.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/admin/billing/users/search?q=jane"
+```
+
+</CodeGroup>
+
+### Response
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "items": [
+    { "id": "a1b2c3d4-9f8e-4a7c-b6d5-1234567890ab", "full_name": "Jane Developer", "email": "jane@example.com" },
+    { "id": "e5f6g7h8-1c2d-4e5f-a6b7-0987654321cd", "full_name": "Jane Smith", "email": "jane.s@example.com" }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="items" field-type="array" required="true">
+
+Matched users.
+
+
+</ResponseField>
+
+### Nested response fields
+
+<ResponseField name="items[].id" field-type="string" required="true">
+
+User UUID.
+
+
+</ResponseField>
+
+<ResponseField name="items[].full_name" field-type="string | null" required="true">
+
+User full name when available.
+
+
+</ResponseField>
+
+<ResponseField name="items[].email" field-type="string" required="true">
+
+User email address.
+
+
+</ResponseField>
+
+### GET `/api/admin/billing/users/:id`
+
+Use this endpoint to retrieve a billing summary and recent run history for a specific user.
+
+<ParamField path="id" param-type="string" required="true">
+
+User identifier. The value must be a valid UUID. Invalid UUID values return `400 Bad Request`.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/admin/billing/users/a1b2c3d4-9f8e-4a7c-b6d5-1234567890ab"
+```
+
+</CodeGroup>
+
+### Response
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "generatedAt": "2026-07-04T10:30:00.000Z",
+  "approx": false,
+  "user": { "id": "a1b2c3d4-9f8e-4a7c-b6d5-1234567890ab", "name": "Jane Developer", "email": "jane@example.com", "joinedAt": "2026-01-15T08:00:00.000Z" },
+  "balance": 420,
+  "purchased": 5000,
+  "granted": 200,
+  "refunded": 80,
+  "totalSpent": 4860,
+  "chargedRuns": 240,
+  "failedRuns": 3,
+  "creatorEarnings": 840,
+  "recentRuns": [
+    { "id": "run-001", "workflow": "daily-report-gen", "kind": "cron", "status": "CHARGED", "credits": 3, "at": "2026-07-04T10:00:00.000Z" },
+    { "id": "run-002", "workflow": "invoice-parser", "kind": "manual", "status": "CHARGED", "credits": 2, "at": "2026-07-04T09:30:00.000Z" }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="generatedAt" field-type="string" required="true">
+
+ISO timestamp showing when the data was generated.
+
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Indicates whether a paged scan was capped before reading all records.
+
+
+</ResponseField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+User identity details.
+
+
+</ResponseField>
+
+<ResponseField name="balance" field-type="number" required="true">
+
+Current credit balance.
+
+
+</ResponseField>
+
+<ResponseField name="purchased" field-type="number" required="true">
+
+Credits bought through purchase ledger entries.
+
+
+</ResponseField>
+
+<ResponseField name="granted" field-type="number" required="true">
+
+Credits issued as grants.
+
+
+</ResponseField>
+
+<ResponseField name="refunded" field-type="number" required="true">
+
+Credits returned through refunds.
+
+
+</ResponseField>
+
+<ResponseField name="totalSpent" field-type="number" required="true">
+
+Sum of all charged run debits.
+
+
+</ResponseField>
+
+<ResponseField name="chargedRuns" field-type="number" required="true">
+
+Count of successfully charged runs.
+
+
+</ResponseField>
+
+<ResponseField name="failedRuns" field-type="number" required="true">
+
+Count of runs that failed because of insufficient balance or a no-charge run failure.
+
+
+</ResponseField>
+
+<ResponseField name="creatorEarnings" field-type="number" required="true">
+
+Total credits earned by the user as a workflow creator.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns" field-type="array" required="true">
+
+Last 50 runs, sorted with the most recent run first.
+
+
+</ResponseField>
+
+### Nested response fields
+
+<ResponseField name="user.id" field-type="string" required="true">
+
+User UUID.
+
+
+</ResponseField>
+
+<ResponseField name="user.name" field-type="string | null" required="true">
+
+User display name when available.
+
+
+</ResponseField>
+
+<ResponseField name="user.email" field-type="string" required="true">
+
+User email address.
+
+
+</ResponseField>
+
+<ResponseField name="user.joinedAt" field-type="string" required="true">
+
+ISO timestamp showing when the user joined.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns[].id" field-type="string" required="true">
+
+Run identifier.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns[].workflow" field-type="string" required="true">
+
+Workflow name or slug associated with the run.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns[].kind" field-type="string" required="true">
+
+Run type. The value is `cron` or `manual`.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns[].status" field-type="string" required="true">
+
+Run status.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns[].credits" field-type="number" required="true">
+
+Credits charged for the run.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns[].at" field-type="string" required="true">
+
+ISO timestamp for when the run occurred.
+
+
+</ResponseField>
+
+<Callout kind="tip">
+
+Use the `excludeTest` query parameter on supported endpoints to filter out accounts marked as test accounts from billing metrics. This is useful when you need to separate staging or internal runs from production data.
+
+
+</Callout>

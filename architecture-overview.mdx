@@ -1,17 +1,21 @@
 ---
 title: Architecture overview
-description: Evaluate the Gravity monorepo structure, service boundaries, tooling, and current implementation gaps across web, API, and AI services.
+description: >-
+  Evaluate the Gravity monorepo structure, service boundaries, tooling, and
+  current implementation gaps across web, API, and AI services.
 ---
 
 ## Overview
 
 Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, but the application layer is still intentionally thin.
 
-The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, no persistence layer, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
+The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, and cross-service request flow is limited to the frontend calling admin billing endpoints on the API. The API service now includes a Supabase-backed Postgres persistence layer and authentication guards for admin endpoints.
 
 <Callout kind="info">
 
 `pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
+
+
 
 </Callout>
 
@@ -54,6 +58,8 @@ The root `package.json` defines workspace-level commands such as `dev:web`, `dev
 
 The root script `dev:py` points to `apps/py-service`, but the actual Python service lives at `apps/ai-service`. That script is stale relative to the repository tree.
 
+
+
 </Callout>
 
 ## Service architecture
@@ -69,7 +75,7 @@ Current route files are minimal:
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
 
-Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, no data fetching helpers, and no API client layer in the current frontend tree.
+Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. The frontend now includes an API client module for admin billing endpoints, with an admin billing dashboard route that fetches billing overview, workflow rankings, creator leaderboards, and leakage diagnostics from the API.
 
 `apps/web/vite.config.ts` shows the active frontend stack:
 
@@ -78,7 +84,7 @@ Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. T
 - Tailwind CSS
 - TypeScript path support
 
-The relationship to the rest of the repo is mostly implicit. The API service enables CORS for `http://localhost:3000`, which indicates the frontend is expected to call the API, but no such calls are implemented in the frontend code today.
+The frontend communicates with the API through an API client module that calls admin billing endpoints. CORS is enabled for `http://localhost:3000` in the API service to allow these browser requests.
 
 ### `apps/api`: NestJS API on Bun
 
@@ -86,11 +92,11 @@ The relationship to the rest of the repo is mostly implicit. The API service ena
 
 The service boots from `apps/api/src/main.ts`. That file creates the Nest application, enables CORS for `http://localhost:3000`, and listens on port `3001`.
 
-The root module lives at `apps/api/src/app.module.ts`. Its composition is currently minimal: one root module and one controller, with no providers, feature modules, guards, pipes, interceptors, or middleware classes registered.
+The root module lives at `apps/api/src/app.module.ts`. Its composition includes a health controller and an admin billing module with its own controller, service layer, and authentication guards.
 
-The only implemented controller is `apps/api/src/health/health.controller.ts`. It exposes `GET /health` and returns a static payload indicating the API is healthy. There is no service layer, DTO layer, repository layer, or domain module structure behind that endpoint.
+The health controller exposes `GET /health` and returns a static payload. The admin billing module provides six admin-protected endpoints for billing overview, top workflows, top creators, leakage analysis, user search, and per-user billing detail. These endpoints are backed by a service layer that queries a Supabase Postgres database.
 
-That makes `apps/api` a real runnable service, but architecturally it is still a shell. The service boundary exists at the application level, not yet at the module or domain level.
+The API service now has a domain module for billing operations with a service layer and persistence, though DTOs and validation pipes are not yet formalized.
 
 ### `apps/ai-service`: FastAPI Python service
 
@@ -103,6 +109,8 @@ The Python project configuration lives in `apps/ai-service/pyproject.toml`. Depe
 <Callout kind="info">
 
 Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
+
+
 
 </Callout>
 
@@ -123,11 +131,17 @@ Both route modules render the same welcome component. There are no loaders, acti
 
 ### API routes
 
-The API entry point is `apps/api/src/main.ts`, and the only route controller is `apps/api/src/health/health.controller.ts`.
+The API entry point is `apps/api/src/main.ts`. The service exposes a health controller and an admin billing controller.
 
 Implemented route behavior today:
 
-- `GET http://localhost:3001/health`
+- `GET http://localhost:3001/health` — unauthenticated health check
+- `GET /api/admin/billing/overview` — billing summary (admin-only)
+- `GET /api/admin/billing/top-workflows` — workflow rankings (admin-only)
+- `GET /api/admin/billing/top-creators` — creator leaderboard (admin-only)
+- `GET /api/admin/billing/leakage` — leakage analysis (admin-only)
+- `GET /api/admin/billing/users/search` — user search (admin-only)
+- `GET /api/admin/billing/users/:id` — per-user billing detail (admin-only)
 
 The repository README reportedly references `/api/health`, but `apps/api/src/main.ts` does not set a global prefix. Based on the code, the implemented route is `/health`, not `/api/health`.
 
@@ -149,9 +163,9 @@ The repository has strong top-level separation and very thin internal layering. 
 - `apps/api` for the TypeScript backend
 - `apps/ai-service` for the Python backend
 
-Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
+Inside those boundaries, the internal module graph is growing but still thin. The Nest app now follows a controller-to-service pattern in the admin billing module, though a repository layer is not formalized. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend now includes an API client module for billing endpoints, though route modules and domain packages are not yet fully separated.
 
-That means the current architecture is macro-separated but not yet layered. The repo signals where responsibilities will likely live, but those responsibilities are not implemented in code yet.
+That means the current architecture is macro-separated with early layering in the admin billing module. The repo signals where broader responsibilities will likely live, but full service layering and shared contracts are not yet implemented.
 
 ### Current cross-service wiring
 
@@ -161,17 +175,18 @@ Expected relationships are visible in naming and configuration, not in running i
 - The repository README describes a future shared-contract pattern through planned packages.
 - The presence of both `apps/api` and `apps/ai-service` implies a future backend-to-backend relationship.
 
-No direct wiring exists today:
+Direct wiring today:
 
-- no frontend fetches to the API in `apps/web`
-- no API client or SDK package
+- frontend admin billing dashboard fetches from the API through an API client module
 - no API calls from `apps/api` to `apps/ai-service`
 - no shared `packages/` code
 - no shared schema or contract definitions
 
 <Callout kind="alert">
 
-Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
+The frontend and API are now connected through the admin billing dashboard. The AI service remains isolated with no cross-service integration.
+
+
 
 </Callout>
 
@@ -179,18 +194,13 @@ Treat the current topology as three isolated services managed in one monorepo, n
 
 ### Database and persistence
 
-No database or persistence layer is implemented in the current repository. There are no ORM configurations, migration files, schema directories, repository classes, entity models, or connection settings that would indicate active persistence.
+The NestJS API service persists data in a Supabase-managed Postgres database. Schema changes are managed through SQL migration files that are applied manually via the Supabase SQL editor.
 
-Notably absent from the tree:
+- ORM frameworks (Prisma, TypeORM, Drizzle, etc.) — the service uses raw SQL and Supabase client queries instead
+- Automated migration runner — migrations are SQL files applied manually
+- Environment-based database configuration — connection settings are not managed through a `ConfigModule`
 
-- `prisma/`
-- `db/` or `database/`
-- ORM setup for TypeORM, Prisma, Drizzle, MikroORM, Mongoose, or Sequelize
-- SQL migration files
-- Redis or cache clients
-- `.env.example` with database connection variables
-
-The practical result is a stateless system. The frontend renders starter UI, the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
+The API service now manages billing state, credit balances, run charges, and creator earnings through the Postgres database. The frontend and AI service remain stateless.
 
 ### Middleware
 
@@ -204,18 +214,14 @@ This absence matters architecturally because cross-cutting concerns have not yet
 
 ### Authentication and authorization
 
-No authentication or authorization layer exists today.
+The NestJS API service uses Supabase session-based authentication for admin billing endpoints. Requests are protected by an authentication guard that verifies the Supabase session and an admin guard that checks for admin privileges.
 
-There are no signs of:
+- No login or logout endpoints in the API — authentication is handled by Supabase
+- No JWT handling in the API service — session verification uses Supabase
+- No Remix session storage in the frontend
+- No authorization for non-admin routes — only admin billing endpoints are protected
 
-- login or logout endpoints
-- JWT or session cookies
-- Passport or strategy modules in Nest
-- Remix session storage
-- user identity models
-- authorization guards or policy enforcement
-
-The absence is consistent across all three applications. Any future protected routes, user-specific state, or service-to-service trust model will need to be added from scratch.
+Authentication is implemented for admin billing endpoints only. The health endpoint remains unauthenticated, and the AI service has no authentication layer.
 
 ### External services and integrations
 
@@ -226,11 +232,11 @@ Present today:
 - browser-to-API CORS allowance for `http://localhost:3000` in `apps/api/src/main.ts`
 - Google Fonts references in `apps/web/app/root.tsx`
 - GitHub Container Registry publishing in `.github/workflows/web.yml`, `.github/workflows/api.yml`, and `.github/workflows/ai-service.yml`
+- Supabase Postgres database for billing, credit, and creator earnings persistence
 
 Not present today:
 
 - model provider APIs
-- databases
 - caches
 - queues
 - cloud object storage
@@ -302,7 +308,9 @@ The Python service declares `pytest`, and the workflows reference verification s
 
 <Callout kind="info">
 
-The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
+The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. Application depth has grown with the admin billing module, which adds domain modules, persistence, and auth, though the AI service and shared contract layer remain unimplemented.
+
+
 
 </Callout>
 
@@ -310,19 +318,24 @@ The strongest part of the current architecture is operational structure: app bou
 
 Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. That gives the repository a stable foundation for future feature work.
 
-What it has not answered yet are the application-level questions: where domain logic lives, how contracts are shared, how state is stored, how users authenticate, and how the API and AI service collaborate. Until those layers exist, the repo should be evaluated as a well-structured platform skeleton rather than as an implemented distributed system.
+What it has partially answered are application-level questions: domain logic lives in the admin billing module, state is stored in Supabase Postgres, and admin users authenticate through Supabase sessions. What remains unanswered is how contracts are shared across services, how the AI service integrates, and how non-admin features will be built.
 
 ## Related pages
 
 <Columns cols={2}>
+
   <Card title="Introduction" href="/introduction" icon="book-open">
 
     Get the high-level orientation for the documentation set and how the project is presented.
+
+
 
   </Card>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
     Follow the shortest path to running the project and validating the local setup.
+
+
 
   </Card>
 
@@ -330,10 +343,16 @@ What it has not answered yet are the application-level questions: where domain l
 
     Review the documented capabilities and compare them with the current implementation state.
 
+
+
   </Card>
   <Card title="Help center" href="/help-center/help-center" icon="help-circle">
 
     Find troubleshooting and support-oriented guidance for common setup and usage issues.
 
+
+
   </Card>
+
+
 </Columns>

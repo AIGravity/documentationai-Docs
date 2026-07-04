@@ -1,17 +1,18 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Inventory of model-like definitions, response schemas, and database migration status across the API and AI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+The NestJS API service uses a Supabase-backed Postgres database with SQL migration files for schema management. The repository does not use an ORM framework, formalized DTO classes, or named validation schemas. Admin billing endpoints return ad-hoc TypeScript interfaces rather than class-backed DTOs.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+What exists today is still limited in terms of formal model definitions. The repository includes two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings. Admin billing endpoints also return structured response shapes defined as TypeScript interfaces.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+
 
 </Callout>
 
@@ -22,40 +23,34 @@ The repository is closer to a service scaffold than an application with domain e
 | Area | Current status |
 | --- | --- |
 | Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
+| ORM or database models | Postgres tables managed via SQL migrations (no ORM framework) |
 | DTO classes | None found in the analyzed code |
 | Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Migration files | SQL migration files present (Supabase/Postgres) |
+| Inline response shapes | 2 found plus admin billing response interfaces |
+| Persisted entities | Database tables include profiles, credit orders, run charges, and creator earnings ledger |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
 
-<Callout kind="danger">
-
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
-
-</Callout>
-
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The NestJS API service persists data in a Supabase-managed Postgres database. Schema changes are managed through SQL migration files that are applied manually.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+SQL migration files are present and manage database schema changes including the profiles table, credit ordering, run charge tracking, and creator earnings. Migrations are applied manually via the Supabase SQL editor rather than through an automated migration runner.
 
 ### Repository-level signals
 
-- The NestJS API exposes a single health controller with an inline object response.
+- The NestJS API exposes a health controller and a set of admin billing endpoints with structured TypeScript interface responses.
 - The FastAPI service exposes a single health endpoint with an inline object response.
 - `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
 - The repository README describes shared schemas and database work as planned rather than implemented.
 
 ## NestJS API response shape
 
-The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
+The NestJS API currently returns one structured object from the health endpoint and also returns structured response shapes from admin billing endpoints. Those admin billing shapes are defined as TypeScript interfaces rather than class-backed DTOs. The health response object remains an inline response shape rather than a named DTO or persisted entity.
 
 ### Implemented shape
 
@@ -87,11 +82,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,6 +126,7 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
@@ -156,43 +154,45 @@ No named validation layer is implemented in the analyzed repository.
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
 
+
 </Callout>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+SQL migration files manage the Postgres database schema for the NestJS API service.
 
-### Summary
-
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+- Migrations are applied manually through the Supabase SQL editor.
+- Recent migrations include a test-account flag on user profiles and a minimum creator payout rule for marketplace billing.
+- No automated migration runner is configured; migrations are tracked as SQL files in the repository.
 
 ### Current implication
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+The database schema evolves through SQL migration files. Each migration is a standalone SQL script that modifies tables or Postgres functions.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The current codebase exposes service health and persists billing-related data, but it does not yet define durable application data structures as a formal model layer. That has several practical implications for anyone reading the repository as a backend reference.
 
 - **No canonical domain entities** — There is no checked-in source of truth for business objects.
 - **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
+- **Persistence via raw SQL, not ORM** — Database tables exist and are managed through SQL migrations, but no ORM model layer provides typed entity definitions or relationship mappings.
+- **Manual migration tracking** — Migrations are SQL files without an automated runner or version tracking table.
 - **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
 
-<Callout kind="danger">
+<Callout kind="info">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+Admin billing response shapes are defined as TypeScript interfaces for API responses. They are not backed by ORM models or formalized DTO classes, but they do reflect persisted database entities in the Postgres schema.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>
