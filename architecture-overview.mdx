@@ -1,17 +1,25 @@
 ---
 title: Architecture overview
-description: Evaluate the Gravity monorepo structure, service boundaries, tooling, and current implementation gaps across web, API, and AI services.
+description: >-
+  Evaluate the Gravity monorepo structure, service boundaries, tooling, and
+  current implementation gaps across web, API, and AI services.
 ---
 
 ## Overview
 
 Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, but the application layer is still intentionally thin.
 
-The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, no persistence layer, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
+The practical architecture today is a deployment-ready foundation with an emerging application layer in the AI service. Each service starts, builds, and ships independently. The AI service hosts an agent recommendation engine that integrates with Gemini and Typesense, while the web and API services remain at the foundation stage. There are no shared packages, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
 
 <Callout kind="info">
 
 `pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
+
+
+
+
+
+
 
 </Callout>
 
@@ -54,6 +62,12 @@ The root `package.json` defines workspace-level commands such as `dev:web`, `dev
 
 The root script `dev:py` points to `apps/py-service`, but the actual Python service lives at `apps/ai-service`. That script is stale relative to the repository tree.
 
+
+
+
+
+
+
 </Callout>
 
 ## Service architecture
@@ -94,15 +108,21 @@ That makes `apps/api` a real runnable service, but architecturally it is still a
 
 ### `apps/ai-service`: FastAPI Python service
 
-`apps/ai-service` is the Python service intended to host AI-related functionality. In its current state, it is a very small FastAPI application with one route and no internal substructure.
+`apps/ai-service` is the Python service that hosts the agent recommendation engine and a health check endpoint. The service integrates with Gemini for query embeddings and Typesense for vector search to power agent discovery and ranking.
 
-The entry point is `apps/ai-service/main.py`. That file creates a `FastAPI` app and defines `GET /health`, which returns a static status object. There are no routers, service classes, Pydantic models beyond what FastAPI would support, middleware, persistence adapters, or model-inference integrations implemented yet.
+The entry point is `apps/ai-service/main.py`. That file creates a `FastAPI` app and defines `GET /health`, which returns a static status object. The agent recommendation engine is implemented as a separate service layer that handles agent search and ranking, including a soft-blend formula that considers semantic similarity, platform overlap, agent type matching, and tool selection.
 
-The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development. The tooling is ready for a larger service, but the runtime surface area is currently limited to health checking.
+The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development. Additional packages for Gemini and Typesense integrations support the recommendation engine.
 
 <Callout kind="info">
 
-Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
+The agent recommendation engine integrates with Gemini for query embeddings and Typesense for vector search. Ranking applies a soft-blend formula that combines semantic distance with platform, agent type, and tool-matching signals.
+
+
+
+
+
+
 
 </Callout>
 
@@ -137,9 +157,10 @@ The AI service entry point is `apps/ai-service/main.py`.
 
 Implemented route behavior today:
 
-- `GET /health`
+- `GET /health` — process health check
+- Agent search and recommendation — searches for and ranks agents based on a user's query and selected platforms, agent types, and tools
 
-There are no additional routers or path groupings.
+The recommendation engine is implemented in dedicated service modules separate from the health check route.
 
 ## Module relationships and service boundaries
 
@@ -149,9 +170,9 @@ The repository has strong top-level separation and very thin internal layering. 
 - `apps/api` for the TypeScript backend
 - `apps/ai-service` for the Python backend
 
-Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
+Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app separates business logic into dedicated service modules for agent search and recommendation ranking. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
 
-That means the current architecture is macro-separated but not yet layered. The repo signals where responsibilities will likely live, but those responsibilities are not implemented in code yet.
+That means the current architecture is macro-separated, with the AI service beginning to develop internal layering through its recommendation service modules. The web and API services have not yet developed comparable internal structure.
 
 ### Current cross-service wiring
 
@@ -173,6 +194,12 @@ No direct wiring exists today:
 
 Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
 
+
+
+
+
+
+
 </Callout>
 
 ## Persistence, middleware, auth, and external services
@@ -190,7 +217,7 @@ Notably absent from the tree:
 - Redis or cache clients
 - `.env.example` with database connection variables
 
-The practical result is a stateless system. The frontend renders starter UI, the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
+The practical result is a stateless system for the web and API services. The frontend renders starter UI and the API returns a hardcoded health response. The AI service uses Typesense as an external vector search index for agent retrieval, but no traditional database or local persistence layer is implemented within the repository.
 
 ### Middleware
 
@@ -226,10 +253,11 @@ Present today:
 - browser-to-API CORS allowance for `http://localhost:3000` in `apps/api/src/main.ts`
 - Google Fonts references in `apps/web/app/root.tsx`
 - GitHub Container Registry publishing in `.github/workflows/web.yml`, `.github/workflows/api.yml`, and `.github/workflows/ai-service.yml`
+- Gemini model provider API for query embeddings in the AI service
+- Typesense vector search for agent retrieval in the AI service
 
 Not present today:
 
-- model provider APIs
 - databases
 - caches
 - queues
@@ -298,11 +326,17 @@ When evaluating the system, trust the source files over the README for current r
 
 ### Testing exists mostly as intent
 
-The Python service declares `pytest`, and the workflows reference verification steps, but the repository does not yet show a meaningful test suite. The CI layer is prepared for broader testing, while the codebase itself remains at an early implementation stage.
+The Python service declares `pytest` and includes unit tests for the agent search and ranking logic. The CI workflows reference verification steps, though the pytest step remains commented out in the workflow configuration. The web and API services do not yet include test suites.
 
 <Callout kind="info">
 
-The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
+The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The AI service has begun building application depth with its agent recommendation engine, but the web and API services still lack domain modules, persistence, auth, and implemented service-to-service flows.
+
+
+
+
+
+
 
 </Callout>
 
@@ -310,19 +344,32 @@ The strongest part of the current architecture is operational structure: app bou
 
 Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. That gives the repository a stable foundation for future feature work.
 
-What it has not answered yet are the application-level questions: where domain logic lives, how contracts are shared, how state is stored, how users authenticate, and how the API and AI service collaborate. Until those layers exist, the repo should be evaluated as a well-structured platform skeleton rather than as an implemented distributed system.
+What it has not answered yet are some application-level questions: how contracts are shared, how users authenticate, and how the API and AI service collaborate. The AI service now includes application logic for agent recommendation, but the web and API services remain at the foundation stage. The repo should be evaluated as a well-structured platform with an emerging application layer in the AI service.
 
 ## Related pages
 
 <Columns cols={2}>
+
   <Card title="Introduction" href="/introduction" icon="book-open">
 
     Get the high-level orientation for the documentation set and how the project is presented.
+
+
+
+
+
+
 
   </Card>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
     Follow the shortest path to running the project and validating the local setup.
+
+
+
+
+
+
 
   </Card>
 
@@ -330,10 +377,29 @@ What it has not answered yet are the application-level questions: where domain l
 
     Review the documented capabilities and compare them with the current implementation state.
 
+
+
+
+
+
+
   </Card>
   <Card title="Help center" href="/help-center/help-center" icon="help-circle">
 
     Find troubleshooting and support-oriented guidance for common setup and usage issues.
 
+
+
+
+
+
+
   </Card>
+
+
+
+
+
+
+
 </Columns>

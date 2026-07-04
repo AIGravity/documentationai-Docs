@@ -1,23 +1,33 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: >-
+  How the FastAPI-based AI service hosts the agent recommendation engine,
+  manages dependencies with uv, exposes health status, and packages for
+  container deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application that hosts the agent recommendation engine alongside a health check endpoint. It manages dependencies with uv, integrates with Gemini for query embeddings and Typesense for vector search, and packages for container deployment. The recommendation engine ranks agents based on semantic similarity and user-selected preferences including platforms, agent types, and tools.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The agent recommendation engine uses Gemini for query embeddings and Typesense for vector search. Ranking applies a soft-blend formula that combines semantic distance with platform, agent type, and tool-matching signals to surface the most relevant agents.
+
+
+
+
+
+
+
+
+
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
-
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service combines a FastAPI foundation with an agent recommendation engine. The foundation includes a direct app bootstrap, a health check route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing. The recommendation engine searches for agents using semantic vector search and ranks them with a soft-blend formula that considers platform, agent type, and tool overlap with the user's selections.
 
 ## Bootstrap in main.py
 
@@ -48,11 +58,11 @@ Grounded bootstrap details:
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path is straightforward because app initialization remains lightweight. The agent recommendation engine is implemented as a separate service layer, so the entry point stays focused on bootstrap and health checking while recommendation logic lives in dedicated service modules.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The health check endpoint is `GET /health`. It returns a plain JSON object with one field.
 
 <CodeGroup tabs="Route,Response">
 
@@ -70,7 +80,38 @@ def health():
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It serves as a basic process health check independent of the recommendation engine.
+
+## Agent recommendation
+
+The AI service includes an agent recommendation engine that searches for and ranks agents based on a user's query and selected preferences. When a user submits a query along with selected platforms, agent types, and tools, the service retrieves candidate agents through semantic vector search and ranks them using a soft-blend formula.
+
+### How ranking works
+
+Ranking combines semantic similarity with preference matching:
+
+1. **Semantic similarity** — The primary signal. Agents are retrieved based on how closely their descriptions match the user's query. Agents that are too dissimilar are filtered out by a distance threshold.
+2. **Soft-blend signals** — Each matching preference adds a small boost to the agent's score:
+   - Matching platforms
+   - Matching agent types
+   - Matching tools — the user's selected tools that overlap with the agent's supported tools
+
+The blend weight is intentionally small so that semantic similarity dominates ranking. The soft-blend only breaks ties between agents that are semantically similar, ensuring that an agent using the tools a user selected ranks above an otherwise-equivalent agent that does not.
+
+<Callout kind="info">
+
+Tool selection now influences agent ranking. When a user selects tools from the tool picker, agents that support those tools receive a slight ranking boost. This helps surface agents that are more relevant to the user's specific tool choices.
+
+
+
+
+
+
+</Callout>
+
+### Response shape
+
+Each recommended agent in the response includes a `matched_tools` array listing which of the user's selected tools the agent supports. This array is always present, even when empty, so consumers can inspect which tools contributed to a ranking boost.
 
 ## Python environment and dependency management
 
@@ -132,7 +173,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The service integrates with Gemini for query embeddings and Typesense for vector search to support the agent recommendation engine. The dependency list shown above reflects the base FastAPI foundation; additional packages for these external integrations are managed through the same uv workflow.
 
 ## Run locally
 
@@ -183,7 +224,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the service as-is, including the agent recommendation engine and its external service integrations.
 
 ## CI workflow
 
@@ -196,7 +237,20 @@ On `dev`, the workflow generates a development version using the base version, t
 ## Related docs
 
 <Columns cols={3}>
+
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
+
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
+
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+
+
+
+
+
+
+
+
+
+
 </Columns>

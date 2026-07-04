@@ -1,23 +1,31 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: >-
+  Inventory of the repository’s current model-like definitions, response
+  schemas, and migration status across the API and AI services.
 ---
 
 ## Overview
 
 AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+What exists today includes two inline response shapes returned by health endpoints and the agent search response shape returned by the AI service's recommendation engine. These shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
 
+
+
+
+
+
+
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository is developing its first application-level response shapes through the AI service's agent recommendation engine, though it still lacks named domain models and persistence entities.
 
 | Area | Current status |
 | --- | --- |
@@ -26,17 +34,24 @@ The repository is closer to a service scaffold than an application with domain e
 | DTO classes | None found in the analyzed code |
 | Named validation schemas | None found in the analyzed code |
 | Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
+| Inline response shapes | 3 found |
 | Persisted entities | None found in the analyzed code |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **Agent search response** — inline response shape with `matched_platforms`, `matched_agent_types`, and `matched_tools` arrays returned by the AI service's recommendation engine
 
 <Callout kind="danger">
 
 The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+
+
+
+
+
+
 
 </Callout>
 
@@ -49,7 +64,7 @@ Migration infrastructure is also absent. No `migrations` directory, ORM-managed 
 ### Repository-level signals
 
 - The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
+- The FastAPI service exposes a health endpoint with an inline object response and returns agent search results through the recommendation engine.
 - `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
 - The repository README describes shared schemas and database work as planned rather than implemented.
 
@@ -87,11 +102,23 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
+
+
+
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
+
+
+
+
+
 
 </ResponseField>
 
@@ -129,11 +156,56 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
+
+
+
+
 </ResponseField>
 
 ### Notes
 
 The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
+
+## Agent search response shape
+
+The AI service's recommendation engine returns agent search results as inline response shapes. Each result includes arrays showing which of the user's selected preferences matched the agent's capabilities.
+
+### Classification
+
+- **Kind** — Inline response shape
+- **Named model** — None found in the analyzed code
+- **Persistence-backed** — No (agent data is stored in Typesense, not in a local database)
+- **Relationships** — None found in the analyzed code
+- **Validation rules** — None found in the analyzed code
+
+### Response fields
+
+<ResponseField name="matched_platforms" field-type="array" required="true">
+
+Platforms from the user's selection that match the agent's supported platforms. Always present, even when empty.
+
+
+</ResponseField>
+
+<ResponseField name="matched_agent_types" field-type="array" required="true">
+
+Agent types from the user's selection that match the agent's types. Always present, even when empty.
+
+
+</ResponseField>
+
+<ResponseField name="matched_tools" field-type="array" required="true">
+
+Tools from the user's selection that match the agent's supported tools. Always present, even when empty, so consumers can inspect which tools contributed to a ranking boost.
+
+
+</ResponseField>
+
+### Notes
+
+These response shapes are constructed inline in the recommendation engine's service layer. No Pydantic response model is defined for the agent search results. The `matched_tools` array was added to provide transparency into which tool selections influenced the ranking.
 
 ## Validation schema and DTO status
 
@@ -155,6 +227,12 @@ No named validation layer is implemented in the analyzed repository.
 <Callout kind="info">
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+
+
+
+
+
+
 
 </Callout>
 
@@ -188,11 +266,26 @@ The current codebase exposes service health, but it does not yet define durable 
 
 Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
 
+
+
+
+
+
+
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
+
+
+
+
+
 </Columns>
