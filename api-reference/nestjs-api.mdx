@@ -1,21 +1,29 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  Reference for the NestJS backend service health check and agent verification
+  warmup and prewarm endpoints.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes implemented in the AIGravity core repository, including the health check and agent verification warmup endpoints.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
+
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
+
+
 
 </Callout>
 
@@ -29,11 +37,17 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
+
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
+
+
 
 </ParamField>
 
@@ -41,11 +55,17 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
+
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
+
+
 
 </Callout>
 
@@ -59,6 +79,9 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
+
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +89,9 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
+
+
 
 </ParamField>
 
@@ -75,6 +101,9 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
+
+
 </ParamField>
 
 ### Request body
@@ -82,6 +111,9 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
+
+
 
 </ParamField>
 
@@ -116,11 +148,17 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
+
+
 
 </ResponseField>
 
@@ -136,6 +174,130 @@ A `404` response is likely when you request the wrong path or use the wrong HTTP
 
 A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
 
+## Agent verification warmup
+
+### POST `/agents/verify-warmup`
+
+Triggers a background warmup of the agent verification pipeline so that subsequent verification requests start faster. The endpoint returns immediately without waiting for the warmup to complete.
+
+This is a fire-and-forget call: the server primes the verification components (including the piece catalog, LLM clients, content safety guardrails, and URL safety feeds) in the background while the caller continues with other work.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/verify-warmup`
+
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. This endpoint does not accept a request body.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i -X POST http://localhost:3001/agents/verify-warmup
+```
+
+</CodeGroup>
+
+### Response
+
+Returns `202 Accepted` immediately, indicating that the warmup has been started in the background.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "warming": true
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="warming" field-type="boolean" required="true">
+
+Returns `true` to confirm that the warmup process has been initiated.
+
+
+</ResponseField>
+
+## Agent verification prewarm
+
+### POST `/agents/verify-prewarm`
+
+Pre-runs the behaviour analysis stage of the verification pipeline on a submitted workflow and caches the result. When the builder later triggers a full verification, the cached result is reused instead of re-running the analysis from scratch.
+
+This is a fire-and-forget call: the server begins the analysis in the background and returns immediately. The cache is keyed by the workflow's content hash and expires after 30 minutes.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/verify-prewarm`
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="workflowJson" param-type="string" required="true">
+
+The workflow JSON to pre-analyse. This should be the same workflow JSON that will be submitted during the full verification step.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i -X POST http://localhost:3001/agents/verify-prewarm \
+  -H "Content-Type: application/json" \
+  -d '{"workflowJson": "{\"trigger\": {}, \"steps\": []}"}'
+```
+
+</CodeGroup>
+
+### Response
+
+Returns `202 Accepted` immediately, indicating that the prewarm analysis has been started in the background.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "prewarming": true
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="prewarming" field-type="boolean" required="true">
+
+Returns `true` to confirm that the prewarm analysis has been initiated.
+
+
+</ResponseField>
+
 ## Notes
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so all endpoints are available at `http://localhost:3001` in the current local configuration.

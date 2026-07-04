@@ -1,15 +1,21 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: >-
+  Reference for the FastAPI AI service health check and agent verification
+  warmup and prewarm endpoints.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+This page documents the FastAPI AI service routes implemented in the AIGravity core repository, including the health check and agent verification warmup and prewarm endpoints.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+
+
+
+
 
 </Callout>
 
@@ -23,17 +29,29 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
+
+
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
+
+
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirement was found in the FastAPI route implementation.
+
+
+
+
 
 </ParamField>
 
@@ -59,11 +77,19 @@ This endpoint does not accept any request inputs beyond the request method and p
 
 None. The route path is static and does not define any path parameters.
 
+
+
+
+
 </ParamField>
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. No query parameters are defined in the route handler.
+
+
+
+
 
 </ParamField>
 
@@ -71,11 +97,19 @@ None. No query parameters are defined in the route handler.
 
 None. Send the request without a body.
 
+
+
+
+
 </ParamField>
 
 <Callout kind="info">
 
 No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+
+
+
+
 
 </Callout>
 
@@ -86,6 +120,10 @@ A successful request returns a JSON object with a single status field.
 <ResponseField name="status" field-type="string" required="true">
 
 Service health status. The current implementation returns `ok`.
+
+
+
+
 
 </ResponseField>
 
@@ -101,9 +139,7 @@ Service health status. The current implementation returns `ok`.
 
 ## Implementation notes
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
-
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The FastAPI application registers the `GET /health` handler directly and also exposes verification endpoints under the `/verification` path. The health route does not define a response model, while the verification endpoints use typed request and response schemas.
 
 ## Likely error responses
 
@@ -112,3 +148,157 @@ The current implementation is minimal, so likely error behavior is limited to fr
 - **`404 Not Found`** — Returned when you request a path that is not defined.
 - **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
 - **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+
+## Verification warmup
+
+### POST `/verification/warmup`
+
+Primes the verification pipeline components so that subsequent verification requests avoid cold-start delays. The endpoint warms LLM clients, initialises content safety guardrails, and loads URL safety feeds into memory.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/verification/warmup`
+
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. This endpoint does not accept a request body.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i -X POST http://localhost:8000/verification/warmup
+```
+
+</CodeGroup>
+
+### Response
+
+Returns a JSON object indicating whether the warmup completed and how long it took.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "warmed": true,
+  "elapsed_ms": 3200,
+  "status": "ok"
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="warmed" field-type="boolean" required="true">
+
+Returns `true` when the warmup completed successfully.
+
+
+</ResponseField>
+
+<ResponseField name="elapsed_ms" field-type="integer" required="false">
+
+Time in milliseconds that the warmup took to complete.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Status of the warmup operation. Returns `ok` on success.
+
+
+</ResponseField>
+
+## Verification prewarm
+
+### POST `/verification/prewarm`
+
+Pre-runs the behaviour analysis stage of the verification pipeline on a submitted workflow and caches the result under the workflow's content hash. When the caller later submits the same workflow for full verification, the cached analysis is reused instead of re-running from scratch.
+
+The cache expires after 30 minutes and holds up to 500 entries.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/verification/prewarm`
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="workflowJson" param-type="string" required="true">
+
+The workflow JSON to pre-analyse. This should match the workflow that will be submitted during the full verification step.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i -X POST http://localhost:8000/verification/prewarm \
+  -H "Content-Type: application/json" \
+  -d '{"workflowJson": "{\"trigger\": {}, \"steps\": []}"}'
+```
+
+</CodeGroup>
+
+### Response
+
+Returns a JSON object indicating whether the result was cached and the overall status.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "cached": true,
+  "status": "ok",
+  "reason": "prewarm completed"
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="cached" field-type="boolean" required="true">
+
+Returns `true` when the analysis result was successfully cached for later reuse.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Status of the prewarm operation. Returns `ok` on success.
+
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="false">
+
+Human-readable detail about the prewarm result, such as whether the result was newly cached or already present from a previous call.
+
+
+</ResponseField>

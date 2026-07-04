@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint and the agent verification warmup and prewarm endpoints.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Agent Verification
+    description: Endpoints for warming up and pre-running the agent verification pipeline
 paths:
   /health:
     get:
@@ -39,6 +41,64 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/verify-warmup:
+    post:
+      tags:
+        - Agent Verification
+      summary: Warm up verification pipeline
+      description: >
+        Triggers a background warmup of the agent verification pipeline so that
+        subsequent verification requests start faster. Returns immediately with
+        HTTP 202 without waiting for the warmup to complete.
+      operationId: verifyWarmup
+      security: []
+      responses:
+        '202':
+          description: Warmup initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarmupResponse'
+              example:
+                warming: true
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/verify-prewarm:
+    post:
+      tags:
+        - Agent Verification
+      summary: Pre-run verification behaviour analysis
+      description: >
+        Pre-runs the behaviour analysis stage of the verification pipeline on a
+        submitted workflow and caches the result. When the builder later
+        triggers a full verification, the cached result is reused. Returns
+        immediately with HTTP 202. Cache is keyed by workflow content hash and
+        expires after 30 minutes.
+      operationId: verifyPrewarm
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrewarmRequest'
+      responses:
+        '202':
+          description: Prewarm analysis initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrewarmResponse'
+              example:
+                prewarming: true
+        '400':
+          description: Invalid workflow JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -66,3 +126,27 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    WarmupResponse:
+      type: object
+      required:
+        - warming
+      properties:
+        warming:
+          type: boolean
+          description: Returns true to confirm that the warmup process has been initiated.
+    PrewarmRequest:
+      type: object
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: string
+          description: The workflow JSON to pre-analyse. This should match the workflow submitted during full verification.
+    PrewarmResponse:
+      type: object
+      required:
+        - prewarming
+      properties:
+        prewarming:
+          type: boolean
+          description: Returns true to confirm that the prewarm analysis has been initiated.
