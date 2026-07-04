@@ -1,27 +1,23 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Reference for the NestJS API service including health checks, agent verification warmup and prewarm, agent submission, and marketplace feedback endpoints.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The service exposes health, agent verification, agent submission, and marketplace feedback endpoints.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
 
-</Callout>
 
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
 
 </Callout>
 
-## Endpoint
+## Health
 
-### GET `/health`
+### GET /health
 
 Use this endpoint to verify that the NestJS backend is running and responding.
 
@@ -29,11 +25,15 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
+
 
 </ParamField>
 
@@ -41,11 +41,15 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
+
 
 </Callout>
 
@@ -59,6 +63,8 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +72,8 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
+
 
 </ParamField>
 
@@ -75,6 +83,8 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
+
 </ParamField>
 
 ### Request body
@@ -82,6 +92,8 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
+
 
 </ParamField>
 
@@ -116,11 +128,15 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
+
 
 </ResponseField>
 
@@ -139,3 +155,395 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Agent verification
+
+### POST /agents/verify-warmup
+
+Warm up the agent verification stack, including LLM clients, Bedrock guardrail, and URL-safety feeds, before the builder reaches the review step. Send this fire-and-forget request as early as possible so cold starts overlap with form-filling. Failures are silently logged and never affect the caller.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/verify-warmup`
+
+
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. Send the request without a body.
+
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/agents/verify-warmup \
+  -H "Authorization: Bearer token_example_9xmk7q2r"
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns `202 Accepted` immediately. The warmup runs in the background.
+
+<ResponseField name="warming" field-type="boolean" required="true">
+
+Always `true`. Confirms the warmup was dispatched.
+
+
+
+</ResponseField>
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "warming": true
+}
+```
+
+</CodeGroup>
+
+### POST /agents/verify-prewarm
+
+Pre-run the workflow-only behavior gate, Gate 4, at upload time and cache the result. When the builder later triggers a full verify, Gate 4 is served from cache instead of being recomputed. Send the agent workflow JSON in the request body. Failures are silently logged and never affect the caller.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/verify-prewarm`
+
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+The agent workflow JSON object to pre-warm. Must be a valid JSON object.
+
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON body">
+
+```bash
+curl -X POST http://localhost:3001/agents/verify-prewarm \
+  -H "Authorization: Bearer token_example_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{"workflowJson":{"steps":[{"pieceName":"input-node","id":"step-1"},{"pieceName":"publish-gate","id":"step-2"}]}}'
+```
+
+```json
+{
+  "workflowJson": {
+    "steps": [
+      {
+        "pieceName": "input-node",
+        "id": "step-1"
+      },
+      {
+        "pieceName": "publish-gate",
+        "id": "step-2"
+      }
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns `202 Accepted` immediately. The prewarm runs in the background.
+
+<ResponseField name="prewarming" field-type="boolean" required="true">
+
+Always `true`. Confirms the prewarm was dispatched.
+
+
+
+</ResponseField>
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "prewarming": true
+}
+```
+
+</CodeGroup>
+
+<Callout kind="info">
+
+Both verify-warmup and verify-prewarm are best-effort endpoints. They return `202` regardless of whether the background work ultimately succeeds. Check server logs if warmup or prewarm appears ineffective.
+
+
+
+</Callout>
+
+### POST /agents/verify
+
+Run the full agent verification pipeline, including safety gates, on a draft agent. The `problemSolved` field is validated server-side with minimum and maximum character length constraints.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/verify`
+
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="problemSolved" param-type="string" required="false">
+
+Description of the problem the agent solves. Must meet the minimum and maximum character length requirements enforced server-side. If the value is too short or too long, the server returns `400 Bad Request`.
+
+
+
+</ParamField>
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+The agent workflow definition to verify.
+
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON body">
+
+```bash
+curl -X POST http://localhost:3001/agents/verify \
+  -H "Authorization: Bearer token_example_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{"problemSolved":"This agent helps teams automate their daily standup summaries by reading Slack messages and generating a concise report.","workflowJson":{"steps":[{"pieceName":"input-node","id":"step-1"},{"pieceName":"publish-gate","id":"step-2"}]}}'
+```
+
+```json
+{
+  "problemSolved": "This agent helps teams automate their daily standup summaries by reading Slack messages and generating a concise report.",
+  "workflowJson": {
+    "steps": [
+      {
+        "pieceName": "input-node",
+        "id": "step-1"
+      },
+      {
+        "pieceName": "publish-gate",
+        "id": "step-2"
+      }
+    ]
+  }
+}
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns `200 OK` with the verification result from the safety gate pipeline. The result includes per-gate status and any findings.
+
+<Callout kind="alert">
+
+If `problemSolved` does not meet the length constraints, the server returns `400 Bad Request` with a message such as `problemSolved must be longer than or equal to N characters` or `problemSolved must be shorter than or equal to N characters`.
+
+
+
+</Callout>
+
+### POST /agents/{id}/submit
+
+Submit a published agent for admin review. The server validates that the workflow contains a Publish Gate step before entering the review queue.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/{id}/submit`
+
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField body="id" param-type="string" required="true">
+
+Agent identifier.
+
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="problemSolved" param-type="string" required="false">
+
+Description of the problem the agent solves, subject to server-side length validation.
+
+
+
+</ParamField>
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+The agent workflow definition. Must contain a Publish Gate step.
+
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/agents/abc-123/submit \
+  -H "Authorization: Bearer token_example_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{"problemSolved":"Summarizes daily standups","workflowJson":{"steps":[{"pieceName":"publish-gate","id":"step-1"}]}}'
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns `200 OK` when the agent is submitted to the admin review queue.
+
+<Callout kind="alert">
+
+If the workflow does not contain a Publish Gate step, the server returns `400 Bad Request` with the message `This workflow has no Publish Gate step. Add the Gravity Publish Gate to your workflow before submitting.`
+
+
+
+</Callout>
+
+## Marketplace
+
+### POST /marketplace/feedback
+
+Submit feedback for a marketplace agent. The `reasons` field accepts an array of feedback categories, replacing the previous single `reason` string. At least one reason must be provided.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/marketplace/feedback`
+
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="agentId" param-type="string" required="true">
+
+Identifier of the agent being reviewed.
+
+
+
+</ParamField>
+
+<ParamField body="reasons" param-type="array" required="true">
+
+One or more feedback categories. Must be a non-empty array. Each element must be one of `output_quality`, `looking_elsewhere`, `try_alternate`, or `other`.
+
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON body">
+
+```bash
+curl -X POST http://localhost:3001/marketplace/feedback \
+  -H "Authorization: Bearer token_example_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{"agentId":"abc-123","reasons":["output_quality","looking_elsewhere"]}'
+```
+
+```json
+{
+  "agentId": "abc-123",
+  "reasons": [
+    "output_quality",
+    "looking_elsewhere"
+  ]
+}
+```
+
+</CodeGroup>
+
+<Callout kind="info">
+
+The `reasons` field replaced the previous `reason` string field. Clients sending the old single-value format will receive `400 Bad Request` because the server now expects an array.
+
+
+
+</Callout>
+
+#### Response
+
+Returns `201 Created` when the feedback is successfully submitted.
+
+#### Error responses
+
+<ParamField body="400" param-type="error" required="false" show-location="false">
+
+Returned when the `reasons` array is empty or contains values outside the allowed set.
+
+
+
+</ParamField>

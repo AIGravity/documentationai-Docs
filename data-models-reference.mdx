@@ -1,17 +1,21 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: >-
+  Inventory of the repository's model-like definitions, DTOs, validation
+  schemas, response shapes, and migration status across the API and AI
+  services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+AIGravity/core defines validation DTOs in the NestJS API and Pydantic schemas in the FastAI AI service for agent verification, marketplace feedback, and agent publishing flows. A SQL migration handles the transition from single-value to array-based feedback reasons.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+In addition to the DTOs and schemas, two inline response shapes are returned by health endpoints. The agent feedback DTO is backed by a database table with a SQL migration.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+
 
 </Callout>
 
@@ -23,34 +27,43 @@ The repository is closer to a service scaffold than an application with domain e
 | --- | --- |
 | Named domain models | None found in the analyzed code |
 | ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
+| DTO classes | 3 found (NestJS API) |
+| Named validation schemas | 3 found (FastAPI AI service) |
+| Migration files | 1 found (SQL, agent feedback reasons) |
+| Inline response shapes | 2 found (health endpoints) |
 | Persisted entities | None found in the analyzed code |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **PrewarmAgentDto** (NestJS) — DTO with `workflowJson: Record<string, unknown>`, validated with `@IsObject()`
+- **AgentFeedbackDto** (NestJS) — DTO with `agentId: string` and `reasons: string[]`, validated with `@IsArray()`, `@ArrayNotEmpty()`, `@IsIn(..., { each: true })`
+- **PublishAgentDto** (NestJS) — DTO with `problemSolved: string`, validated with `@MinLength()` and `@MaxLength()`
+- **VerifyAgentRequest** (FastAPI) — Pydantic model with `workflow_json`, `workflow_content_hash`, `allowed_hosts`
+- **PrewarmAgentRequest** (FastAPI) — Pydantic model with `workflow_json`, `workflow_content_hash`, `allowed_hosts`
+- **PrewarmAgentResponse** (FastAPI) — Pydantic model with `cached: bool`, `status: str`, `reason: str`
 
 <Callout kind="danger">
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+Most shapes on this page are request/response contracts, not persisted entities. The agent feedback DTO is the exception — it maps to a database table via a SQL migration.
+
 
 </Callout>
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+A persistence layer is partially implemented for marketplace agent feedback. The NestJS API uses a Supabase service to insert feedback records, backed by a SQL migration.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+The repository still contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+
+A SQL migration file handles the schema change from a single `reason` text column to a `reasons` text array column in the agent feedback table.
 
 ### Repository-level signals
 
-- The NestJS API exposes a single health controller with an inline object response.
+- The NestJS API exposes health, agent verification, agent submission, and marketplace feedback endpoints with DTO validation.
 - The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
+- `pydantic` is present as a Python dependency, and `BaseModel` classes are defined for agent verification requests and responses.
 - The repository README describes shared schemas and database work as planned rather than implemented.
 
 ## NestJS API response shape
@@ -87,11 +100,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,6 +144,7 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
@@ -137,62 +153,170 @@ The service declares `pydantic` as a dependency, but this endpoint does not use 
 
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+The NestJS API uses `class-validator` decorators on DTO classes for request body validation. The FastAPI service uses Pydantic `BaseModel` classes for request and response schemas on the verification endpoints.
 
-### NestJS API
+### NestJS API DTOs
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+Three DTO classes with `class-validator` decorators are defined:
 
-### FastAPI service
+**PrewarmAgentDto** — used by `POST /agents/verify-prewarm`
 
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+<ResponseField name="workflowJson" field-type="object" required="true">
 
-<Callout kind="info">
+The agent workflow JSON object. Validated with `@IsObject()`.
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
 
-</Callout>
+</ResponseField>
+
+**AgentFeedbackDto** — used by `POST /marketplace/feedback`
+
+<ResponseField name="agentId" field-type="string" required="true">
+
+Identifier of the agent being reviewed.
+
+
+</ResponseField>
+
+<ResponseField name="reasons" field-type="array" required="true">
+
+One or more feedback categories. Validated with `@IsArray()`, `@ArrayNotEmpty()`, and `@IsIn(..., { each: true })`. Allowed values: `output_quality`, `looking_elsewhere`, `try_alternate`, `other`. This field replaces the previous single `reason` string.
+
+
+</ResponseField>
+
+**PublishAgentDto** — used by `POST /agents/verify` and `POST /agents/{id}/submit`
+
+<ResponseField name="problemSolved" field-type="string" required="false">
+
+Description of the problem the agent solves. Validated with `@MinLength()` and `@MaxLength()` to enforce server-side character length constraints.
+
+
+</ResponseField>
+
+### FastAPI service Pydantic schemas
+
+Three `BaseModel` classes are defined for agent verification:
+
+**VerifyAgentRequest** — request body for `POST /verification/verify-ap-stream`
+
+<ResponseField name="workflow_json" field-type="object" required="true">
+
+The agent workflow JSON object to verify.
+
+
+</ResponseField>
+
+<ResponseField name="workflow_content_hash" field-type="string" required="false">
+
+Content hash of the workflow JSON. Enables Gate 4 result reuse from the prewarm cache. Defaults to an empty string.
+
+
+</ResponseField>
+
+<ResponseField name="allowed_hosts" field-type="array" required="false">
+
+List of allowed hostnames for URL safety checks.
+
+
+</ResponseField>
+
+**PrewarmAgentRequest** — request body for `POST /verification/prewarm`
+
+<ResponseField name="workflow_json" field-type="object" required="true">
+
+The agent workflow JSON object to evaluate.
+
+
+</ResponseField>
+
+<ResponseField name="workflow_content_hash" field-type="string" required="false">
+
+Cache key for the prewarmed Gate 4 result. Defaults to an empty string.
+
+
+</ResponseField>
+
+<ResponseField name="allowed_hosts" field-type="array" required="false">
+
+List of allowed hostnames. Defaults to an empty array.
+
+
+</ResponseField>
+
+**PrewarmAgentResponse** — response from `POST /verification/prewarm`
+
+<ResponseField name="cached" field-type="boolean" required="true">
+
+`true` when the Gate 4 result was cached. `false` on failure.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="false">
+
+Gate 4 outcome: `pass`, `warn`, or `fail`. Empty on failure.
+
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="false">
+
+Empty on success. Contains the exception type name on failure.
+
+
+</ResponseField>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+One SQL migration file handles a schema change for the agent feedback table.
 
 ### Summary
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+- 1 SQL migration file found for the agent feedback reasons column change
+- No ORM-managed migration framework is present; the migration is a standalone SQL file
+- The migration converts the `reason` text column to a `reasons` text array column
 
-### Current implication
+### Agent feedback reasons migration
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+The migration performs these steps:
+
+1. Adds a `reasons` column of type `text[]` if it does not exist
+2. Adds a constraint restricting `reasons` values to the allowed set: `output_quality`, `looking_elsewhere`, `try_alternate`, `other`
+3. Backfills `reasons` from the old `reason` column where `reasons` is null
+4. Drops the `reason` column
+5. Sets `reasons` to `NOT NULL`
+
+<Callout kind="info">
+
+This is a breaking schema change. Clients still sending the old single `reason` string format will receive a `400 Bad Request` from the API.
+
+
+</Callout>
 
 ## Gaps and implications
 
 The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
 
 - **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
+- **Partial validation contract** — DTOs and Pydantic schemas now formalize request validation for agent verification, marketplace feedback, and agent publishing. Health endpoints remain unvalidated inline shapes.
+- **Partial persistence contract** — The agent feedback DTO maps to a database table via a SQL migration. Other shapes remain request/response contracts only.
+- **Single migration** — One SQL migration exists for the feedback reasons schema change. No broader migration framework is in place.
 - **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
 
 <Callout kind="danger">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+Treat the health response shapes as endpoint-local only. The DTOs and Pydantic schemas are stable API contracts for their respective endpoints.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>

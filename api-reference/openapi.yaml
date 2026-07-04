@@ -5,9 +5,9 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint, agent verification and submission endpoints, and marketplace feedback operations.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    The repository also contains a separate AI service implemented with FastAPI that exposes its own endpoints. Those endpoints are documented on the AI Service reference page rather than in this specification.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +21,10 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Agents
+    description: Agent verification, submission, and publishing operations
+  - name: Marketplace
+    description: Marketplace agent feedback operations
 paths:
   /health:
     get:
@@ -39,6 +43,175 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/verify-warmup:
+    post:
+      tags:
+        - Agents
+      summary: Warm up the verification stack
+      description: >
+        Fire-and-forget request that warms the entire agent verification stack
+        (LLM clients, Bedrock guardrail, URL-safety feeds) so cold starts
+        overlap with form-filling instead of blocking the review step.
+        Failures are silently logged and do not affect the caller.
+      operationId: warmupVerification
+      responses:
+        '202':
+          description: Accepted — warmup started in background
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WarmupResponse'
+              example:
+                warming: true
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/verify-prewarm:
+    post:
+      tags:
+        - Agents
+      summary: Pre-warm the behaviour gate
+      description: >
+        Pre-runs the workflow-only behaviour gate (Gate 4) at upload time and
+        caches the result so the review-step verify reuses it instead of
+        recomputing. Accepts the agent workflow JSON. Failures are silently
+        logged and do not affect the caller.
+      operationId: prewarmVerification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrewarmAgentDto'
+      responses:
+        '202':
+          description: Accepted — prewarm started in background
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrewarmResponse'
+              example:
+                prewarming: true
+        '400':
+          description: Invalid request body — workflowJson is missing or not an object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: validation failed
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/{id}/submit:
+    post:
+      tags:
+        - Agents
+      summary: Submit agent for admin review
+      description: >
+        Submit a published agent for admin review. The server validates that
+        the workflow contains a Publish Gate step before entering the review
+        queue. Returns 400 if no Publish Gate step is found in the workflow.
+      operationId: submitForAdminReview
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Agent identifier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentDto'
+      responses:
+        '200':
+          description: Agent submitted for review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitResponse'
+        '400':
+          description: >
+            Validation failed — the workflow has no Publish Gate step, or
+            required fields are missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: This workflow has no Publish Gate step. Add the Gravity Publish Gate to your workflow before submitting.
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/verify:
+    post:
+      tags:
+        - Agents
+      summary: Verify agent for publishing
+      description: >
+        Run the agent verification pipeline (safety gates) on a draft agent.
+        The problemSolved field is validated with minimum and maximum character
+        length constraints.
+      operationId: verifyAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentDto'
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResult'
+        '400':
+          description: >
+            Validation failed — problemSolved length out of bounds, or required
+            fields are missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: problemSolved must be longer than or equal to 10 characters
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /marketplace/feedback:
+    post:
+      tags:
+        - Marketplace
+      summary: Submit agent feedback
+      description: >
+        Submit feedback for a marketplace agent. The reasons field accepts an
+        array of feedback categories. Replaces the previous single reason
+        string field with a multi-select reasons array.
+      operationId: submitAgentFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentFeedbackDto'
+      responses:
+        '201':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentFeedbackResponse'
+        '400':
+          description: >
+            Invalid request — reasons array is empty or contains invalid values
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: reasons must not be empty
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -66,3 +239,84 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    PrewarmAgentDto:
+      type: object
+      description: Request body for pre-warming the behaviour gate with a workflow definition.
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          description: The agent workflow JSON object to pre-warm.
+          additionalProperties: true
+    WarmupResponse:
+      type: object
+      description: Response from the verify-warmup endpoint.
+      required:
+        - warming
+      properties:
+        warming:
+          type: boolean
+          description: Always true confirms the warmup was dispatched.
+          example: true
+    PrewarmResponse:
+      type: object
+      description: Response from the verify-prewarm endpoint.
+      required:
+        - prewarming
+      properties:
+        prewarming:
+          type: boolean
+          description: Always true confirms the prewarm was dispatched.
+          example: true
+    AgentFeedbackDto:
+      type: object
+      description: Request body for submitting marketplace agent feedback with an array of selected categories.
+      required:
+        - agentId
+        - reasons
+      properties:
+        agentId:
+          type: string
+          description: Identifier of the agent being reviewed.
+        reasons:
+          type: array
+          description: One or more feedback categories selected by the user.
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - output_quality
+              - looking_elsewhere
+              - try_alternate
+              - other
+            description: Feedback category.
+          example:
+            - output_quality
+            - looking_elsewhere
+    AgentFeedbackResponse:
+      type: object
+      description: Response after submitting agent feedback.
+      additionalProperties: true
+    PublishAgentDto:
+      type: object
+      description: Request body for publishing or verifying an agent with character length constraints on problemSolved.
+      properties:
+        problemSolved:
+          type: string
+          description: Description of the problem the agent solves with minimum and maximum character length requirements enforced server-side.
+          minLength: 10
+          maxLength: 400
+          example: This agent helps teams automate their daily standup summaries.
+        workflowJson:
+          type: object
+          description: The agent workflow definition.
+          additionalProperties: true
+    SubmitResponse:
+      type: object
+      description: Response after submitting an agent for admin review.
+      additionalProperties: true
+    VerifyResult:
+      type: object
+      description: Agent verification result from the safety gate pipeline.
+      additionalProperties: true

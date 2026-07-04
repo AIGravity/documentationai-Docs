@@ -1,19 +1,20 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Reference for the FastAPI AI service including health checks, verification warmup, prewarm, and agent verification streaming endpoints.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. The service exposes health, verification warmup, prewarm, and agent verification streaming endpoints.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
 
+
 </Callout>
 
-## Endpoint
+## Health
 
 ### GET /health
 
@@ -23,17 +24,20 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirement was found in the FastAPI route implementation.
+
 
 </ParamField>
 
@@ -59,11 +63,13 @@ This endpoint does not accept any request inputs beyond the request method and p
 
 None. The route path is static and does not define any path parameters.
 
+
 </ParamField>
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. No query parameters are defined in the route handler.
+
 
 </ParamField>
 
@@ -71,11 +77,13 @@ None. No query parameters are defined in the route handler.
 
 None. Send the request without a body.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+
 
 </Callout>
 
@@ -86,6 +94,7 @@ A successful request returns a JSON object with a single status field.
 <ResponseField name="status" field-type="string" required="true">
 
 Service health status. The current implementation returns `ok`.
+
 
 </ResponseField>
 
@@ -103,7 +112,7 @@ Service health status. The current implementation returns `ok`.
 
 The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The service also exposes verification endpoints documented in the sections below.
 
 ## Likely error responses
 
@@ -112,3 +121,260 @@ The current implementation is minimal, so likely error behavior is limited to fr
 - **`404 Not Found`** — Returned when you request a path that is not defined.
 - **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
 - **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+
+## Verification
+
+### POST /verification/warmup
+
+Warm the agent verification stack components — the code LLM judge, Bedrock guardrail, and network safety feeds (Tranco, URLhaus, HaGeZi TIF) — so subsequent verification requests avoid cold-start latency. This endpoint is called by the NestJS API's `POST /agents/verify-warmup` as part of the background warmup flow.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/verification/warmup`
+
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None. Send the request without a body.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:8001/verification/warmup
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns `200 OK` with a status object. The endpoint always returns 200 — per-component errors are recorded in the `status` dict rather than surfacing as HTTP errors.
+
+<ResponseField name="warmed" field-type="boolean" required="true">
+
+`true` when the warmup attempt completed. Individual components may still report errors in the `status` field.
+
+
+</ResponseField>
+
+<ResponseField name="elapsed_ms" field-type="integer" required="true">
+
+Wall-clock time spent on the warmup, in milliseconds.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="object" required="true">
+
+Per-component warmup status. Each key is a component name: `code_llm_judge`, `guardrail`, or `network_feeds`. Each value is either `ok` or an error string.
+
+
+</ResponseField>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "warmed": true,
+  "elapsed_ms": 3420,
+  "status": {
+    "code_llm_judge": "ok",
+    "guardrail": "ok",
+    "network_feeds": "ok"
+  }
+}
+```
+
+</Response>
+
+### POST /verification/prewarm
+
+Run only the workflow behaviour gate, known as Gate 4, and cache the result for later reuse during full verification. The cache is keyed by `workflow_content_hash` with a configurable TTL. This endpoint is called by the NestJS API's `POST /agents/verify-prewarm` as part of the background prewarm flow.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/verification/prewarm`
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+The agent workflow JSON object to evaluate against the behaviour gate.
+
+
+</ParamField>
+
+<ParamField body="workflow_content_hash" param-type="string" required="false">
+
+Content hash of the workflow JSON. Use it as the cache key so the subsequent full verify can reuse the prewarmed Gate 4 result. Defaults to an empty string.
+
+
+</ParamField>
+
+<ParamField body="allowed_hosts" param-type="array" required="false">
+
+List of allowed hostnames for URL safety checks. Defaults to an empty array.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON body">
+
+```bash
+curl -X POST http://localhost:8001/verification/prewarm \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_json":{"steps":[{"pieceName":"input-node","id":"step-1"},{"pieceName":"publish-gate","id":"step-2"}]},"workflow_content_hash":"abc123def456","allowed_hosts":["api.slack.com","api.github.com"]}'
+```
+
+```json
+{
+  "workflow_json": {
+    "steps": [
+      {
+        "pieceName": "input-node",
+        "id": "step-1"
+      },
+      {
+        "pieceName": "publish-gate",
+        "id": "step-2"
+      }
+    ]
+  },
+  "workflow_content_hash": "abc123def456",
+  "allowed_hosts": [
+    "api.slack.com",
+    "api.github.com"
+  ]
+}
+```
+
+</CodeGroup>
+
+#### Response
+
+Returns `200 OK` with a `PrewarmAgentResponse`. The endpoint always returns 200 — failures are reported in the `reason` field rather than as HTTP errors.
+
+<ResponseField name="cached" field-type="boolean" required="true">
+
+`true` when the Gate 4 result was successfully computed and cached. `false` when the prewarm failed. Check `reason` for details.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="false">
+
+Gate 4 outcome when the prewarm succeeded: `pass`, `warn`, or `fail`. Empty string when the prewarm failed.
+
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="false">
+
+Empty string on success. On failure, contains the exception type name, such as `invalid_workflow`.
+
+
+</ResponseField>
+
+<Response tabs="Success,Failure" show-lines="false">
+
+```json
+{
+  "cached": true,
+  "status": "pass",
+  "reason": ""
+}
+```
+
+```json
+{
+  "cached": false,
+  "status": "",
+  "reason": "invalid_workflow"
+}
+```
+
+</Response>
+
+### POST /verification/verify-ap-stream
+
+Run the full agent verification pipeline across all safety gates and stream results back. This endpoint accepts `workflow_content_hash`, which enables Gate 4 result reuse from the prewarm cache. Gate 5 guardrail failures now return a curated, user-safe message instead of internal violation details.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/verification/verify-ap-stream`
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+The agent workflow JSON object to verify.
+
+
+</ParamField>
+
+<ParamField body="workflow_content_hash" param-type="string" required="false">
+
+Content hash of the workflow JSON. When provided and a matching prewarmed Gate 4 result exists in the cache, the behaviour gate is served from cache instead of being recomputed. Defaults to an empty string.
+
+
+</ParamField>
+
+<ParamField body="allowed_hosts" param-type="array" required="false">
+
+List of allowed hostnames for URL safety checks.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+The NestJS API automatically computes and sends `workflow_content_hash` on every verify request, so callers through the NestJS API benefit from prewarm caching without additional configuration.
+
+
+</Callout>
+
+#### Response
+
+Returns a streaming response with per-gate verification results. Each gate reports a status of `pass`, `warn`, or `fail` along with any findings.
+
+<Callout kind="alert">
+
+When the Bedrock guardrail, or Gate 5, flags content, the failure now surfaces a curated message: `Content flagged for safety — Some of your text or prompts in the workflow was flagged for safety concerns.` This replaces the previous behavior where guardrail failures could stream with zero findings or expose internal violation details.
+
+
+</Callout>
