@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service endpoints for health checks, credit purchases, builder profiles, and marketplace agent fields.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,12 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Credits
+    description: Credit purchase and balance management operations
+  - name: Builders
+    description: Builder profile and earnings operations
+  - name: Marketplace
+    description: Marketplace workflow discovery and execution operations
 paths:
   /health:
     get:
@@ -41,7 +47,130 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/credits/orders:
+    post:
+      tags:
+        - Credits
+      summary: Create a credit order
+      description: Creates a Razorpay credit order for the authenticated user. Accepts a package ID and a currency. EUR and GBP order amounts are derived from the USD package price at a live FX rate at checkout time. Previously only INR and USD were supported; EUR and GBP were added in this release.
+      operationId: createCreditOrder
+      security:
+        - SupabaseAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCreditOrderRequest'
+      responses:
+        '201':
+          description: Credit order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCreditOrderResult'
+              example:
+                orderId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                razorpayOrderId: order_Nk7t2XyZ123abc
+                razorpayKeyId: rzp_test_ABCDEF12345
+                amountMinor: 50000
+                currency: USD
+                credits: 5000
+                packageName: Starter Pack
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /api/builders/me:
+    get:
+      tags:
+        - Builders
+      summary: Get the authenticated builder's profile
+      description: Returns the authenticated user's builder profile, including currency preference and lifetime earnings. If the user does not yet have a builders table row, the endpoint attempts to create one with default values before returning. A 404 is returned only when the user has no profile record at all. Creator-typed accounts that have earned credits now receive a 200 response with default values instead of a 404.
+      operationId: getBuilderMe
+      security:
+        - SupabaseAuth: []
+      responses:
+        '200':
+          description: Builder profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuilderView'
+              example:
+                userId: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+                currency: USD
+                totalEarnings: 0
+                lifetimeEarningsCredits: 12500
+                lifetimeEarningsUsd: 125.0
+                createdAt: '2025-06-01T10:00:00Z'
+                updatedAt: '2025-07-04T12:30:00Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+  /api/marketplace/builder-fields:
+    post:
+      tags:
+        - Marketplace
+      summary: Get builder fields for a published agent
+      description: Returns the consumer intake fields (questions and inputs) configured by the agent builder for a published marketplace workflow. Each field object includes a question (the prompt shown to the consumer) and, when the builder provided helper text, a separate description field rendered as a secondary caption. The question field is derived from the builder's label; the description field carries the builder's optional helper text. Previously, the question field could contain the description text instead of the label — this has been corrected so question and description are always distinct.
+      operationId: getBuilderFields
+      security:
+        - SupabaseAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuilderFieldsRequest'
+      responses:
+        '200':
+          description: Builder fields for the agent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuilderFieldsResponse'
+              example:
+                fields:
+                  - id: wf-abc123::user_query
+                    question: What would you like to analyze?
+                    description: Provide a URL or paste text for the agent to process.
+                    nodeName: ''
+                    paramPath: step_1.input.query
+                    label: What would you like to analyze?
+                    currentValue: ''
+                    reason: consumer-input
+                    engine: ap
+                    canonicalName: user_query
+                    fieldType: multiline
+                    required: true
+                  - id: wf-abc123::output_format
+                    question: Preferred output format
+                    nodeName: ''
+                    paramPath: step_1.input.format
+                    label: Preferred output format
+                    currentValue: ''
+                    reason: consumer-input
+                    engine: ap
+                    canonicalName: output_format
+                    fieldType: dropdown
+                    optionsList:
+                      - Markdown
+                      - JSON
+                      - Plain text
+                    required: false
+                source: ap-consumer-inputs
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
 components:
+  securitySchemes:
+    SupabaseAuth:
+      type: http
+      scheme: bearer
+      description: Supabase JWT bearer token obtained during authentication.
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -49,6 +178,30 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadRequestError:
+      description: Bad request — validation failed or input was invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unsupported currency: AUD
+    UnauthorizedError:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: No builder profile found for this user
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +219,268 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    CreateCreditOrderRequest:
+      type: object
+      description: Request body for creating a credit order from a predefined package.
+      required:
+        - packageId
+        - currency
+      properties:
+        packageId:
+          type: string
+          description: Identifier of the credit package to purchase (e.g. "pkg_starter").
+          example: pkg_starter
+        currency:
+          type: string
+          enum:
+            - INR
+            - USD
+            - EUR
+            - GBP
+          description: Currency for the order. INR and USD use package prices directly. EUR and GBP amounts are derived from the USD package price at a live FX rate.
+          example: USD
+    CreateCreditOrderResult:
+      type: object
+      description: Response returned when a credit order is successfully created. Pass razorpayOrderId and razorpayKeyId to the Razorpay Checkout SDK on the client.
+      required:
+        - orderId
+        - razorpayOrderId
+        - razorpayKeyId
+        - amountMinor
+        - currency
+        - credits
+        - packageName
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Internal credit order identifier.
+        razorpayOrderId:
+          type: string
+          description: Razorpay order ID (format order_xxx) to pass to the Checkout SDK.
+        razorpayKeyId:
+          type: string
+          description: Public Razorpay key ID, safe to send to the browser.
+        amountMinor:
+          type: integer
+          description: Order amount in the smallest currency unit (paise for INR, cents for USD/EUR/GBP).
+          example: 50000
+        currency:
+          type: string
+          enum:
+            - INR
+            - USD
+            - EUR
+            - GBP
+          description: Currency of the order.
+        credits:
+          type: integer
+          description: Number of credits the user will receive upon successful payment.
+          example: 5000
+        packageName:
+          type: string
+          description: Human-readable package name (e.g. "Starter Pack"). For custom orders, this is always "Custom amount".
+          example: Starter Pack
+    BuilderView:
+      type: object
+      description: Builder profile with currency preference and lifetime earnings. The totalEarnings field is a legacy column that is always 0; use lifetimeEarningsCredits and lifetimeEarningsUsd for real earnings data.
+      required:
+        - userId
+        - currency
+        - totalEarnings
+        - lifetimeEarningsCredits
+        - lifetimeEarningsUsd
+        - createdAt
+        - updatedAt
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: The builder's user ID.
+        currency:
+          type: string
+          enum:
+            - INR
+            - USD
+            - EUR
+            - GBP
+          description: The builder's preferred display currency.
+        totalEarnings:
+          type: number
+          description: Legacy earnings column — always 0. Use lifetimeEarningsUsd instead.
+          example: 0
+        lifetimeEarningsCredits:
+          type: number
+          description: Total credits earned from agent runs, aggregated from the creator earnings ledger.
+          example: 12500
+        lifetimeEarningsUsd:
+          type: number
+          description: Lifetime earnings in USD, computed as lifetimeEarningsCredits / 100 (1 credit = $0.01).
+          example: 125.0
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the builder profile was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the builder profile was last updated.
+    BuilderFieldsRequest:
+      type: object
+      description: Request body for fetching builder-configured fields for a published agent.
+      properties:
+        agentId:
+          type: string
+          description: The published workflow UUID to retrieve builder fields for. If omitted, an empty fields array is returned.
+          example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    BuilderFieldsResponse:
+      type: object
+      description: Response containing the builder-configured consumer intake fields for an agent.
+      required:
+        - fields
+        - source
+      properties:
+        fields:
+          type: array
+          description: Array of builder-configured fields. Each field describes a consumer input the user must provide when interacting with the agent.
+          items:
+            $ref: '#/components/schemas/BuilderFieldWireShape'
+        source:
+          type: string
+          enum:
+            - no-agent-id
+            - no-ap-row
+            - ap-consumer-inputs
+          description: Indicates how the fields were resolved. "ap-consumer-inputs" means fields were derived from the agent's ActivePieces consumer input configuration.
+          example: ap-consumer-inputs
+    BuilderFieldWireShape:
+      type: object
+      description: A single builder-configured consumer input field. The question field is the primary prompt shown to the user. The description field (when present) is builder-written helper text rendered as a secondary caption beneath the question.
+      required:
+        - question
+        - nodeName
+        - paramPath
+        - label
+        - currentValue
+        - reason
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the field, composed of the workflow ID and the input name.
+        question:
+          type: string
+          description: The primary prompt or label shown to the consumer. Derived from the builder's label for the input.
+          example: What would you like to analyze?
+        description:
+          type: string
+          description: Optional builder-written helper text shown beneath the question as a secondary caption. Distinct from the question field.
+          example: Provide a URL or paste text for the agent to process.
+        nodeName:
+          type: string
+          description: Internal node name. Always an empty string for ActivePieces-based agents.
+        paramPath:
+          type: string
+          description: Internal parameter path within the workflow step.
+        label:
+          type: string
+          description: Same as the question field for ActivePieces-based agents.
+        placeholder:
+          type: string
+          description: Optional placeholder text derived from the default value.
+        currentValue:
+          type: string
+          description: Always an empty string for ActivePieces-based agents.
+        reason:
+          type: string
+          enum:
+            - trigger-config
+            - user-content
+            - integration-target
+            - placeholder
+            - credential
+            - consumer-input
+          description: Categorization of the field. Always "consumer-input" for ActivePieces consumer inputs.
+        targets:
+          type: array
+          description: Additional parameter paths to fan out to when baking the workflow.
+          items:
+            type: object
+            properties:
+              nodeName:
+                type: string
+              paramPath:
+                type: string
+        engine:
+          type: string
+          enum:
+            - ap
+          description: Workflow engine. Always "ap" for ActivePieces-based agents.
+        canonicalName:
+          type: string
+          description: The ActivePieces canonical webhook-body key for this input.
+        fieldType:
+          type: string
+          enum:
+            - text
+            - multiline
+            - secret
+            - number
+            - checkbox
+            - date
+            - dropdown
+            - static-dropdown
+            - static-multi-dropdown
+            - dynamic-dropdown
+            - dynamic-multi-dropdown
+            - dynamic-cascade
+            - markdown
+            - array
+            - file
+          description: Input type for the field.
+        required:
+          type: boolean
+          description: Whether the consumer must provide a value for this field.
+        defaultValue:
+          description: Default value for the field, if configured by the builder. Type varies by fieldType.
+        optionsList:
+          type: array
+          description: Options for legacy dropdown field type.
+          items:
+            type: string
+        staticOptions:
+          type: array
+          description: Static options for static-dropdown and static-multi-dropdown field types.
+          items:
+            type: object
+            properties:
+              label:
+                type: string
+              value:
+                description: Option value. Type varies.
+        pieceName:
+          type: string
+          description: ActivePieces piece name, for dynamic dropdown field types.
+        pieceVersion:
+          type: string
+          description: ActivePieces piece version, for dynamic dropdown field types.
+        actionName:
+          type: string
+          description: ActivePieces action name, for dynamic dropdown field types.
+        propertyName:
+          type: string
+          description: ActivePieces property name, for dynamic dropdown field types.
+        refreshers:
+          type: array
+          description: Field names whose changes trigger a refresh of dynamic dropdown options.
+          items:
+            type: string
+        markdownValue:
+          type: string
+          description: Markdown content for markdown field type.
+        markdownVariant:
+          type: string
+          enum:
+            - INFO
+            - WARNING
+            - TIP
+          description: Display variant for markdown field type.

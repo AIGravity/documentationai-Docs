@@ -1,91 +1,17 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Endpoints for health checks, credit purchases, builder profiles, and marketplace agent fields in the AIGravity core API.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the public endpoints exposed by the NestJS backend service. All endpoints except `/health` require a Supabase JWT bearer token passed in the `Authorization` header.
 
-<Callout kind="info">
-
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
-
-</Callout>
-
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
-
-</Callout>
-
-## Endpoint
+## Endpoints
 
 ### GET `/health`
 
-Use this endpoint to verify that the NestJS backend is running and responding.
-
-<ParamField body="method" param-type="string" required="true" show-location="false">
-
-`GET`
-
-</ParamField>
-
-<ParamField body="path" param-type="string" required="true" show-location="false">
-
-`/health`
-
-</ParamField>
-
-<ParamField body="auth" param-type="string" required="true" show-location="false">
-
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
-
-</ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
+Checks whether the NestJS backend is running and responding. No parameters, no authentication, and no request body.
 
 <CodeGroup tabs="cURL">
 
@@ -94,10 +20,6 @@ curl -i http://localhost:3001/health
 ```
 
 </CodeGroup>
-
-## Response
-
-A successful request returns a JSON object that identifies the service and reports its status.
 
 <CodeGroup tabs="JSON">
 
@@ -110,32 +32,345 @@ A successful request returns a JSON object that identifies the service and repor
 
 </CodeGroup>
 
-### Response fields
+#### Response fields
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Health state returned by the endpoint. The handler returns `ok`.
+
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Service identifier returned by the endpoint. The handler returns `api`.
+
 
 </ResponseField>
 
-## Likely error responses
+### POST `/api/credits/orders`
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+Creates a Razorpay credit order for the authenticated user from a predefined credit package.
 
-### 404 not found
+<Callout kind="info">
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+EUR and GBP currencies were added in this release. Previously, only INR and USD were accepted, and requests with EUR or GBP returned a `400` error.
 
-### 500 internal server error
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+</Callout>
+
+#### Authentication
+
+Pass a Supabase JWT bearer token in the `Authorization` header.
+
+#### Request body
+
+<ParamField body="packageId" param-type="string" required="true">
+
+Identifier of the credit package to purchase, for example `pkg_starter`.
+
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true" enum="INR,USD,EUR,GBP">
+
+Currency for the order. INR and USD use package prices directly. EUR and GBP amounts are derived from the USD package price at a live FX rate.
+
+
+</ParamField>
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "packageId": "pkg_starter",
+  "currency": "USD"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="orderId" field-type="string" required="true">
+
+Internal credit order identifier as a UUID.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayOrderId" field-type="string" required="true">
+
+Razorpay order ID to pass to the Checkout SDK.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayKeyId" field-type="string" required="true">
+
+Public Razorpay key ID. Safe to send to the browser.
+
+
+</ResponseField>
+
+<ResponseField name="amountMinor" field-type="integer" required="true">
+
+Order amount in the smallest currency unit: paise for INR, cents for USD, EUR, and GBP.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Currency of the order: `INR`, `USD`, `EUR`, or `GBP`.
+
+
+</ResponseField>
+
+<ResponseField name="credits" field-type="integer" required="true">
+
+Number of credits the user will receive after successful payment.
+
+
+</ResponseField>
+
+<ResponseField name="packageName" field-type="string" required="true">
+
+Human-readable package name.
+
+
+</ResponseField>
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "orderId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "razorpayOrderId": "order_Nk7t2XyZ123abc",
+  "razorpayKeyId": "rzp_test_ABCDEF12345",
+  "amountMinor": 50000,
+  "currency": "USD",
+  "credits": 5000,
+  "packageName": "Starter Pack"
+}
+```
+
+</CodeGroup>
+
+#### Error responses
+
+- **`400 Bad Request`** — Validation failed or the requested currency is not supported.
+- **`401 Unauthorized`** — Missing, expired, or invalid bearer token.
+
+### GET `/api/builders/me`
+
+Returns the authenticated user's builder profile, including currency preference and lifetime earnings.
+
+<Callout kind="info">
+
+This endpoint now self-heals: if the user does not have a `builders` table row, it attempts to create one with default values before returning. Creator-typed accounts that have earned credits now receive a `200` response with default values instead of a `404`. A `404` is returned only when no profile record exists at all.
+
+
+</Callout>
+
+#### Authentication
+
+Pass a Supabase JWT bearer token in the `Authorization` header. This endpoint accepts no request body, path parameters, or query parameters.
+
+#### Response fields
+
+<ResponseField name="userId" field-type="string" required="true">
+
+The builder's user ID as a UUID.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+The builder's preferred display currency: `INR`, `USD`, `EUR`, or `GBP`.
+
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="number" required="true">
+
+Legacy earnings column. This value is always `0`. Use `lifetimeEarningsUsd` instead.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsCredits" field-type="number" required="true">
+
+Total credits earned from agent runs, aggregated from the creator earnings ledger.
+
+
+</ResponseField>
+
+<ResponseField name="lifetimeEarningsUsd" field-type="number" required="true">
+
+Lifetime earnings in USD, calculated as `lifetimeEarningsCredits / 100` where `1` credit equals `$0.01`.
+
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp for when the profile was created.
+
+
+</ResponseField>
+
+<ResponseField name="updatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp for when the profile was last updated.
+
+
+</ResponseField>
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "currency": "USD",
+  "totalEarnings": 0,
+  "lifetimeEarningsCredits": 12500,
+  "lifetimeEarningsUsd": 125.0,
+  "createdAt": "2025-06-01T10:00:00Z",
+  "updatedAt": "2025-07-04T12:30:00Z"
+}
+```
+
+</CodeGroup>
+
+#### Error responses
+
+- **`401 Unauthorized`** — Missing, expired, or invalid bearer token.
+- **`404 Not Found`** — No profile record found.
+
+### POST `/api/marketplace/builder-fields`
+
+Returns the consumer intake fields configured by the agent builder for a published marketplace workflow.
+
+<Callout kind="info">
+
+The response now includes a separate `description` field on each field object for builder-written helper text. The `question` field is derived from the builder's label and no longer contains the description text. Previously, the `question` field could contain the description instead of the label. `question` and `description` are now always distinct.
+
+
+</Callout>
+
+#### Authentication
+
+Pass a Supabase JWT bearer token in the `Authorization` header.
+
+#### Request body
+
+<ParamField body="agentId" param-type="string" required="false">
+
+The published workflow UUID to retrieve builder fields for. If omitted, the endpoint returns an empty `fields` array.
+
+
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="fields" field-type="array" required="true">
+
+Array of builder-configured consumer input fields.
+
+
+</ResponseField>
+
+<ResponseField name="source" field-type="string" required="true">
+
+How fields were resolved. Values: `no-agent-id`, `no-ap-row`, or `ap-consumer-inputs`.
+
+
+</ResponseField>
+
+#### Field object properties
+
+<ResponseField name="question" field-type="string" required="true">
+
+Primary prompt shown to the consumer. Derived from the builder's label.
+
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="false">
+
+Builder-written helper text shown beneath the question as a secondary caption.
+
+
+</ResponseField>
+
+<ResponseField name="fieldType" field-type="string" required="false">
+
+Input type. Supported values include `text`, `multiline`, `secret`, `number`, `checkbox`, `date`, `dropdown`, `static-dropdown`, `static-multi-dropdown`, `dynamic-dropdown`, `dynamic-multi-dropdown`, `dynamic-cascade`, `markdown`, `array`, and `file`.
+
+
+</ResponseField>
+
+<ResponseField name="required" field-type="boolean" required="false">
+
+Whether the consumer must provide a value.
+
+
+</ResponseField>
+
+<ResponseField name="canonicalName" field-type="string" required="false">
+
+The ActivePieces canonical webhook body key.
+
+
+</ResponseField>
+
+<ResponseField name="engine" field-type="string" required="false">
+
+Workflow engine. For ActivePieces agents, this value is always `ap`.
+
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="true">
+
+Categorization of the field. For ActivePieces inputs, this value is always `consumer-input`.
+
+
+</ResponseField>
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "fields": [
+    {
+      "id": "wf-abc123::user_query",
+      "question": "What would you like to analyze?",
+      "description": "Provide a URL or paste text for the agent to process.",
+      "nodeName": "",
+      "paramPath": "step_1.input.query",
+      "label": "What would you like to analyze?",
+      "currentValue": "",
+      "reason": "consumer-input",
+      "engine": "ap",
+      "canonicalName": "user_query",
+      "fieldType": "multiline",
+      "required": true
+    }
+  ],
+  "source": "ap-consumer-inputs"
+}
+```
+
+</CodeGroup>
+
+#### Error responses
+
+- **`400 Bad Request`** — Request body is invalid.
+- **`401 Unauthorized`** — Missing, expired, or invalid bearer token.
 
 ## Notes
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, and all authenticated endpoints on this page use the same base URL and port.
