@@ -1,23 +1,27 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: >-
+  How the FastAPI-based AI service starts, manages dependencies with uv, exposes
+  health and chat endpoints with tool-aware agent ranking, and packages for
+  container deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application that exposes a health check endpoint and a conversational `POST /chat` endpoint for agent search and recommendation. The chat endpoint orchestrates guardrail checks, LLM-based extraction, and a ranking engine that soft-blends vector similarity with platform, agent type, and tool matches. The service uses uv for dependency management and ships a container build path for deployment.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The service includes a `POST /chat` endpoint that handles conversational agent search, guardrail validation, LLM orchestration, session persistence, and a soft-blend ranking algorithm. See the [AI Service API reference](/api-reference/ai-service) for endpoint details.
+
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The service exposes two HTTP endpoints: `GET /health` for liveness checks and `POST /chat` for conversational agent search. The `/chat` endpoint accepts a user message along with selected tools, orchestrates guardrail validation and LLM-based extraction, and returns ranked agent recommendations. Ranking uses a soft-blend formula that combines vector similarity with platform, agent type, and tool match signals.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+Beyond the endpoints, the service includes Python 3.14 tooling, uv-based dependency management, and automation for linting, versioning, tagging, and container publishing.
 
 ## Bootstrap in main.py
 
@@ -42,17 +46,18 @@ Grounded bootstrap details:
 - app = FastAPI() is defined at the top level
 - /health is registered with @app.get("/health")
 - the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- /chat is registered with @app.post("/chat") and delegates to a service layer
+- middleware enriches Sentry scope for /chat requests
+- routes are registered inline — no APIRouter composition is used
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path is straightforward: app creation and route registration happen inline. The `/chat` route delegates to a service layer that handles guardrail checks, LLM orchestration, session persistence, and agent ranking.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The `GET /health` endpoint is a lightweight liveness check that returns a plain JSON object with one field. The service also exposes `POST /chat` for conversational agent search — see the [AI Service API reference](/api-reference/ai-service) for full details.
 
 <CodeGroup tabs="Route,Response">
 
@@ -70,7 +75,7 @@ def health():
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is a basic process liveness check and does not probe downstream dependencies used by the `/chat` endpoint.
 
 ## Python environment and dependency management
 
@@ -132,7 +137,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The declared runtime dependencies listed here are the base FastAPI stack. The `/chat` endpoint's service layer integrates with external systems at runtime, including LLM providers, search engines, and session storage.
 
 ## Run locally
 
@@ -183,7 +188,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the service as-is.
 
 ## CI workflow
 
@@ -196,7 +201,12 @@ On `dev`, the workflow generates a development version using the base version, t
 ## Related docs
 
 <Columns cols={3}>
+
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
+
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
+
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+
+
 </Columns>

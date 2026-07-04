@@ -1,15 +1,17 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Send chat messages, trigger agent search with tool-aware ranking, and verify AI service health through the FastAPI endpoints exposed by the AIGravity core repository.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+This page documents the FastAPI AI service routes implemented in the AIGravity core repository. The service exposes two endpoints: `GET /health` for liveness checks and `POST /chat` for conversational agent search and recommendation.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+
+
 
 </Callout>
 
@@ -23,17 +25,23 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirement was found in the FastAPI route implementation.
+
+
 
 </ParamField>
 
@@ -59,11 +67,15 @@ This endpoint does not accept any request inputs beyond the request method and p
 
 None. The route path is static and does not define any path parameters.
 
+
+
 </ParamField>
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. No query parameters are defined in the route handler.
+
+
 
 </ParamField>
 
@@ -71,11 +83,15 @@ None. No query parameters are defined in the route handler.
 
 None. Send the request without a body.
 
+
+
 </ParamField>
 
 <Callout kind="info">
 
 No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+
+
 
 </Callout>
 
@@ -86,6 +102,8 @@ A successful request returns a JSON object with a single status field.
 <ResponseField name="status" field-type="string" required="true">
 
 Service health status. The current implementation returns `ok`.
+
+
 
 </ResponseField>
 
@@ -103,12 +121,416 @@ Service health status. The current implementation returns `ok`.
 
 The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The service defines two routes: `GET /health` for liveness and `POST /chat` for conversational agent search. The `/chat` handler uses a Pydantic `ChatRequest` model for input validation and returns an `InteractionResponse` model. Agent ranking is performed by an internal search service that soft-blends vector distance, platform matches, agent type matches, and tool matches.
 
 ## Likely error responses
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+The service returns standard HTTP error codes for common failure scenarios.
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+- **`404 Not Found`** — Returned when you request a path or method combination that does not match a defined route.
+- **`500 Internal Server Error`** — Returned if the service encounters an unexpected runtime failure while handling the request.
+- **`503 Service Unavailable`** — Returned by `POST /chat` when the chat service is unavailable because no LLM API key is configured. The response body contains `{"detail": "Chat service unavailable — no LLM API key configured"}`.
+
+## Chat endpoint
+
+### POST /chat
+
+Send a user message to the AI service. The service orchestrates guardrail checks, LLM-based extraction, and agent search. When `submit_tools` is `true`, the service runs the agent ranking pipeline using the user's selected tools as a ranking signal alongside platforms and agent types.
+
+### Request body parameters
+
+<ParamField body="user_id" param-type="UUID" required="true" show-location="false">
+
+User identifier.
+
+
+
+</ParamField>
+
+<ParamField body="session_id" param-type="UUID" required="true" show-location="false">
+
+Session identifier.
+
+
+
+</ParamField>
+
+<ParamField body="message" param-type="str" required="true" show-location="false">
+
+User's chat message. Minimum length is `0` and maximum length is `4000`. An empty message is valid when `submit_tools` is `true`.
+
+
+
+</ParamField>
+
+<ParamField body="selected_tools" param-type="list[str]" required="false" show-location="false">
+
+Tool slugs the user confirmed in the tool-picker UI, such as `["gmail", "slack-sdk"]`. Defaults to `[]`. These tools factor into agent ranking when `submit_tools` is `true`.
+
+
+
+</ParamField>
+
+<ParamField body="submit_tools" param-type="bool" required="false" show-location="false">
+
+Set to `true` to trigger the tool-submit path. The backend skips LLM chat and runs agent search using `selected_tools` as a ranking signal. Defaults to `false`.
+
+
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="string | null" required="false" show-location="false">
+
+Optional agent identifier used for metering.
+
+
+
+</ParamField>
+
+<CodeGroup tabs="Request,Response">
+
+```bash
+curl -X POST http://localhost:8001/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "550e8400-e29b-41d4-a716-446655440000",
+    "session_id": "660e8400-e29b-41d4-a716-446655440000",
+    "message": "I need an agent that can send emails and manage my calendar",
+    "selected_tools": ["gmail", "google-calendar"],
+    "submit_tools": true
+  }'
+```
+
+```json
+{
+  "session_id": "660e8400-e29b-41d4-a716-446655440000",
+  "reply": "",
+  "info_json": {
+    "handoff": false,
+    "agent_type": ["productivity"],
+    "platforms": ["google"],
+    "tools": ["gmail", "google-calendar"],
+    "selected_tools": ["gmail", "google-calendar"],
+    "use_case": [],
+    "constraints": [],
+    "preferences": [],
+    "search_query": ""
+  },
+  "ready_to_query": true,
+  "search_query": "email calendar automation agent",
+  "memories": [],
+  "guardrail_log": "Passed",
+  "redis_history": [],
+  "typesense_payload": {},
+  "top_agents": [
+    {
+      "id": "agent-001",
+      "name": "Gmail Calendar Assistant",
+      "summary": "Automates email and calendar management",
+      "platforms": ["google"],
+      "tools": ["gmail", "google-calendar"],
+      "vector_distance": 0.18,
+      "text_match": 42,
+      "matched_words": ["email", "calendar"],
+      "agent_type": ["productivity"],
+      "blend_score": 0.86,
+      "matched_platforms": ["google"],
+      "matched_agent_types": ["productivity"],
+      "matched_tools": ["gmail", "google-calendar"],
+      "credits": 5
+    }
+  ],
+  "suggested_tools": ["gmail", "google-calendar"],
+  "show_tool_selection": false,
+  "llm_calls": 0,
+  "execution_id": "770e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+</CodeGroup>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "session_id": "660e8400-e29b-41d4-a716-446655440000",
+  "reply": "",
+  "info_json": {
+    "handoff": false,
+    "agent_type": ["productivity"],
+    "platforms": ["google"],
+    "tools": ["gmail", "google-calendar"],
+    "selected_tools": ["gmail", "google-calendar"],
+    "use_case": [],
+    "constraints": [],
+    "preferences": [],
+    "search_query": ""
+  },
+  "ready_to_query": true,
+  "search_query": "email calendar automation agent",
+  "memories": [],
+  "guardrail_log": "Passed",
+  "redis_history": [],
+  "typesense_payload": {},
+  "top_agents": [
+    {
+      "id": "agent-001",
+      "name": "Gmail Calendar Assistant",
+      "summary": "Automates email and calendar management",
+      "platforms": ["google"],
+      "tools": ["gmail", "google-calendar"],
+      "vector_distance": 0.18,
+      "text_match": 42,
+      "matched_words": ["email", "calendar"],
+      "agent_type": ["productivity"],
+      "blend_score": 0.86,
+      "matched_platforms": ["google"],
+      "matched_agent_types": ["productivity"],
+      "matched_tools": ["gmail", "google-calendar"],
+      "credits": 5
+    }
+  ],
+  "suggested_tools": ["gmail", "google-calendar"],
+  "show_tool_selection": false,
+  "llm_calls": 0,
+  "execution_id": "770e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+</Response>
+
+### Response fields
+
+<ResponseField name="session_id" field-type="string" required="true">
+
+Active session UUID as a string.
+
+
+
+</ResponseField>
+
+<ResponseField name="reply" field-type="string" required="true">
+
+The LLM's chat reply. Returns an empty string on the tool-submit path.
+
+
+
+</ResponseField>
+
+<ResponseField name="info_json" field-type="object" required="true">
+
+Accumulated session context including `handoff`, `agent_type`, `platforms`, `tools`, `selected_tools`, `use_case`, `constraints`, `preferences`, and `search_query`.
+
+
+
+</ResponseField>
+
+<ResponseField name="ready_to_query" field-type="boolean" required="true">
+
+`true` when the use case and selected tools gate is passed.
+
+
+
+</ResponseField>
+
+<ResponseField name="search_query" field-type="string" required="true">
+
+Optimized query string used for vector and text search.
+
+
+
+</ResponseField>
+
+<ResponseField name="memories" field-type="array[string]" required="true">
+
+Relevant memories with similarity score above `0.70`, up to `3`.
+
+
+
+</ResponseField>
+
+<ResponseField name="guardrail_log" field-type="string" required="true">
+
+`Passed` or the guardrail block reason.
+
+
+
+</ResponseField>
+
+<ResponseField name="redis_history" field-type="array[object]" required="true">
+
+Last `8` conversation turns with role, content, and timestamp.
+
+
+
+</ResponseField>
+
+<ResponseField name="typesense_payload" field-type="object" required="true">
+
+Debug payload showing the raw Typesense search parameters.
+
+
+
+</ResponseField>
+
+<ResponseField name="top_agents" field-type="array[object]" required="true">
+
+Top-ranked agent results. Each object contains the fields documented below.
+
+
+
+</ResponseField>
+
+<ResponseField name="suggested_tools" field-type="array[string]" required="true">
+
+Tool slugs surfaced for the tool-picker UI.
+
+
+
+</ResponseField>
+
+<ResponseField name="show_tool_selection" field-type="boolean" required="true">
+
+Whether to show the tool-picker in the UI. Defaults to `false`.
+
+
+
+</ResponseField>
+
+<ResponseField name="llm_calls" field-type="integer" required="true">
+
+Number of LLM calls made this turn. Expected values are `0`, `1`, or `2`. Defaults to `0`.
+
+
+
+</ResponseField>
+
+<ResponseField name="execution_id" field-type="string | null" required="true">
+
+UUID stamped after the handler returns. Used for post-pay billing.
+
+
+
+</ResponseField>
+
+### Top agents item fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Agent document identifier.
+
+
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Agent display name.
+
+
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Agent summary text.
+
+
+
+</ResponseField>
+
+<ResponseField name="platforms" field-type="array[string]" required="true">
+
+Platform slugs the agent supports.
+
+
+
+</ResponseField>
+
+<ResponseField name="tools" field-type="array[string]" required="true">
+
+Tool slugs the agent supports.
+
+
+
+</ResponseField>
+
+<ResponseField name="vector_distance" field-type="number | null" required="true">
+
+Cosine distance from the query vector. Lower values rank better.
+
+
+
+</ResponseField>
+
+<ResponseField name="text_match" field-type="integer" required="true">
+
+Typesense text-match score.
+
+
+
+</ResponseField>
+
+<ResponseField name="matched_words" field-type="array[string]" required="true">
+
+Lowercased tokens from search highlight snippets.
+
+
+
+</ResponseField>
+
+<ResponseField name="agent_type" field-type="array[string]" required="true">
+
+Business category tags.
+
+
+
+</ResponseField>
+
+<ResponseField name="blend_score" field-type="number | null" required="true">
+
+Soft-blend ranking score. Formula: `(1 - vector_distance) + 0.02 × (matched_platforms + matched_agent_types + matched_tools)`.
+
+
+
+</ResponseField>
+
+<ResponseField name="matched_platforms" field-type="array[string]" required="true">
+
+Query platforms that match the agent's platforms, sorted.
+
+
+
+</ResponseField>
+
+<ResponseField name="matched_agent_types" field-type="array[string]" required="true">
+
+Query agent types that match the agent's types, sorted.
+
+
+
+</ResponseField>
+
+<ResponseField name="matched_tools" field-type="array[string]" required="true">
+
+User-selected tools that match the agent's tools, sorted. This field was added to support tool-aware ranking. Each tool match contributes `+0.02` to the blend score, the same weight as a platform or agent type match. When no tools are selected, this field returns an empty array and ranking is unchanged.
+
+
+
+</ResponseField>
+
+<ResponseField name="credits" field-type="integer" required="true">
+
+Estimated cost per run for the agent.
+
+
+
+</ResponseField>
+
+<Callout kind="info">
+
+When `submit_tools` is `true`, the user's `selected_tools` are forwarded to the ranking engine. Each tool that overlaps with an agent's supported tools adds a small boost of `0.02` per match to that agent's blend score, alongside platform and agent type matches. This means agents whose tools align with the user's selections are ranked higher. When `selected_tools` is empty, ranking behavior is identical to before and tools have no effect.
+
+
+
+</Callout>
