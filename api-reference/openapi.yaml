@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint exposed at `GET /health` and the admin billing dashboard API endpoints under `/api/admin/billing`, which require JWT authentication and admin role.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,11 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Admin Billing
+    description: >-
+      Admin-only billing dashboard endpoints for revenue tracking, creator
+      earnings, leakage analysis, and per-user billing drill-down. All
+      endpoints require JWT authentication and admin role.
 paths:
   /health:
     get:
@@ -41,6 +46,246 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/admin/billing/overview:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get billing overview
+      description: >-
+        Retrieve headline billing and revenue metrics including cash
+        collection, creator liability, failed charges, and gross margin.
+      operationId: getBillingOverview
+      security:
+        - AdminBearerAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >-
+            Pass '1' or 'true' to exclude users flagged as is_test_account
+            from all metrics.
+      responses:
+        '200':
+          description: Billing overview metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBillingOverviewResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/billing/top-workflows:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get top workflows by billing activity
+      description: >-
+        Rank workflows by billing activity over a selected time window with
+        pagination support.
+      operationId: getTopWorkflows
+      security:
+        - AdminBearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - today
+              - 7d
+              - 30d
+              - all
+            default: 30d
+          description: >-
+            Time range to evaluate. The 'today' boundary uses the IST
+            calendar day.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: '10'
+          description: Maximum items to return, clamped to [1, 100].
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: string
+            default: '0'
+          description: Pagination offset, clamped to [0, 100000].
+        - name: excludeTest
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pass '1' or 'true' to exclude test accounts.
+      responses:
+        '200':
+          description: Top workflows ranking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopWorkflowsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/billing/top-creators:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get top creators by earnings
+      description: >-
+        Rank creators by earnings generated from their published workflows
+        over a selected time window.
+      operationId: getTopCreators
+      security:
+        - AdminBearerAuth: []
+      parameters:
+        - name: range
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - today
+              - 7d
+              - 30d
+              - all
+            default: 30d
+          description: Time range to evaluate.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: string
+            default: '10'
+          description: Maximum items to return, clamped to [1, 100].
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: string
+            default: '0'
+          description: Pagination offset, clamped to [0, 100000].
+        - name: excludeTest
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pass '1' or 'true' to exclude test accounts.
+      responses:
+        '200':
+          description: Top creators ranking
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopCreatorsResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/billing/leakage:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get billing leakage signals
+      description: >-
+        Inspect billing leakage including negative balances, failed charges,
+        and gaps between charged runs and creator earnings.
+      operationId: getBillingLeakage
+      security:
+        - AdminBearerAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pass '1' or 'true' to exclude test accounts.
+      responses:
+        '200':
+          description: Leakage metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeakageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/billing/users/search:
+    get:
+      tags:
+        - Admin Billing
+      summary: Search users for billing lookup
+      description: >-
+        Search users by name, email, or exact UUID. UUID triggers exact
+        match; otherwise case-insensitive ILIKE on full_name or email, up to
+        20 results.
+      operationId: searchBillingUsers
+      security:
+        - AdminBearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+          description: >-
+            Search term. Empty or missing returns empty items array.
+      responses:
+        '200':
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserSearchResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/admin/billing/users/{id}:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get per-user billing detail
+      description: >-
+        Retrieve a single user's billing summary, ledger-derived balance
+        metrics, and recent run activity.
+      operationId: getUserBillingDetail
+      security:
+        - AdminBearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: User UUID. Invalid UUID returns 400 Bad Request.
+      responses:
+        '200':
+          description: User billing detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserBillingDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
   responses:
     InternalServerError:
@@ -49,6 +294,42 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 401
+            message: Unauthorized
+    Forbidden:
+      description: Authenticated but not an admin
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 403
+            message: Forbidden resource
+    BadRequest:
+      description: Invalid request parameter
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 400
+            message: Invalid user id
+  securitySchemes:
+    AdminBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >-
+        JWT token with admin role (app_metadata.role === 'admin'). The
+        SupabaseAuthGuard validates the JWT, and the AdminGuard checks the
+        admin role.
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +347,425 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    AdminBillingOverviewResponse:
+      type: object
+      required:
+        - generatedAt
+        - totalRevenue
+        - revenueToday
+        - revenueWeek
+        - activeWorkflowCopies
+        - scheduledRunsProcessed
+        - creatorEarnings
+        - failedCharges
+        - failedBreakdown
+        - llmCostCredits
+        - marginPct
+        - moneyIn
+        - creatorLiability
+        - approx
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        totalRevenue:
+          type: number
+        revenueToday:
+          $ref: '#/components/schemas/Kpi'
+        revenueWeek:
+          $ref: '#/components/schemas/Kpi'
+        activeWorkflowCopies:
+          type: number
+        scheduledRunsProcessed:
+          type: number
+        creatorEarnings:
+          type: number
+        failedCharges:
+          type: number
+        failedBreakdown:
+          $ref: '#/components/schemas/FailedBreakdown'
+        llmCostCredits:
+          type: number
+        marginPct:
+          type: number
+          nullable: true
+        moneyIn:
+          $ref: '#/components/schemas/MoneyIn'
+        creatorLiability:
+          $ref: '#/components/schemas/CreatorLiability'
+        approx:
+          type: boolean
+    Kpi:
+      type: object
+      required:
+        - value
+        - prev
+        - changePct
+      properties:
+        value:
+          type: number
+        prev:
+          type: number
+        changePct:
+          type: number
+          nullable: true
+    FailedBreakdown:
+      type: object
+      required:
+        - insufficientBalance
+        - runFailed
+      properties:
+        insufficientBalance:
+          type: number
+        runFailed:
+          type: number
+    MoneyIn:
+      type: object
+      required:
+        - purchasedCredits
+        - grantedCredits
+        - floatCredits
+        - cashCollected
+      properties:
+        purchasedCredits:
+          type: number
+        grantedCredits:
+          type: number
+        floatCredits:
+          type: number
+        cashCollected:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashAmount'
+    CreatorLiability:
+      type: object
+      required:
+        - earnedCredits
+        - paidOut
+        - netOwedCredits
+      properties:
+        earnedCredits:
+          type: number
+        paidOut:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashAmount'
+        netOwedCredits:
+          type: number
+    CashAmount:
+      type: object
+      required:
+        - currency
+        - amountMinor
+      properties:
+        currency:
+          type: string
+          example: USD
+        amountMinor:
+          type: number
+    TopWorkflowsResponse:
+      type: object
+      required:
+        - range
+        - total
+        - approx
+        - items
+      properties:
+        range:
+          type: string
+        total:
+          type: number
+        approx:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopWorkflowItem'
+    TopWorkflowItem:
+      type: object
+      required:
+        - agentId
+        - name
+        - creator
+        - runs
+        - creditsCharged
+        - creatorEarnings
+        - avgCreditsPerRun
+      properties:
+        agentId:
+          type: string
+        name:
+          type: string
+        creator:
+          type: string
+        runs:
+          type: number
+        creditsCharged:
+          type: number
+        creatorEarnings:
+          type: number
+        avgCreditsPerRun:
+          type: number
+    TopCreatorsResponse:
+      type: object
+      required:
+        - range
+        - total
+        - approx
+        - items
+      properties:
+        range:
+          type: string
+        total:
+          type: number
+        approx:
+          type: boolean
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopCreatorItem'
+    TopCreatorItem:
+      type: object
+      required:
+        - creatorId
+        - creator
+        - workflowsPublished
+        - totalRuns
+        - earningsGenerated
+        - avgEarningsPerWorkflow
+      properties:
+        creatorId:
+          type: string
+        creator:
+          type: string
+        workflowsPublished:
+          type: number
+        totalRuns:
+          type: number
+        earningsGenerated:
+          type: number
+        avgEarningsPerWorkflow:
+          type: number
+    LeakageResponse:
+      type: object
+      required:
+        - generatedAt
+        - approx
+        - negativeBalances
+        - failedCharges
+        - earningsCoverage
+        - notTracked
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        approx:
+          type: boolean
+        negativeBalances:
+          $ref: '#/components/schemas/NegativeBalances'
+        failedCharges:
+          $ref: '#/components/schemas/FailedChargesDetail'
+        earningsCoverage:
+          $ref: '#/components/schemas/EarningsCoverage'
+        notTracked:
+          type: array
+          items:
+            type: string
+    NegativeBalances:
+      type: object
+      required:
+        - count
+        - totalDeficit
+        - top
+      properties:
+        count:
+          type: number
+        totalDeficit:
+          type: number
+        top:
+          type: array
+          items:
+            $ref: '#/components/schemas/NegativeBalanceEntry'
+    NegativeBalanceEntry:
+      type: object
+      required:
+        - userId
+        - user
+        - balance
+      properties:
+        userId:
+          type: string
+        user:
+          type: string
+        balance:
+          type: number
+    FailedChargesDetail:
+      type: object
+      required:
+        - count
+        - insufficient
+        - runFailed
+        - items
+      properties:
+        count:
+          type: number
+        insufficient:
+          type: number
+        runFailed:
+          type: number
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedChargeItem'
+    FailedChargeItem:
+      type: object
+      required:
+        - id
+        - user
+        - workflow
+        - kind
+        - status
+        - credits
+        - reason
+        - at
+      properties:
+        id:
+          type: string
+        user:
+          type: string
+        workflow:
+          type: string
+        kind:
+          type: string
+        status:
+          type: string
+        credits:
+          type: number
+        reason:
+          type: string
+          nullable: true
+        at:
+          type: string
+          format: date-time
+    EarningsCoverage:
+      type: object
+      required:
+        - chargedMarketplaceRuns
+        - earningsRows
+        - note
+      properties:
+        chargedMarketplaceRuns:
+          type: number
+        earningsRows:
+          type: number
+        note:
+          type: string
+    UserSearchResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSearchItem'
+    UserSearchItem:
+      type: object
+      required:
+        - id
+        - full_name
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+        full_name:
+          type: string
+          nullable: true
+        email:
+          type: string
+    UserBillingDetailResponse:
+      type: object
+      required:
+        - generatedAt
+        - approx
+        - user
+        - balance
+        - purchased
+        - granted
+        - refunded
+        - totalSpent
+        - chargedRuns
+        - failedRuns
+        - creatorEarnings
+        - recentRuns
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        approx:
+          type: boolean
+        user:
+          $ref: '#/components/schemas/UserSummary'
+        balance:
+          type: number
+        purchased:
+          type: number
+        granted:
+          type: number
+        refunded:
+          type: number
+        totalSpent:
+          type: number
+        chargedRuns:
+          type: number
+        failedRuns:
+          type: number
+        creatorEarnings:
+          type: number
+        recentRuns:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentRun'
+    UserSummary:
+      type: object
+      required:
+        - id
+        - name
+        - email
+        - joinedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        joinedAt:
+          type: string
+          nullable: true
+    RecentRun:
+      type: object
+      required:
+        - id
+        - workflow
+        - kind
+        - status
+        - credits
+        - at
+      properties:
+        id:
+          type: string
+        workflow:
+          type: string
+        kind:
+          type: string
+        status:
+          type: string
+        credits:
+          type: number
+        at:
+          type: string
+          format: date-time

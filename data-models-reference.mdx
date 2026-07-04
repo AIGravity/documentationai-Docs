@@ -1,57 +1,201 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Inventory of billing data models, credit ledger tables, creator split RPC, and response schemas across the API and AI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
-
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+AIGravity/core includes a billing and credit system on the dev branch with SQL migrations, database tables, and RPC functions. The NestJS API health endpoint remains an inline response shape, but the billing system introduces persisted entities for credit ledgers, run charges, creator earnings, and payouts. This page inventories the key data models and the creator split billing RPC.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
 
+
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now includes a SQL-backed billing layer alongside the existing service health endpoints.
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Named domain models | Billing tables: credit_ledger, agent_run_charges, creator_earnings_ledger, payouts |
+| ORM or database models | SQL migrations under apps/api/migrations/ (16 files, migrations 001–016) |
+| DTO classes | Billing DTOs exist (CreateCreditOrderDto, CreatePayoutAccountDto, etc.) |
+| Named validation schemas | Request validation via NestJS class-validator |
+| Migration files | 16 SQL migration files covering credit system, creator splits, payouts |
+| Inline response shapes | 2 health endpoints + admin billing API response objects |
+| Persisted entities | Credit ledger, run charges, creator earnings, payouts, profiles |
+| RPC functions | charge_for_run_with_creator_split (16-arg PL/pgSQL function) |
 
 ### Model-like definitions found
 
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
+- **NestJS API health response** — inline response shape: `{ status: "ok", service: "api" }`
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **Credit ledger** — persisted table tracking all credit deltas (purchases, grants, charges, refunds)
+- **Agent run charges** — persisted table recording each workflow run charge with status and snapshot data
+- **Creator earnings ledger** — persisted table tracking per-run creator earnings credits
+- **Payouts** — persisted table recording creator withdrawal transactions
+- **Profiles** — persisted table with `is_test_account` flag for billing metric filtering
+- **charge_for_run_with_creator_split** — PL/pgSQL RPC for atomic credit charging with creator share calculation
 
-<Callout kind="danger">
+## Billing and credit data models
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+The billing system is implemented as SQL tables and database functions rather than ORM entity classes. The sections below summarize the persisted models that drive balances, charges, creator earnings, and withdrawals.
+
+### credit_ledger
+
+Tracks all credit balance changes for users. Each row records a `user_id`, `delta` (positive for purchases and grants, negative for charges), `reason` (`PURCHASE`, `GRANT`, `AGENT_RUN`, `REFUND`), and a reference to the source run or order.
+
+### agent_run_charges
+
+Records each workflow run charge attempt. Key fields include `user_id`, `agent_id`, `agent_name`, `kind` (`cron`, `manual`), `status` (`CHARGED`, `INSUFFICIENT_BALANCE`, `RUN_FAILED_NO_CHARGE`), `credits_charged`, `credits_quoted`, and snapshot columns for LLM and infrastructure costs at charge time.
+
+### creator_earnings_ledger
+
+Records per-run creator earnings. Each row links a `creator_id`, `agent_id`, `run_charge_id`, and `credits_earned`. The earning amount is determined by the `charge_for_run_with_creator_split` RPC.
+
+### payouts
+
+Records creator withdrawal transactions with amount, currency, status, and linked payout account.
+
+### profiles
+
+User profile table. Migration `015` added a new `is_test_account` column, a boolean flag that is `NOT NULL` and defaults to `false`. The flag has no effect on account behavior and is used only by the admin billing dashboard to exclude test users from revenue metrics through the `excludeTest` query parameter.
+
+A partial index using `WHERE is_test_account` keeps the index small because the expected test-account population is low.
+
+## Creator split billing RPC
+
+The billing system uses a database function to keep charging, creator crediting, and idempotency in one atomic operation.
+
+### charge_for_run_with_creator_split
+
+A PL/pgSQL function with 16 arguments atomically charges a user for a workflow run and distributes the creator's share of the margin. Migration `012` introduced the function, and migration `016` rewrote it to enforce a minimum creator payout.
+
+<Callout kind="info">
+
+The creator share is calculated on the margin (gross charge minus raw measured LLM cost), not the gross charge. Margin is clamped to `>= 0` so a mis-measured cost can never invert the payout.
+
 
 </Callout>
 
-## Persistence and migration status
+#### Minimum creator payout formula
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+Migration `016` changed the payout logic to guarantee at least 1 credit when a run has positive margin and the platform share is below 100 percent.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+<CodeGroup tabs="SQL">
 
-### Repository-level signals
+```sql
+v_margin := greatest(p_credits_per_run - coalesce(p_raw_cost_credits, 0), 0);
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
+v_creator_share := CASE
+  WHEN v_margin > 0 AND p_platform_share_pct < 100
+    THEN greatest(1, floor(v_margin * (100 - p_platform_share_pct) / 100.0))
+  ELSE 0
+END;
+```
+
+</CodeGroup>
+
+This fixes a zero-payout bug: with the default 80/20 split, runs with 1 to 4 credits of margin produced `floor(margin * 0.20) = 0`, so creators earned nothing. The `greatest(1, ...)` wrapper now guarantees a minimum of 1 credit on any non-zero-margin run where the platform share is below 100 percent. The platform absorbs the sub-5-credit rounding cost.
+
+| Margin (credits) | Before (migration 012) | After (migration 016) |
+| --- | --- | --- |
+| 0 | 0 | 0 (margin guard) |
+| 1 | 0 | 1 (lifted) |
+| 2 | 0 | 1 (lifted) |
+| 4 | 0 | 1 (lifted) |
+| 5 | 1 | 1 (unchanged) |
+| 10 | 2 | 2 (unchanged) |
+
+When `platform_share_pct = 100`, the creator always earns `0` regardless of margin. The function is idempotent: if a charge already exists for the same `run_id`, it returns early with `inserted: false`. A per-user advisory lock prevents race conditions.
+
+#### RPC return payload
+
+The function returns a structured payload that reports whether a charge was inserted and how the credits were split.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "inserted": true,
+  "idempotent": false,
+  "creditsCharged": 10,
+  "rawCost": 3,
+  "margin": 7,
+  "creatorShare": 1,
+  "platformShare": 9,
+  "creatorId": "550e8400-e29b-41d4-a716-446655440000",
+  "chargeId": "chg_01J9V5VX2SE4H8J2AK7V0M6B9J"
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="inserted" field-type="boolean" required="true">
+
+Whether a new charge was created.
+
+
+</ResponseField>
+
+<ResponseField name="idempotent" field-type="boolean" required="true">
+
+`true` if a duplicate charge was detected and skipped.
+
+
+</ResponseField>
+
+<ResponseField name="creditsCharged" field-type="number" required="true">
+
+Credits debited from the user.
+
+
+</ResponseField>
+
+<ResponseField name="rawCost" field-type="number" required="true">
+
+Measured LLM cost in credits, coalesced to `0` if null.
+
+
+</ResponseField>
+
+<ResponseField name="margin" field-type="number" required="true">
+
+Charge minus raw cost, clamped to `>= 0`.
+
+
+</ResponseField>
+
+<ResponseField name="creatorShare" field-type="number" required="true">
+
+Credits credited to the creator. The function guarantees a minimum of `1` when margin is positive and the platform share is below 100 percent.
+
+
+</ResponseField>
+
+<ResponseField name="platformShare" field-type="number" required="true">
+
+`creditsCharged` minus `creatorShare`. This is the gross platform share and absorbs raw cost.
+
+
+</ResponseField>
+
+<ResponseField name="creatorId" field-type="string" required="true">
+
+UUID of the creator who received the share.
+
+
+</ResponseField>
+
+<ResponseField name="chargeId" field-type="string" required="true">
+
+ID of the created `agent_run_charges` row.
+
+
+</ResponseField>
 
 ## NestJS API response shape
 
@@ -87,11 +231,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,6 +275,7 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
@@ -137,62 +284,61 @@ The service declares `pydantic` as a dependency, but this endpoint does not use 
 
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+Billing endpoints now use DTO classes and request validation in the NestJS API. The health endpoints documented above remain inline response handlers without a DTO layer.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- Billing DTOs exist, including `CreateCreditOrderDto` and `CreatePayoutAccountDto`
+- Request validation uses `class-validator`
+- DTO-backed request bodies exist for billing and payout flows
+- Health endpoints still return inline response objects
 
 ### FastAPI service
 
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+- No Pydantic `BaseModel` classes found for the health route
+- No request model annotations found for the health route
+- No response model annotations found for the health route
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+Dependency presence does not establish a schema layer for every service. The billing schema is implemented in SQL migrations and NestJS DTOs, while the FastAPI health route still returns an inline object.
+
 
 </Callout>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+The repository now includes an implemented migration history for billing, payouts, refunds, and creator split logic.
 
 ### Summary
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+- 16 SQL migration files (migrations 001–016) covering credit system, creator splits, payouts, refunds, and test account flagging
+- Migration 015: Added `is_test_account` column to `profiles` for billing metric filtering
+- Migration 016: Rewrote `charge_for_run_with_creator_split` RPC with minimum 1-credit creator payout
+- Migrations are idempotent (`ADD COLUMN IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`)
+- A per-user advisory lock prevents concurrent charge race conditions
 
 ### Current implication
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+The billing schema evolves through checked-in SQL migrations rather than ORM-generated migrations. Schema and billing logic changes ship together because the RPC function also lives in migration history.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The billing system now defines real persisted models, but several operational details still matter when you inspect or extend it.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
-
-<Callout kind="danger">
-
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
-
-</Callout>
+- **Billing models are SQL-based** — Data models are defined in SQL migrations rather than ORM entities, requiring direct database access for schema inspection.
+- **Creator split formula is RPC-based** — The payout calculation lives in a PL/pgSQL function, not in application code, so changes require database migration deployment.
+- **Test account flagging is manual** — The `is_test_account` flag is set via SQL `UPDATE`, not through an API endpoint or admin UI toggle.
 
 ## Related docs
 
-<Columns cols={2}>
+<Columns cols={3}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+  <Card title="Admin Billing API" href="/api-reference/admin-billing" icon="credit-card" cta="Open API reference" />
+
+
 </Columns>

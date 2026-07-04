@@ -1,0 +1,829 @@
+---
+title: Admin Billing API
+description: Admin-only billing dashboard endpoints for revenue tracking, creator earnings, leakage analysis, and per-user billing drill-down.
+metaTitle: Admin Billing API
+metaDescription: Query admin-only billing metrics, creator earnings, leakage signals, and per-user billing details with JWT and admin role access.
+---
+
+## Query billing metrics and user-level billing history
+
+Use these admin-only endpoints to inspect platform-wide billing performance, rank top workflows and creators, analyze leakage signals, and drill into a single user's billing activity. You can also exclude accounts flagged as test users so revenue and usage figures reflect customer activity only.
+
+## Authentication
+
+Every endpoint under `/api/admin/billing` requires a valid JWT and an admin role. The API accepts authenticated requests only after JWT validation succeeds, then checks `app_metadata.role` for the `admin` value.
+
+<Callout kind="alert">
+
+Missing or invalid JWTs return `401 Unauthorized`. Authenticated users without the admin role return `403 Forbidden`.
+
+
+</Callout>
+
+### Base URL
+
+Use `http://localhost:3000` in local development, or your production API base URL in deployed environments.
+
+### Authorization header
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/overview" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+```
+
+</CodeGroup>
+
+<Callout kind="info">
+
+The `excludeTest` query parameter is available on the overview, top-workflows, top-creators, and leakage endpoints. When set to `1` or `true`, users flagged with `is_test_account` on the `profiles` table are excluded from all metrics. Use this to view customer revenue without internal test activity.
+
+
+</Callout>
+
+<Callout kind="info">
+
+When `approx` is `true` in a response, an all-time scan exceeded the 50,000-row cap. All figures in that response are a floor, not an exact count.
+
+
+</Callout>
+
+## GET `/api/admin/billing/overview`
+
+Retrieve the headline billing and revenue metrics used by the admin billing dashboard. This endpoint also returns cash collection, creator liability, failed charge counts, and gross margin.
+
+### Query parameters
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude users flagged as `is_test_account` from all metrics. Omit the parameter to include all users.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/overview?excludeTest=true" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "generatedAt": "2025-02-14T09:22:41.118Z",
+  "totalRevenue": 184230,
+  "revenueToday": {
+    "value": 1280,
+    "prev": 1040,
+    "changePct": 23.08
+  },
+  "revenueWeek": {
+    "value": 9240,
+    "prev": 8110,
+    "changePct": 13.93
+  },
+  "activeWorkflowCopies": 412,
+  "scheduledRunsProcessed": 2871,
+  "creatorEarnings": 36410,
+  "failedCharges": 219,
+  "failedBreakdown": {
+    "insufficientBalance": 173,
+    "runFailed": 46
+  },
+  "llmCostCredits": 112940,
+  "marginPct": 38.7,
+  "moneyIn": {
+    "purchasedCredits": 196500,
+    "grantedCredits": 8420,
+    "floatCredits": 20730,
+    "cashCollected": [
+      {
+        "currency": "USD",
+        "amountMinor": 142500
+      },
+      {
+        "currency": "INR",
+        "amountMinor": 3180000
+      }
+    ]
+  },
+  "creatorLiability": {
+    "earnedCredits": 36410,
+    "paidOut": [
+      {
+        "currency": "USD",
+        "amountMinor": 28400
+      },
+      {
+        "currency": "INR",
+        "amountMinor": 940000
+      }
+    ],
+    "netOwedCredits": 5210
+  },
+  "approx": false
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="generatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp for when the overview metrics were computed.
+
+
+</ResponseField>
+
+<ResponseField name="totalRevenue" field-type="number" required="true">
+
+All-time sum of credits charged where charge status is `CHARGED`.
+
+
+</ResponseField>
+
+<ResponseField name="revenueToday" field-type="object" required="true">
+
+Credits charged during the current IST calendar day. The object contains `value`, `prev`, and `changePct`. `changePct` is `null` when the previous period value is `0`.
+
+
+</ResponseField>
+
+<ResponseField name="revenueWeek" field-type="object" required="true">
+
+Credits charged during the last 7 days. The object contains `value`, `prev`, and `changePct`.
+
+
+</ResponseField>
+
+<ResponseField name="activeWorkflowCopies" field-type="number" required="true">
+
+Count of active subscription workflow copies.
+
+
+</ResponseField>
+
+<ResponseField name="scheduledRunsProcessed" field-type="number" required="true">
+
+Count of cron charges with status `CHARGED`.
+
+
+</ResponseField>
+
+<ResponseField name="creatorEarnings" field-type="number" required="true">
+
+All-time sum of creator earnings in credits.
+
+
+</ResponseField>
+
+<ResponseField name="failedCharges" field-type="number" required="true">
+
+Total failed charges across insufficient balance and run failure outcomes.
+
+
+</ResponseField>
+
+<ResponseField name="failedBreakdown" field-type="object" required="true">
+
+Breakdown of failed charges by type. The object contains `insufficientBalance` and `runFailed`.
+
+
+</ResponseField>
+
+<ResponseField name="llmCostCredits" field-type="number" required="true">
+
+All-time raw 1x LLM cost across `workflow_llm_calls` and `llm_call_logs`, measured in credits.
+
+
+</ResponseField>
+
+<ResponseField name="marginPct" field-type="number | null" required="true">
+
+Gross margin percentage. Returns `null` when `totalRevenue` is `0`.
+
+
+</ResponseField>
+
+<ResponseField name="moneyIn" field-type="object" required="true">
+
+Cash collection summary. The object contains `purchasedCredits`, `grantedCredits`, `floatCredits`, and `cashCollected`.
+
+
+</ResponseField>
+
+<ResponseField name="creatorLiability" field-type="object" required="true">
+
+Creator payout liability summary. The object contains `earnedCredits`, `paidOut`, and `netOwedCredits`.
+
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Indicates whether any all-time scan hit the 50,000-row cap.
+
+
+</ResponseField>
+
+## GET `/api/admin/billing/top-workflows`
+
+Rank workflows by billing activity over a selected time window. Use pagination to page through larger result sets.
+
+### Query parameters
+
+<ParamField query="range" param-type="string" required="false">
+
+Time range to evaluate. Accepted values are `today`, `7d`, `30d`, and `all`. The default is `30d`. The `today` boundary uses the IST calendar day.
+
+
+</ParamField>
+
+<ParamField query="limit" param-type="string | integer" required="false">
+
+Maximum number of items to return. The default is `10`. Values are clamped to the range `1` through `100`.
+
+
+</ParamField>
+
+<ParamField query="offset" param-type="string | integer" required="false">
+
+Pagination offset. The default is `0`. Values are clamped to the range `0` through `100000`.
+
+
+</ParamField>
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude users flagged as `is_test_account` from the ranking.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/top-workflows?range=7d&limit=3&offset=0&excludeTest=1" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "range": "7d",
+  "total": 84,
+  "approx": false,
+  "items": [
+    {
+      "agentId": "agt_9f3k2m1q",
+      "name": "Lead enrichment pipeline",
+      "creator": "Ava Patel",
+      "runs": 912,
+      "creditsCharged": 6840,
+      "creatorEarnings": 1210,
+      "avgCreditsPerRun": 7.5
+    },
+    {
+      "agentId": "agt_w8p1s4cd",
+      "name": "Weekly KPI digest",
+      "creator": "Marcus Reed",
+      "runs": 701,
+      "creditsCharged": 4907,
+      "creatorEarnings": 860,
+      "avgCreditsPerRun": 7
+    },
+    {
+      "agentId": "agt_h2d7v5lr",
+      "name": "Support ticket triage",
+      "creator": "Nina Alvarez",
+      "runs": 533,
+      "creditsCharged": 3731,
+      "creatorEarnings": 650,
+      "avgCreditsPerRun": 7
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="range" field-type="string" required="true">
+
+Resolved range value after defaulting and validation.
+
+
+</ResponseField>
+
+<ResponseField name="total" field-type="number" required="true">
+
+Total workflows found before pagination.
+
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Returns `true` when the underlying charge scan hit the 50,000-row cap.
+
+
+</ResponseField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Workflow ranking rows. Each item includes `agentId`, `name`, `creator`, `runs`, `creditsCharged`, `creatorEarnings`, and `avgCreditsPerRun`.
+
+
+</ResponseField>
+
+## GET `/api/admin/billing/top-creators`
+
+Rank creators by the earnings generated from their published workflows over a selected time window.
+
+### Query parameters
+
+<ParamField query="range" param-type="string" required="false">
+
+Time range to evaluate. Accepted values are `today`, `7d`, `30d`, and `all`. The default is `30d`. The `today` boundary uses the IST calendar day.
+
+
+</ParamField>
+
+<ParamField query="limit" param-type="string | integer" required="false">
+
+Maximum number of items to return. The default is `10`. Values are clamped to the range `1` through `100`.
+
+
+</ParamField>
+
+<ParamField query="offset" param-type="string | integer" required="false">
+
+Pagination offset. The default is `0`. Values are clamped to the range `0` through `100000`.
+
+
+</ParamField>
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude users flagged as `is_test_account` from the ranking.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/top-creators?range=30d&limit=3&offset=0&excludeTest=true" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "range": "30d",
+  "total": 41,
+  "approx": false,
+  "items": [
+    {
+      "creatorId": "usr_4ad9m8pk",
+      "creator": "Ava Patel",
+      "workflowsPublished": 12,
+      "totalRuns": 3240,
+      "earningsGenerated": 4820,
+      "avgEarningsPerWorkflow": 401.67
+    },
+    {
+      "creatorId": "usr_b7t2r6qm",
+      "creator": "Marcus Reed",
+      "workflowsPublished": 8,
+      "totalRuns": 2814,
+      "earningsGenerated": 3910,
+      "avgEarningsPerWorkflow": 488.75
+    },
+    {
+      "creatorId": "usr_u3e5n1zs",
+      "creator": "Nina Alvarez",
+      "workflowsPublished": 6,
+      "totalRuns": 1768,
+      "earningsGenerated": 2540,
+      "avgEarningsPerWorkflow": 423.33
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="range" field-type="string" required="true">
+
+Resolved range value after defaulting and validation.
+
+
+</ResponseField>
+
+<ResponseField name="total" field-type="number" required="true">
+
+Total creators found before pagination.
+
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Returns `true` when the underlying earnings scan hit the 50,000-row cap.
+
+
+</ResponseField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Creator ranking rows. Each item includes `creatorId`, `creator`, `workflowsPublished`, `totalRuns`, `earningsGenerated`, and `avgEarningsPerWorkflow`.
+
+
+</ResponseField>
+
+## GET `/api/admin/billing/leakage`
+
+Inspect billing leakage signals, including negative balances, failed charges, and gaps between charged marketplace runs and creator earnings records.
+
+### Query parameters
+
+<ParamField query="excludeTest" param-type="string" required="false">
+
+Pass `1` or `true` to exclude users flagged as `is_test_account` from leakage metrics.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/leakage?excludeTest=1" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "generatedAt": "2025-02-14T09:28:03.672Z",
+  "approx": false,
+  "negativeBalances": {
+    "count": 7,
+    "totalDeficit": 94,
+    "top": [
+      {
+        "userId": "usr_v8q2l1pn",
+        "user": "Jordan Kim",
+        "balance": -28
+      },
+      {
+        "userId": "usr_r4n7d3xa",
+        "user": "Priya Raman",
+        "balance": -19
+      },
+      {
+        "userId": "usr_t6c9e2mb",
+        "user": "Luis Ortega",
+        "balance": -14
+      }
+    ]
+  },
+  "failedCharges": {
+    "count": 219,
+    "insufficient": 173,
+    "runFailed": 46,
+    "items": [
+      {
+        "id": "chg_01J9V58P9G0Q4NZ6D0T7B6MEAR",
+        "user": "Jordan Kim",
+        "workflow": "Sales call summarizer",
+        "kind": "INSUFFICIENT_BALANCE",
+        "status": "FAILED",
+        "credits": 12,
+        "reason": "Balance below required credits",
+        "at": "2025-02-14T08:57:14.029Z"
+      },
+      {
+        "id": "chg_01J9V4W31A7M5PW9M1XF8TRK2R",
+        "user": "Emma Wilson",
+        "workflow": "PDF extraction",
+        "kind": "RUN_FAILED",
+        "status": "FAILED",
+        "credits": 6,
+        "reason": "Workflow execution failed before settlement",
+        "at": "2025-02-14T08:13:42.551Z"
+      }
+    ]
+  },
+  "earningsCoverage": {
+    "chargedMarketplaceRuns": 18432,
+    "earningsRows": 18430,
+    "note": "Two charged marketplace runs have no matching creator earnings row."
+  },
+  "notTracked": [
+    "manual invoice adjustments",
+    "off-platform creator settlements"
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="generatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp for when leakage metrics were computed.
+
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Returns `true` when the underlying `credit_ledger` scan hit the 50,000-row cap.
+
+
+</ResponseField>
+
+<ResponseField name="negativeBalances" field-type="object" required="true">
+
+Users with negative credit balances. The object contains `count`, `totalDeficit`, and `top`.
+
+
+</ResponseField>
+
+<ResponseField name="failedCharges" field-type="object" required="true">
+
+Failed charge summary. The object contains `count`, `insufficient`, `runFailed`, and `items`.
+
+
+</ResponseField>
+
+<ResponseField name="earningsCoverage" field-type="object" required="true">
+
+Comparison between charged marketplace runs and creator earnings ledger rows. The object contains `chargedMarketplaceRuns`, `earningsRows`, and `note`.
+
+
+</ResponseField>
+
+<ResponseField name="notTracked" field-type="string[]" required="true">
+
+Known untracked billing signal types.
+
+
+</ResponseField>
+
+## GET `/api/admin/billing/users/search`
+
+Search users by name, email, or exact UUID before requesting a per-user billing summary.
+
+### Query parameters
+
+<ParamField query="q" param-type="string" required="false">
+
+Search term. Empty or missing values return an empty `items` array. If the value is a valid UUID, the API performs an exact match lookup. Otherwise, the API performs a case-insensitive `ILIKE` search on `full_name` or `email` and returns up to 20 results.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/users/search?q=alice%40example.com" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "items": [
+    {
+      "id": "6f1d9b57-7cc7-4e8b-8fcb-06ff3d9059b1",
+      "full_name": "Alice Nguyen",
+      "email": "alice@example.com"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="items" field-type="array" required="true">
+
+Matching users. Each item includes `id`, `full_name`, and `email`.
+
+
+</ResponseField>
+
+## GET `/api/admin/billing/users/:id`
+
+Retrieve a single user's billing summary, ledger-derived balance metrics, and recent run activity.
+
+### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+User UUID. The value must match the expected UUID format. Invalid values return `400 Bad Request`.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3000/api/admin/billing/users/6f1d9b57-7cc7-4e8b-8fcb-06ff3d9059b1" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example-admin-token" \
+  -H "Accept: application/json"
+```
+
+```json
+{
+  "generatedAt": "2025-02-14T09:33:26.447Z",
+  "approx": false,
+  "user": {
+    "id": "6f1d9b57-7cc7-4e8b-8fcb-06ff3d9059b1",
+    "name": "Alice Nguyen",
+    "email": "alice@example.com",
+    "joinedAt": "2024-11-03T13:11:02.000Z"
+  },
+  "balance": 184,
+  "purchased": 420,
+  "granted": 25,
+  "refunded": 12,
+  "totalSpent": 273,
+  "chargedRuns": 41,
+  "failedRuns": 3,
+  "creatorEarnings": 0,
+  "recentRuns": [
+    {
+      "id": "chg_01J9V5VX2SE4H8J2AK7V0M6B9J",
+      "workflow": "Sales call summarizer",
+      "kind": "CHARGE",
+      "status": "CHARGED",
+      "credits": 12,
+      "at": "2025-02-14T08:51:42.882Z"
+    },
+    {
+      "id": "chg_01J9V2M4K6ZTEN2K4W5KPR2K4B",
+      "workflow": "PDF extraction",
+      "kind": "CHARGE",
+      "status": "FAILED",
+      "credits": 6,
+      "at": "2025-02-13T17:40:11.304Z"
+    },
+    {
+      "id": "chg_01J9TYT0QWH2JXPG4S4T2B8J6E",
+      "workflow": "Invoice classifier",
+      "kind": "CHARGE",
+      "status": "CHARGED",
+      "credits": 8,
+      "at": "2025-02-12T11:24:56.128Z"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="generatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp for when the user billing summary was generated.
+
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Returns `true` when the underlying `credit_ledger` scan hit the 50,000-row cap.
+
+
+</ResponseField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+User profile summary. The object contains `id`, `name`, `email`, and `joinedAt`.
+
+
+</ResponseField>
+
+<ResponseField name="balance" field-type="number" required="true">
+
+Net credit balance, calculated as the sum of all ledger delta values.
+
+
+</ResponseField>
+
+<ResponseField name="purchased" field-type="number" required="true">
+
+Sum of `PURCHASE` credit deltas.
+
+
+</ResponseField>
+
+<ResponseField name="granted" field-type="number" required="true">
+
+Sum of `GRANT` credit deltas.
+
+
+</ResponseField>
+
+<ResponseField name="refunded" field-type="number" required="true">
+
+Sum of `REFUND` credit deltas.
+
+
+</ResponseField>
+
+<ResponseField name="totalSpent" field-type="number" required="true">
+
+Sum of credits charged where charge status is `CHARGED`.
+
+
+</ResponseField>
+
+<ResponseField name="chargedRuns" field-type="number" required="true">
+
+Count of runs with charge status `CHARGED`.
+
+
+</ResponseField>
+
+<ResponseField name="failedRuns" field-type="number" required="true">
+
+Count of failed runs.
+
+
+</ResponseField>
+
+<ResponseField name="creatorEarnings" field-type="number" required="true">
+
+Sum of creator earnings credits associated with the user.
+
+
+</ResponseField>
+
+<ResponseField name="recentRuns" field-type="array" required="true">
+
+Up to 50 most recent runs. Each item includes `id`, `workflow`, `kind`, `status`, `credits`, and `at`.
+
+
+</ResponseField>
+
+## Error responses
+
+All endpoints share the same authentication and authorization failure modes, and the user detail endpoint adds UUID validation.
+
+<CodeGroup tabs="401 Unauthorized,403 Forbidden,400 Bad Request">
+
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+```
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden resource"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid user id"
+}
+```
+
+</CodeGroup>
