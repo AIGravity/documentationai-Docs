@@ -7,6 +7,8 @@ info:
 
     Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
 
+    It also covers the admin billing overview endpoint at `GET /admin/billing/overview`.
+
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
     name: MIT
@@ -21,6 +23,8 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Admin Billing
+    description: Admin billing dashboard operations including revenue, margin, and refund metrics
 paths:
   /health:
     get:
@@ -41,8 +45,110 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /admin/billing/overview:
+    get:
+      tags:
+        - Admin Billing
+      summary: Get admin billing overview
+      description: Returns a comprehensive billing dashboard snapshot including all-time revenue, weekly KPIs, 30-day revenue series, revenue split by billing surface, margin trends, refund metrics, and creator liability. All credit values are in raw credit units (divide by 100 for USD).
+      operationId: getAdminBillingOverview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: excludeTest
+          in: query
+          required: false
+          description: When set to `1`, strips accounts flagged as test accounts from all figures. Defaults to `0`.
+          schema:
+            type: string
+            enum:
+              - '0'
+              - '1'
+      responses:
+        '200':
+          description: Billing overview snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBillingOverview'
+              example:
+                generatedAt: '2026-07-11T09:06:52Z'
+                totalRevenue: 50500
+                revenueToday:
+                  value: 12500
+                  prev: 9800
+                  changePct: 27.6
+                revenueWeek:
+                  value: 42000
+                  prev: 38000
+                  changePct: 10.5
+                activeWorkflowCopies: 42
+                scheduledRunsProcessed: 1200
+                creatorEarnings: 15000
+                failedCharges: 4
+                failedBreakdown:
+                  insufficientBalance: 3
+                  runFailed: 1
+                llmCostCredits: 8200
+                marginPct: 83.8
+                marginWeekPct: 81.2
+                marginPrevWeekPct: 79.5
+                revenueSeries:
+                  - date: '2026-06-12'
+                    revenue: 420
+                  - date: '2026-06-13'
+                    revenue: 580
+                revenueByKind:
+                  chat: 8500
+                  marketplace: 42000
+                chargedRuns: 350
+                refundedCredits: 500
+                refundCount: 2
+                refundRatePct: 0.99
+                moneyIn:
+                  purchasedCredits: 48000
+                  grantedCredits: 2500
+                  floatCredits: 12000
+                  cashCollected:
+                    - currency: USD
+                      amountMinor: 12500
+                creatorLiability:
+                  earnedCredits: 15000
+                  paidOut:
+                    - currency: USD
+                      amountMinor: 3000
+                  netOwedCredits: 12000
+                approx: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Admin bearer token
   responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
+    Forbidden:
+      description: Authenticated but not an admin
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Forbidden
     InternalServerError:
       description: Unexpected server error
       content:
@@ -66,3 +172,243 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    AdminBillingKpi:
+      type: object
+      description: Period-over-period KPI envelope for a time-windowed revenue metric.
+      required:
+        - value
+        - prev
+        - changePct
+      properties:
+        value:
+          type: number
+          description: Metric value for the current period
+          example: 12500
+        prev:
+          type: number
+          description: Metric value for the previous comparison period
+          example: 9800
+        changePct:
+          type: number
+          nullable: true
+          description: Period-over-period percentage change, or `null` when there is no prior data to compare
+          example: 27.6
+    CashCollectedEntry:
+      type: object
+      description: Cash collected grouped by currency.
+      required:
+        - currency
+        - amountMinor
+      properties:
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: USD
+        amountMinor:
+          type: integer
+          description: Amount in minor units (e.g., cents)
+          example: 12500
+    RevenueSeriesPoint:
+      type: object
+      description: A single daily revenue bucket in the 30-day series.
+      required:
+        - date
+        - revenue
+      properties:
+        date:
+          type: string
+          format: date
+          description: ISO date in YYYY-MM-DD format (IST bucketed)
+          example: '2026-06-12'
+        revenue:
+          type: number
+          description: Sum of credits charged for that day
+          example: 420
+    FailedBreakdown:
+      type: object
+      description: Cause split of failed charge attempts.
+      required:
+        - insufficientBalance
+        - runFailed
+      properties:
+        insufficientBalance:
+          type: integer
+          description: Charges that failed because the user had insufficient credits
+          example: 3
+        runFailed:
+          type: integer
+          description: Charges that failed because the workflow run itself errored
+          example: 1
+    RevenueByKind:
+      type: object
+      description: All-time revenue split by billing surface.
+      required:
+        - chat
+        - marketplace
+      properties:
+        chat:
+          type: number
+          description: All-time credits from chat-billed charges
+          example: 8500
+        marketplace:
+          type: number
+          description: All-time credits from marketplace-billed charges
+          example: 42000
+    CreatorLiability:
+      type: object
+      description: Creator earnings and payout liability.
+      required:
+        - earnedCredits
+        - paidOut
+        - netOwedCredits
+      properties:
+        earnedCredits:
+          type: number
+          description: Total credits earned by creators (accrued)
+          example: 15000
+        paidOut:
+          type: array
+          description: Cash already disbursed to creators, grouped by currency
+          items:
+            $ref: '#/components/schemas/CashCollectedEntry'
+        netOwedCredits:
+          type: number
+          description: Outstanding liability: earned credits minus paid-out credits
+          example: 12000
+    AdminBillingOverview:
+      type: object
+      description: Comprehensive billing dashboard snapshot returned by GET /admin/billing/overview. All credit values are in raw credit units (divide by 100 for USD).
+      required:
+        - generatedAt
+        - totalRevenue
+        - revenueToday
+        - revenueWeek
+        - activeWorkflowCopies
+        - scheduledRunsProcessed
+        - creatorEarnings
+        - failedCharges
+        - failedBreakdown
+        - llmCostCredits
+        - marginPct
+        - marginWeekPct
+        - marginPrevWeekPct
+        - revenueSeries
+        - revenueByKind
+        - chargedRuns
+        - refundedCredits
+        - refundCount
+        - refundRatePct
+        - moneyIn
+        - creatorLiability
+        - approx
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+          description: ISO timestamp of when the overview was computed
+          example: '2026-07-11T09:06:52Z'
+        totalRevenue:
+          type: number
+          description: All-time total revenue in credits
+          example: 50500
+        revenueToday:
+          allOf:
+            - $ref: '#/components/schemas/AdminBillingKpi'
+          description: Today's revenue with period-over-period comparison
+        revenueWeek:
+          allOf:
+            - $ref: '#/components/schemas/AdminBillingKpi'
+          description: This week's revenue with period-over-period comparison
+        activeWorkflowCopies:
+          type: integer
+          description: Count of active workflow copies (subscriptions)
+          example: 42
+        scheduledRunsProcessed:
+          type: integer
+          description: Scheduled runs completed
+          example: 1200
+        creatorEarnings:
+          type: number
+          description: Total creator earnings in credits
+          example: 15000
+        failedCharges:
+          type: integer
+          description: Count of failed charge attempts
+          example: 4
+        failedBreakdown:
+          $ref: '#/components/schemas/FailedBreakdown'
+        llmCostCredits:
+          type: number
+          description: Raw metered LLM cost in credits (used to derive margin)
+          example: 8200
+        marginPct:
+          type: number
+          nullable: true
+          description: All-time gross margin percentage: (revenue - LLM cost) / revenue * 100, or null if totalRevenue is 0
+          example: 83.8
+        marginWeekPct:
+          type: number
+          nullable: true
+          description: Gross margin percentage for the current 7-day window
+          example: 81.2
+        marginPrevWeekPct:
+          type: number
+          nullable: true
+          description: Gross margin percentage for the previous 7-day window
+          example: 79.5
+        revenueSeries:
+          type: array
+          description: 30-day daily revenue buckets (IST-aligned). Element 0 is the oldest day; element 29 is today.
+          items:
+            $ref: '#/components/schemas/RevenueSeriesPoint'
+        revenueByKind:
+          $ref: '#/components/schemas/RevenueByKind'
+        chargedRuns:
+          type: integer
+          description: Total count of successfully charged runs (all-time)
+          example: 350
+        refundedCredits:
+          type: number
+          description: Net credits refunded (sum of REFUND ledger deltas)
+          example: 500
+        refundCount:
+          type: integer
+          description: Number of individual refund events
+          example: 2
+        refundRatePct:
+          type: number
+          nullable: true
+          description: Refunds as a percentage of total revenue, rounded to 1 decimal; null if totalRevenue is 0
+          example: 0.99
+        moneyIn:
+          type: object
+          description: Credit inflow breakdown.
+          required:
+            - purchasedCredits
+            - grantedCredits
+            - floatCredits
+            - cashCollected
+          properties:
+            purchasedCredits:
+              type: number
+              description: Credits from paid orders
+              example: 48000
+            grantedCredits:
+              type: number
+              description: Credits from admin grants
+              example: 2500
+            floatCredits:
+              type: number
+              description: Net unspent credit float (all ledger deltas summed)
+              example: 12000
+            cashCollected:
+              type: array
+              description: Real cash collected, grouped by currency
+              items:
+                $ref: '#/components/schemas/CashCollectedEntry'
+        creatorLiability:
+          $ref: '#/components/schemas/CreatorLiability'
+        approx:
+          type: boolean
+          description: True if any all-time scan hit the 50,000-row cap; figures are a floor, not exact
+          example: false

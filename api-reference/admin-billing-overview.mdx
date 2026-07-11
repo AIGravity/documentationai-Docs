@@ -1,0 +1,418 @@
+---
+title: Admin Billing Overview
+description: Retrieve a comprehensive billing dashboard snapshot with revenue, margin trends, refund metrics, and creator liability from the admin billing API.
+---
+
+## Overview
+
+Retrieve a billing dashboard snapshot that includes all-time revenue, daily and weekly KPIs, a 30-day revenue series, revenue split by billing surface, week-over-week margin trends, refund metrics, and creator liability. All credit-denominated values in this response are returned in raw credit units, so divide by `100` to convert credits to USD-equivalent amounts.
+
+<Callout kind="info">
+
+Implementation details on this page were derived from code analysis of the admin billing service and API client type definitions.
+
+
+</Callout>
+
+## Endpoint
+
+### GET `/admin/billing/overview`
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/admin/billing/overview`
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+`Bearer token` with an admin role.
+
+</ParamField>
+
+## Request details
+
+### Path parameters
+
+None. This endpoint uses a fixed route.
+
+### Query parameters
+
+<ParamField query="excludeTest" param-type="string" required="false" enum="0,1">
+
+When set to `1`, strips accounts flagged as test accounts from all figures. Defaults to `0`.
+
+</ParamField>
+
+### Headers
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer token required for an authenticated admin user.
+
+</ParamField>
+
+### Request body
+
+None. Send this request without a body.
+
+## Response
+
+A successful response returns the full billing overview snapshot as a single JSON object.
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -i -H "Authorization: Bearer <token>" "http://localhost:3000/admin/billing/overview?excludeTest=1"
+```
+
+```json
+{
+  "generatedAt": "2025-02-14T10:30:00.000Z",
+  "totalRevenue": 1845230,
+  "revenueToday": {
+    "value": 21450,
+    "prev": 19800,
+    "changePct": 8.3
+  },
+  "revenueWeek": {
+    "value": 146900,
+    "prev": 133400,
+    "changePct": 10.1
+  },
+  "activeWorkflowCopies": 842,
+  "scheduledRunsProcessed": 19376,
+  "creatorEarnings": 621440,
+  "failedCharges": 93,
+  "failedBreakdown": {
+    "insufficientBalance": 68,
+    "runFailed": 25
+  },
+  "llmCostCredits": 412380,
+  "marginPct": 62.4,
+  "marginWeekPct": 60.8,
+  "marginPrevWeekPct": 58.9,
+  "revenueSeries": [
+    {
+      "date": "2025-01-16",
+      "revenue": 38210
+    },
+    {
+      "date": "2025-01-17",
+      "revenue": 40120
+    },
+    {
+      "date": "2025-01-18",
+      "revenue": 37650
+    },
+    {
+      "date": "2025-01-19",
+      "revenue": 38940
+    },
+    {
+      "date": "2025-01-20",
+      "revenue": 41780
+    },
+    {
+      "date": "2025-01-21",
+      "revenue": 42590
+    },
+    {
+      "date": "2025-01-22",
+      "revenue": 43810
+    },
+    {
+      "date": "2025-01-23",
+      "revenue": 45260
+    },
+    {
+      "date": "2025-01-24",
+      "revenue": 46790
+    },
+    {
+      "date": "2025-01-25",
+      "revenue": 44120
+    },
+    {
+      "date": "2025-01-26",
+      "revenue": 42980
+    },
+    {
+      "date": "2025-01-27",
+      "revenue": 45840
+    },
+    {
+      "date": "2025-01-28",
+      "revenue": 47130
+    },
+    {
+      "date": "2025-01-29",
+      "revenue": 48920
+    },
+    {
+      "date": "2025-01-30",
+      "revenue": 50310
+    },
+    {
+      "date": "2025-01-31",
+      "revenue": 51880
+    },
+    {
+      "date": "2025-02-01",
+      "revenue": 49560
+    },
+    {
+      "date": "2025-02-02",
+      "revenue": 48240
+    },
+    {
+      "date": "2025-02-03",
+      "revenue": 52110
+    },
+    {
+      "date": "2025-02-04",
+      "revenue": 53480
+    },
+    {
+      "date": "2025-02-05",
+      "revenue": 54820
+    },
+    {
+      "date": "2025-02-06",
+      "revenue": 56290
+    },
+    {
+      "date": "2025-02-07",
+      "revenue": 57940
+    },
+    {
+      "date": "2025-02-08",
+      "revenue": 55110
+    },
+    {
+      "date": "2025-02-09",
+      "revenue": 53820
+    },
+    {
+      "date": "2025-02-10",
+      "revenue": 58730
+    },
+    {
+      "date": "2025-02-11",
+      "revenue": 60140
+    },
+    {
+      "date": "2025-02-12",
+      "revenue": 61980
+    },
+    {
+      "date": "2025-02-13",
+      "revenue": 63210
+    },
+    {
+      "date": "2025-02-14",
+      "revenue": 21450
+    }
+  ],
+  "revenueByKind": {
+    "chat": 1264180,
+    "marketplace": 581050
+  },
+  "chargedRuns": 128904,
+  "refundedCredits": 28410,
+  "refundCount": 117,
+  "refundRatePct": 1.5,
+  "moneyIn": {
+    "purchasedCredits": 1920000,
+    "grantedCredits": 84500,
+    "floatCredits": 31200,
+    "cashCollected": [
+      {
+        "currency": "USD",
+        "amountMinor": 1924500
+      },
+      {
+        "currency": "INR",
+        "amountMinor": 845000
+      }
+    ]
+  },
+  "creatorLiability": {
+    "earnedCredits": 621440,
+    "paidOut": [
+      {
+        "currency": "USD",
+        "amountMinor": 412300
+      },
+      {
+        "currency": "INR",
+        "amountMinor": 1265000
+      }
+    ],
+    "netOwedCredits": 209140
+  },
+  "approx": false
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="generatedAt" field-type="string" required="true">
+
+ISO timestamp of when the overview was computed.
+
+</ResponseField>
+
+<ResponseField name="totalRevenue" field-type="number" required="true">
+
+All-time total revenue in credits.
+
+</ResponseField>
+
+<ResponseField name="revenueToday" field-type="object" required="true">
+
+Today's revenue KPI with period-over-period comparison. Contains `value` as the current period revenue, `prev` as the previous comparable period revenue, and `changePct` as the percentage change or `null` when unavailable.
+
+</ResponseField>
+
+<ResponseField name="revenueWeek" field-type="object" required="true">
+
+This week's revenue KPI. Contains `value` as the current 7-day revenue, `prev` as the previous 7-day revenue, and `changePct` as the percentage change or `null` when unavailable.
+
+</ResponseField>
+
+<ResponseField name="activeWorkflowCopies" field-type="integer" required="true">
+
+Count of active workflow copies, which act as subscriptions.
+
+</ResponseField>
+
+<ResponseField name="scheduledRunsProcessed" field-type="integer" required="true">
+
+Count of scheduled runs completed.
+
+</ResponseField>
+
+<ResponseField name="creatorEarnings" field-type="number" required="true">
+
+Total creator earnings in credits.
+
+</ResponseField>
+
+<ResponseField name="failedCharges" field-type="integer" required="true">
+
+Count of failed charge attempts.
+
+</ResponseField>
+
+<ResponseField name="failedBreakdown" field-type="object" required="true">
+
+Cause split of failed charges. Contains `insufficientBalance` for failures caused by low balance and `runFailed` for failures caused by run execution failure.
+
+</ResponseField>
+
+<ResponseField name="llmCostCredits" field-type="number" required="true">
+
+Raw metered LLM cost in credits.
+
+</ResponseField>
+
+<ResponseField name="marginPct" field-type="number|null" required="true">
+
+All-time gross margin percentage.
+
+</ResponseField>
+
+<ResponseField name="marginWeekPct" field-type="number|null" required="true">
+
+Gross margin percentage for the current 7-day window.
+
+</ResponseField>
+
+<ResponseField name="marginPrevWeekPct" field-type="number|null" required="true">
+
+Gross margin percentage for the previous 7-day window.
+
+</ResponseField>
+
+<ResponseField name="revenueSeries" field-type="array" required="true">
+
+Thirty daily revenue buckets aligned to IST. Each element contains `date` in `YYYY-MM-DD` format and `revenue` as the revenue total for that day. Element `0` is the oldest day and element `29` is today.
+
+</ResponseField>
+
+<ResponseField name="revenueByKind" field-type="object" required="true">
+
+All-time revenue split by billing surface. Contains `chat` revenue and `marketplace` revenue totals.
+
+</ResponseField>
+
+<ResponseField name="chargedRuns" field-type="integer" required="true">
+
+Total count of successfully charged runs across all time.
+
+</ResponseField>
+
+<ResponseField name="refundedCredits" field-type="number" required="true">
+
+Net credits refunded, calculated as the sum of refund ledger deltas.
+
+</ResponseField>
+
+<ResponseField name="refundCount" field-type="integer" required="true">
+
+Number of individual refund events.
+
+</ResponseField>
+
+<ResponseField name="refundRatePct" field-type="number|null" required="true">
+
+Refunds as a percentage of total revenue, rounded to one decimal place. Returns `null` when `totalRevenue` is `0`.
+
+</ResponseField>
+
+<ResponseField name="moneyIn" field-type="object" required="true">
+
+Credit inflow breakdown. Contains `purchasedCredits`, `grantedCredits`, and `floatCredits` in raw credit units, plus `cashCollected`, an array of currency totals with `currency` and `amountMinor`.
+
+</ResponseField>
+
+<ResponseField name="creatorLiability" field-type="object" required="true">
+
+Creator earnings and payout liability. Contains `earnedCredits`, `paidOut` as an array of currency totals with `currency` and `amountMinor`, and `netOwedCredits`.
+
+</ResponseField>
+
+<ResponseField name="approx" field-type="boolean" required="true">
+
+Returns `true` if any all-time scan hit the 50,000-row cap. In that case, overview figures are a floor rather than exact totals.
+
+</ResponseField>
+
+## Error responses
+
+### 401 Unauthorized
+
+The request did not include a valid bearer token.
+
+### 403 Forbidden
+
+The request was authenticated, but the caller does not have an admin role.
+
+### 500 Internal Server Error
+
+The server could not complete the request because the Supabase client was unavailable or a database error was not handled.
+
+## Notes
+
+- Response changes for this endpoint are additive. Clients that ignore unknown fields continue to work without modification.
+- Setting `excludeTest=1` strips test accounts from all figures in the overview.
+- `revenueSeries` always contains exactly `30` elements, with one bucket per IST day.
