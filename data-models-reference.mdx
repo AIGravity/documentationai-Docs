@@ -1,57 +1,236 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Inventory of current data models, response schemas, and migration status across the API, AI services, and credit billing system.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+AIGravity/core now includes both lightweight inline API response shapes and a persistence-backed credit billing system. The current repository defines database tables for agent run charges, user credit balance entries, creator earnings, LLM cost telemetry, and pricing configuration, alongside health and administrative response payloads exposed by the services.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+What exists today spans two layers. Health endpoints still return endpoint-local inline objects, while credit billing is modeled as durable database-backed records used for charge settlement, margin tracking, and configuration-driven pricing behavior.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+This reference inventories the current model surface in the checked-in repository, including persistence-backed billing tables as well as inline response shapes exposed by the API and AI services.
+
 
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now includes a small but real data model centered on credit billing and settlement.
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
+| Named domain models | Found — credit billing tables (5 tables) |
+| ORM or database models | Found — database tables with RPC-based settlement |
 | DTO classes | None found in the analyzed code |
 | Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Migration files | Found — database schema with migrations |
+| Inline response shapes | 3+ found (health endpoints + admin billing overview) |
+| Persisted entities | Found — 5 database tables |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **agent_run_charges** — persisted table: settlement records for agent runs
+- **credit_ledger** — persisted table: user credit balance entries
+- **creator_earnings_ledger** — persisted table: creator earnings entries
+- **workflow_llm_calls / llm_call_logs** — persisted tables: LLM cost telemetry
+- **pricing_config** — persisted table: key-value billing configuration
 
-<Callout kind="danger">
+<Callout kind="info">
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+The credit billing system uses database tables with RPC-based settlement logic. Health endpoint responses still remain inline shapes defined directly in route handlers.
+
 
 </Callout>
 
-## Persistence and migration status
+## Credit billing data models
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The credit billing system introduces the repository's primary persistence-backed data model. These tables track what a run cost, how many credits a user was charged, what a creator earned, what the underlying LLM usage consumed, and which pricing rules were in effect when settlement happened.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+### agent_run_charges
 
-### Repository-level signals
+`agent_run_charges` stores settlement records for agent runs. Each record captures the quoted price, the final settled price, cost snapshots taken at charge time, and failure context when a run cannot be charged successfully.
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
+#### Classification
+
+- **Kind** — Persisted settlement table
+- **Persistence-backed** — Yes
+- **Relationships** — Referenced by `credit_ledger` through run-linked ledger entries and by `creator_earnings_ledger` through charge-linked earnings entries
+
+#### Key fields
+
+<ResponseField name="kind" field-type="string" required="true">
+
+Billing surface for the charge. Observed values distinguish run contexts such as chat and marketplace.
+
+
+</ResponseField>
+
+<ResponseField name="tier_code_snapshot" field-type="string" required="true">
+
+Pricing tier captured when the charge was computed. This snapshot preserves the pricing context even if tier definitions change later.
+
+
+</ResponseField>
+
+<ResponseField name="credits_quoted" field-type="number" required="true">
+
+Pre-flight estimated charge in credits before the run settles. Use this value to compare projected cost against final settled cost.
+
+
+</ResponseField>
+
+<ResponseField name="credits_charged" field-type="number" required="true">
+
+Actual settled charge in credits. This is the amount applied after the run completes and settlement logic resolves the final cost.
+
+
+</ResponseField>
+
+<ResponseField name="fail_reason" field-type="string" required="false">
+
+Reason code recorded when a charge cannot be completed. This field distinguishes settlement failures from successful charges.
+
+
+</ResponseField>
+
+<ResponseField name="snapshot_llm_credits" field-type="number" required="false">
+
+LLM cost captured at charge time in credit units. This snapshot supports margin analysis and preserves the cost basis used during settlement.
+
+
+</ResponseField>
+
+<ResponseField name="snapshot_infra_credits" field-type="number" required="false">
+
+Infrastructure cost captured at charge time in credit units. This value complements the LLM snapshot when the system calculates total run cost.
+
+
+</ResponseField>
+
+<ResponseField name="input_tokens" field-type="integer" required="false">
+
+Observed input token count captured for the run when token telemetry is available.
+
+
+</ResponseField>
+
+<ResponseField name="output_tokens" field-type="integer" required="false">
+
+Observed output token count captured for the run when token telemetry is available.
+
+
+</ResponseField>
+
+#### Notes
+
+This table is the billing source of truth for individual run settlements. It preserves both the commercial view of a charge, such as quoted and charged credits, and the operational view, such as token and cost snapshots used to explain how the charge was derived.
+
+### credit_ledger
+
+`credit_ledger` stores user credit balance entries. Each row represents a balance movement rather than a full account snapshot, which makes the table suitable for audit trails, refunds, and balance reconstruction.
+
+#### Classification
+
+- **Kind** — Persisted ledger table
+- **Persistence-backed** — Yes
+- **Relationships** — `AGENT_RUN` entries link to `agent_run_charges`, and `REFUND` entries link to the originating charge or reversal target through the reference field
+
+#### Key fields
+
+<ResponseField name="delta" field-type="number" required="true">
+
+Signed balance change for the ledger entry. Positive values add credits to a user balance, and negative values debit credits from the balance.
+
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="true">
+
+Reason code for the balance movement. Observed billing reasons include `AGENT_RUN` for run charges and `REFUND` for reversals.
+
+
+</ResponseField>
+
+<ResponseField name="ref_id" field-type="string" required="false">
+
+Reference to the originating entity for the ledger entry. The reference connects a debit or refund entry back to the billing event that produced it.
+
+
+</ResponseField>
+
+#### Notes
+
+This table expresses balance history as immutable entries. That model makes settlement easier to audit because each debit, refund, or top-up remains visible as a distinct event instead of being collapsed into a mutable balance record.
+
+### creator_earnings_ledger
+
+`creator_earnings_ledger` tracks creator earnings for marketplace activity. Each entry represents a creator share derived from a marketplace run charge rather than a general-purpose revenue record.
+
+#### Classification
+
+- **Kind** — Persisted earnings ledger table
+- **Persistence-backed** — Yes
+- **Relationships** — Linked to `agent_run_charges` through `run_charge_id`; effectively one-to-one for marketplace run charges
+
+#### Key fields
+
+- **`run_charge_id`** — Links the earnings entry to the originating settled run charge.
+- **Creator share entry** — Each row represents the creator portion of a marketplace run charge rather than the entire customer charge.
+
+#### Notes
+
+This table separates creator compensation from user debits. That separation allows the billing system to settle the customer side and the payout side independently while preserving a direct relationship between the two records.
+
+### workflow_llm_calls and llm_call_logs
+
+`workflow_llm_calls` and `llm_call_logs` store telemetry about LLM usage during agent runs. These records capture the operational detail that the billing system needs to estimate or verify model cost.
+
+#### Classification
+
+- **Kind** — Persisted telemetry tables
+- **Persistence-backed** — Yes
+- **Relationships** — Feed cost computation for agent run settlement and margin calculations
+
+#### Key fields
+
+- **Per-call usage telemetry** — Stores LLM usage records associated with agent execution.
+- **Retry-aware usage accounting** — Supports deduplication of retry activity so repeated attempts do not inflate downstream cost totals.
+- **Pre-aggregated credits-used scalar** — Provides a summarized usage value that downstream billing logic can consume directly.
+
+#### Notes
+
+These tables are not customer-facing billing ledgers, but they are part of the billing data model because settlement depends on them. Their role is to preserve granular usage signals while also supporting a normalized cost value that higher-level billing logic can use.
+
+### pricing_config
+
+`pricing_config` stores billing behavior as key-value configuration. It centralizes the settings that control pricing, settlement behavior, and environment-specific billing rules.
+
+#### Classification
+
+- **Kind** — Persisted configuration table
+- **Persistence-backed** — Yes
+- **Relationships** — Read by billing and settlement workflows as configuration input
+
+#### Key fields
+
+- **Configuration key** — Identifies the billing setting being stored.
+- **Configuration value** — Stores the current value associated with the key.
+
+#### Notes
+
+This table makes pricing behavior configurable without changing application code for every adjustment. See the Configuration Reference page for the full list of keys and current values.
+
+<Callout kind="info">
+
+The billing service uses database-stored RPCs for charge settlement. A post-deploy verification script also checks table existence and configuration values after each deployment.
+
+
+</Callout>
 
 ## NestJS API response shape
 
@@ -87,11 +266,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,6 +310,7 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
@@ -156,43 +338,48 @@ No named validation layer is implemented in the analyzed repository.
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
 
+
 </Callout>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+The credit billing system uses database migrations managed through SQL scripts. The repository now includes a database schema that defines billing tables for run charges, credit ledger entries, creator earnings, LLM cost tracking, and pricing configuration.
 
 ### Summary
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+- Billing tables are managed through SQL-based schema migrations
+- The repository now includes a persistence-backed database schema
+- Migration-backed tables support the credit billing system
+- A post-deploy verification script checks table existence after deployment
+- The same verification flow checks required configuration values after deployment
 
 ### Current implication
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+Database schema changes for billing are tracked through migrations, and deployment verification confirms that the expected billing tables and configuration records are present.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The current codebase now has durable billing data structures, but its model layer is still intentionally narrow. The repository defines persistence for credit settlement and telemetry, while service-level request and response contracts remain lightweight.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
+- **Credit billing data models are database-backed** — Settlement and ledger records persist in tables and use RPC-based settlement logic.
+- **No ORM abstraction layer** — Tables are managed through SQL migrations and accessed through stored procedures rather than a repository or entity abstraction.
+- **No shared DTO or schema packages** — The NestJS API and FastAPI service do not share reusable model definitions.
+- **No named validation schemas** — Request and response validation is not formalized in DTO or schema classes.
 
-<Callout kind="danger">
+<Callout kind="info">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+Credit billing tables are persistence-backed and managed through database migrations. Health endpoint response shapes still remain endpoint-local inline objects.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>
