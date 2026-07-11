@@ -1,69 +1,62 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track the latest Gravity product updates — new features, improvements, and bug fixes shipped in each release.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable product changes. The latest entry appears first.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update date="2026-07-11">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New Features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **30-day revenue chart** — The admin billing dashboard now displays a continuous 30-day daily revenue trend chart, replacing the previous static comparison view.
+- **Revenue split by billing surface** — Unit Economics now separates revenue into Chat and Marketplace categories so you can see which surface drives earnings.
+- **Week-over-week gross margin trend** — A trend badge appears next to gross margin, showing whether margin improved or declined versus last week.
+- **Per-1,000-runs economics** — Revenue, LLM cost, and margin are now normalized per 1,000 runs for easier comparison at scale.
+- **Refund statistics** — A new "Refunded" card in Cash and Liabilities shows total refunds, refund count, and refund rate as a percentage of revenue.
+
+### Updates
+
+- **Monetary values now display in USD** — All figures on the billing dashboard show dollar amounts instead of raw credit units.
+- **Data cap warning banner** — A prominent banner appears when dashboard totals are approximate due to a scan limit, making clear the numbers are a minimum, not exact.
+- **Color-coded KPI indicators** — Period-over-period change indicators on KPI cards now use green and red arrows for quick visual scanning.
+
+### Bug Fixes
+
+- **Charge settlement always recomputes from current pricing** — Charges are now calculated from live pricing data at settlement time rather than reusing pre-flight values, preventing potential over- and under-charging.
+
+
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom for the newest changes first. Each entry is organized into **New Features**, **Updates**, and **Bug Fixes** so you can quickly find what matters to you.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+
+Review the current product capabilities and supported workflows.
+
+
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="Configuration Reference" href="/configuration-reference" icon="settings">
+
+Explore configuration options including pricing and billing settings.
+
+
 </Card>
+
+
 
 </Columns>
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+For troubleshooting guidance, visit the [Help Center](/help-center).
