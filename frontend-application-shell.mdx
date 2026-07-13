@@ -1,6 +1,8 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
@@ -14,6 +16,7 @@ Today, the frontend serves as a scaffold rather than a feature-complete applicat
 <Callout kind="info">
 
 This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+
 
 </Callout>
 
@@ -255,6 +258,8 @@ From this file alone, the shell currently guarantees:
 - `html` and `body` default to a white background
 - dark mode switches the background to `var(--color-gray-950)` and enables `color-scheme: dark`
 
+A new global CSS rule also forces `color-scheme: light` on Razorpay checkout iframes. That change fixes a rendering issue where the app's dark color scheme caused the cross-origin Razorpay checkout iframe to display with an opaque white background instead of a transparent overlay. The rule targets `.razorpay-checkout-frame`, `.razorpay-container iframe`, and any iframe whose `src` contains `razorpay`.
+
 ### Vite and Remix configuration
 
 The build configuration is defined in `apps/web/vite.config.ts`.
@@ -342,6 +347,7 @@ The two external links in the resources list open in a new tab, and the screen r
 
 Run these commands from `apps/web` so `package.json` and the local build output resolve as expected.
 
+
 </Callout>
 
 <CodeGroup tabs="package.json scripts,Command usage">
@@ -422,16 +428,22 @@ A few implementation details matter:
 
 <Callout kind="alert">
 
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
+The frontend now includes a dashboard route with bounty creation and a Razorpay payment flow, which introduces authentication, API integration, and business workflow UI alongside the starter routes described on this page. The starter routes themselves still remain simple scaffolds for routing, layout, styling, error handling, and packaging.
+
 
 </Callout>
 
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+That change is important when planning the next layer of frontend work. The dashboard route and bounty payment flow are now in place, while broader frontend architecture improvements such as additional shared app chrome, expanded route structure, and deeper API-facing components are still needed.
 
 ## Related foundation docs
 
 <Columns cols={3}>
+
   <Card title="API service foundation" href="/api-service-foundation" icon="database" />
+
   <Card title="Health checks" href="/health-checks" icon="shield" />
+
   <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+
+
 </Columns>

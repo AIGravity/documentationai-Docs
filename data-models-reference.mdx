@@ -1,57 +1,63 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: >-
+  Inventory of the repository’s current persisted entities, DTO validation, API
+  response schemas, and SQL migration coverage across the API and AI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+AIGravity/core now includes a Supabase-backed persistence layer for bounty funding, a validated DTO for bounty payment verification, and SQL migrations that evolve the bounty schema.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+What exists today includes two persisted bounty-related entities, one DTO-backed validation contract for payment verification, and several inline response shapes returned by API endpoints. The FastAPI service still exposes only a health response shape and does not define persisted models in the analyzed code.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
 
+
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now combines service scaffolding with an implemented persistence slice for bounty funding.
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Named domain models | Bounty and bounty order entities found |
+| ORM or database models | Supabase-backed tables `bounties` and `bounty_orders` found |
+| DTO classes | 1 found for bounty payment verification |
+| Named validation schemas | `class-validator` decorators found on the bounty payment verification DTO |
+| Migration files | 1 found for bounty orders and bounty funding columns |
+| Inline response shapes | 5 found: 2 health responses and 3 bounty response types |
+| Persisted entities | 2 found: `bounties` and `bounty_orders` |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
-
-<Callout kind="danger">
-
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
-
-</Callout>
+- **Bounty order response** — inline response shape: `{ orderId, razorpayOrderId, razorpayKeyId, amountMinor, currency, bountyId, bountyTitle }`
+- **Bounty payment verification input** — DTO-backed request shape: `{ razorpayOrderId, razorpayPaymentId, razorpaySignature }`
+- **Bounty payment verification response** — inline response shape: `{ status, bountyId, bountyStatus }`
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The repository now uses Supabase as its persistence layer for bounty funding. The implemented persistence surface covers the existing `bounties` table and a new `bounty_orders` table that records payment orders created during checkout.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+The `bounties` table now carries funding-specific state in addition to the bounty lifecycle state. It includes `payment_status`, which stores either `unpaid` or `paid` and defaults to `unpaid`, plus `funded_at`, which stores the verification timestamp when payment succeeds.
+
+Bounty lifecycle state also expanded to support `pending_payment`. That status marks a bounty that has been created but not yet funded. After payment verification succeeds, the bounty transitions to `open`.
+
+Migration infrastructure now exists for this slice of the schema. The repository includes `017_bounty_orders.sql`, which creates the `bounty_orders` table and adds the new bounty funding columns to `bounties`.
 
 ### Repository-level signals
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
+- The NestJS API exposes a health controller with an inline object response.
+- The FastAPI service exposes a health endpoint with an inline object response.
+- The repository persists bounty funding state in Supabase tables.
+- Bounty payment verification uses a DTO with `class-validator` decorators.
+- SQL migrations now evolve the bounty schema directly in the repository.
 - `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
 
 ## NestJS API response shape
 
@@ -87,11 +93,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,22 +137,184 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
 
 The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
 
+## Bounty funding data models
+
+Bounty funding now introduces durable data structures for checkout state and payment confirmation. The persistence model separates the payment order record from the bounty itself so the system can track order lifecycle without overloading the bounty row.
+
+### bounty_orders table
+
+The `bounty_orders` table tracks Razorpay payment orders created for bounty funding.
+
+| Column | Type | Constraints | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | PK, auto-generated | Order record identifier |
+| `bounty_id` | UUID | FK to `bounties(id)`, NOT NULL | The bounty being funded |
+| `user_id` | UUID | FK to `auth.users(id)`, NOT NULL | The bounty creator |
+| `amount_minor` | integer | NOT NULL, `>= 0` | Amount in smallest currency unit such as paise or cents |
+| `currency` | text | NOT NULL | ISO 4217 currency code |
+| `razorpay_order_id` | text | UNIQUE | Razorpay order ID |
+| `razorpay_payment_id` | text | nullable | Razorpay payment ID set after payment |
+| `status` | text | default `PENDING`, check IN `PENDING`, `PAID`, `FAILED`, `EXPIRED` | Order lifecycle |
+| `fail_reason` | text | nullable | Failure description if payment failed |
+| `created_at` | timestamptz | default `now()` | Creation timestamp |
+| `updated_at` | timestamptz | default `now()` | Last update timestamp |
+
+Indexes exist on `bounty_id`, `user_id`, and `status` to support common lookup paths during order creation, payment verification, and operational review.
+
+### bounties table additions
+
+The existing `bounties` table now stores funding state directly on the bounty record.
+
+| Column | Type | Default | Constraints | Description |
+| --- | --- | --- | --- | --- |
+| `payment_status` | text | `unpaid` | check IN `unpaid`, `paid` | Durable funding flag stored separately from lifecycle status |
+| `funded_at` | timestamptz | `NULL` | — | Timestamp when payment was confirmed |
+
+The `status` column also supports `pending_payment`. A bounty in that state has been created but not yet funded, so it is not visible in the public bounty list. After payment verification succeeds, the bounty status changes to `open`.
+
+<Callout kind="info">
+
+All pre-existing bounties were backfilled with `payment_status = 'paid'` during the migration. Legacy bounties remain visible and are treated as already funded.
+
+
+</Callout>
+
+## Bounty payment DTO
+
+Bounty payment verification now uses a DTO-backed validation contract. The DTO validates the Razorpay checkout callback payload before the API attempts to confirm payment and update bounty state.
+
+If any required field is missing or empty, the request fails with a `400` error. That prevents partial or malformed verification payloads from reaching the payment confirmation flow.
+
+### Fields
+
+<ParamField body="razorpayOrderId" param-type="string" required="true" show-location="false">
+
+Razorpay order identifier returned when the funding order is created. The value must be present and non-empty.
+
+
+</ParamField>
+
+<ParamField body="razorpayPaymentId" param-type="string" required="true" show-location="false">
+
+Razorpay payment identifier returned by the checkout flow. The value must be present and non-empty.
+
+
+</ParamField>
+
+<ParamField body="razorpaySignature" param-type="string" required="true" show-location="false">
+
+Signature returned by Razorpay for callback verification. The value must be present and non-empty.
+
+
+</ParamField>
+
+### Validation behavior
+
+- Uses `class-validator` decorators on all three fields.
+- Rejects missing values.
+- Rejects empty-string values.
+- Returns `400` for invalid payloads before payment verification runs.
+
+## Bounty funding response types
+
+Bounty funding currently exposes a create-order response and a verify-order response. Both are endpoint-level API contracts rather than standalone persisted entities.
+
+### Create order response
+
+This response returns the payment order metadata required to launch checkout and correlate the payment with a bounty.
+
+<ResponseField name="orderId" field-type="string" required="true">
+
+Application order record identifier.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayOrderId" field-type="string" required="true">
+
+Razorpay order identifier used by the checkout flow.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayKeyId" field-type="string" required="true">
+
+Publishable Razorpay key identifier used by the client checkout integration.
+
+
+</ResponseField>
+
+<ResponseField name="amountMinor" field-type="integer" required="true">
+
+Funding amount in the smallest currency unit.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+ISO 4217 currency code for the order.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the bounty being funded.
+
+
+</ResponseField>
+
+<ResponseField name="bountyTitle" field-type="string" required="true">
+
+Title of the bounty being funded.
+
+
+</ResponseField>
+
+### Verify order response
+
+This response confirms the result of payment verification and the resulting bounty lifecycle state.
+
+<ResponseField name="status" field-type="string" required="true">
+
+Verification result. The implemented values are `PAID` and `ALREADY_PAID`.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the funded bounty.
+
+
+</ResponseField>
+
+<ResponseField name="bountyStatus" field-type="string" required="true">
+
+Resulting bounty lifecycle status after verification. A successfully funded bounty transitions to `open`.
+
+
+</ResponseField>
+
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+A named validation layer now exists for the bounty payment verification flow.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- 1 DTO class found for bounty payment verification
+- `class-validator` usage found on the verification DTO
+- Validation rules require all Razorpay verification fields to be present and non-empty
+- Request validation now covers the payment verification payload
+- No response DTOs found for the documented health response or bounty response shapes
 
 ### FastAPI service
 
@@ -156,43 +326,42 @@ No named validation layer is implemented in the analyzed repository.
 
 Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
 
+
 </Callout>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+A migration system now exists for the bounty funding slice of the schema.
 
 ### Summary
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+- Migration file `017_bounty_orders.sql` exists
+- The migration creates the `bounty_orders` table with `IF NOT EXISTS` guards
+- The migration adds `payment_status` and `funded_at` columns to the `bounties` table
+- The migration backfills existing bounties with `payment_status = 'paid'`
+- The migration expands bounty status support to include `pending_payment`
 
 ### Current implication
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+The repository now has a checked-in schema history for bounty funding. Persistence is still scoped rather than repository-wide, but bounty-related database structure and evolution are now explicit.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The current codebase now defines durable data structures and validation for the bounty funding domain, but that coverage is still narrow relative to the full repository.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
-
-<Callout kind="danger">
-
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
-
-</Callout>
+- **Partial domain coverage** — Canonical persisted entities exist for bounty funding, but other business areas still do not expose the same level of checked-in model coverage.
+- **Validation is flow-specific** — DTO validation exists for bounty payment verification, but the documented response shapes are still mostly inline contracts rather than broadly reused schema classes.
+- **Mixed contract styles** — The repository now combines database-backed entities, DTO validation, and endpoint-local response objects instead of one uniform modeling approach across services.
+- **Python service remains schema-light** — The FastAPI service still exposes only an inline health response and does not define Pydantic models in the analyzed code.
+- **Migration history is limited in scope** — Checked-in migration coverage now exists for bounty funding, but not yet for every potential domain area.
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>

@@ -1,21 +1,23 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: API reference for the NestJS backend health endpoint and bounty funding endpoints implemented in the AIGravity core repository.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The code analysis found a public health endpoint at `GET /health` and authenticated bounty funding endpoints for the pay-to-post flow.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Bounty funding endpoints require authentication with a Supabase JWT bearer token.
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
 
 </Callout>
 
@@ -29,11 +31,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +45,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +65,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +73,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +83,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +91,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +126,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +151,274 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Bounty funding endpoints
+
+When Razorpay is configured, bounty creators must pay the prize amount before their bounty goes live. New bounties start in `pending_payment` status and transition to `open` only after payment verification succeeds. When Razorpay is not configured, bounties are created as `open` immediately for free or development-mode flows.
+
+### POST `/bounties/{id}/pay/order`
+
+Creates a Razorpay order for the bounty creator to fund a bounty. The bounty must be in `pending_payment` status and owned by the authenticated user.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/bounties/{id}/pay/order`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Requires a Supabase JWT bearer token. The caller must be the bounty creator.
+
+
+</ParamField>
+
+### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+The bounty ID to fund.
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None required.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/bounties/a1b2c3d4-1111-2222-3333-444444444444/pay/order \
+  -H "Authorization: Bearer <supabase-jwt>"
+```
+
+</CodeGroup>
+
+### Response
+
+A successful request returns the internal order record and the Razorpay values needed to launch Checkout.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "orderId": "b2c3d4e5-f6a7-4890-9abc-1234567890de",
+  "razorpayOrderId": "order_Nk8mQ2XyZ123",
+  "razorpayKeyId": "rzp_live_XXXXXX",
+  "amountMinor": 50000,
+  "currency": "INR",
+  "bountyId": "a1b2c3d4-1111-2222-3333-444444444444",
+  "bountyTitle": "Implement dark mode toggle"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="orderId" field-type="string" required="true">
+
+Internal bounty order record ID.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayOrderId" field-type="string" required="true">
+
+Razorpay order ID to pass to the Checkout SDK.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayKeyId" field-type="string" required="true">
+
+Public Razorpay key ID, safe for browser use.
+
+
+</ResponseField>
+
+<ResponseField name="amountMinor" field-type="integer" required="true">
+
+Amount in the smallest currency unit, such as paise for INR.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+ISO 4217 currency code.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+The bounty being funded.
+
+
+</ResponseField>
+
+<ResponseField name="bountyTitle" field-type="string" required="true">
+
+Human-readable bounty title shown in the Checkout dialog.
+
+
+</ResponseField>
+
+### Error responses
+
+#### 403 forbidden
+
+The caller is not the bounty creator.
+
+#### 409 conflict
+
+The bounty is not in `pending_payment` status or payment is not required.
+
+### POST `/bounties/{id}/pay/verify`
+
+Verifies the Razorpay checkout signature and activates the bounty. On success, the bounty transitions from `pending_payment` to `open` and becomes publicly visible. Idempotent re-verification returns `ALREADY_PAID`.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/bounties/{id}/pay/verify`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Requires a Supabase JWT bearer token. The caller must be the bounty creator.
+
+
+</ParamField>
+
+### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+The bounty ID being funded.
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="razorpayOrderId" param-type="string" required="true">
+
+Razorpay order ID from the Checkout callback.
+
+
+</ParamField>
+
+<ParamField body="razorpayPaymentId" param-type="string" required="true">
+
+Razorpay payment ID from the Checkout callback.
+
+
+</ParamField>
+
+<ParamField body="razorpaySignature" param-type="string" required="true">
+
+HMAC-SHA256 signature from the Checkout callback.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/bounties/a1b2c3d4-1111-2222-3333-444444444444/pay/verify \
+  -H "Authorization: Bearer <supabase-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "razorpayOrderId": "order_Nk8mQ2XyZ123",
+    "razorpayPaymentId": "pay_Nk8mZ9AbC456",
+    "razorpaySignature": "0123456789abcdef..."
+  }'
+```
+
+</CodeGroup>
+
+### Response
+
+A successful verification marks the bounty as funded and returns the new bounty status.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "status": "PAID",
+  "bountyId": "a1b2c3d4-1111-2222-3333-444444444444",
+  "bountyStatus": "open"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="status" field-type="string" required="true">
+
+`PAID` if the bounty was just funded, or `ALREADY_PAID` for an idempotent re-verify.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+The funded bounty ID.
+
+
+</ResponseField>
+
+<ResponseField name="bountyStatus" field-type="string" required="true">
+
+The bounty lifecycle status after verification, typically `open`.
+
+
+</ResponseField>
+
+### Error responses
+
+#### 400 bad request
+
+The request body is invalid because one or more Razorpay fields are missing or empty.
+
+#### 403 forbidden
+
+The caller is not the bounty creator.
+
+## Pay-to-post flow
+
+<Callout kind="info">
+
+Create the bounty first. If `paymentRequired` is `true`, create an order, open Razorpay Checkout, and then verify the payment after Checkout succeeds. The bounty goes live only after verification. If payment is cancelled or fails, the bounty remains in `pending_payment` and the creator can retry. Bounties in `pending_payment` status are not visible in the public bounty list.
+
+
+</Callout>

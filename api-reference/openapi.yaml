@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint exposed at `GET /health` and the bounty funding endpoints that implement the Razorpay pay-to-post payment flow.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Bounties
+    description: Bounty creation and funding operations, including Razorpay pay-to-post payment flow
 paths:
   /health:
     get:
@@ -41,6 +43,112 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /bounties/{id}/pay/order:
+    post:
+      tags:
+        - Bounties
+      summary: Create a Razorpay order to fund a bounty
+      description: Creates a Razorpay order for the bounty creator to pay the prize amount. The bounty must be in pending_payment status and owned by the authenticated user. Razorpay must be configured on the server.
+      operationId: createBountyOrder
+      security:
+        - SupabaseAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The bounty ID to fund
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Razorpay order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBountyOrderResponse'
+              example:
+                orderId: 'a1b2c3d4-1111-2222-3333-444444444444'
+                razorpayOrderId: order_Nk8mQ2XyZ123
+                razorpayKeyId: rzp_live_XXXXXX
+                amountMinor: 50000
+                currency: INR
+                bountyId: 'a1b2c3d4-1111-2222-3333-444444444444'
+                bountyTitle: Implement dark mode toggle
+        '403':
+          description: Forbidden caller is not the bounty creator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: You are not the creator of this bounty
+        '409':
+          description: Bounty is not in pending_payment status or payment is not required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Bounty is not in pending_payment status
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /bounties/{id}/pay/verify:
+    post:
+      tags:
+        - Bounties
+      summary: Verify a Razorpay payment and activate a bounty
+      description: Verifies the Razorpay checkout signature for a bounty payment. On success, transitions the bounty from pending_payment to open making it publicly visible. Returns ALREADY_PAID if the bounty was already funded during an idempotent re-verify.
+      operationId: verifyBountyOrder
+      security:
+        - SupabaseAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The bounty ID being funded
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyBountyOrderInput'
+            example:
+              razorpayOrderId: order_Nk8mQ2XyZ123
+              razorpayPaymentId: pay_Nk8mZ9AbC456
+              razorpaySignature: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      responses:
+        '200':
+          description: Payment verified successfully or was already verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyBountyOrderResponse'
+              example:
+                status: PAID
+                bountyId: 'a1b2c3d4-1111-2222-3333-444444444444'
+                bountyStatus: open
+        '400':
+          description: Invalid request body missing or empty Razorpay fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: razorpayOrderId must not be empty
+        '403':
+          description: Forbidden caller is not the bounty creator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: You are not the creator of this bounty
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   responses:
     InternalServerError:
@@ -49,6 +157,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+  securitySchemes:
+    SupabaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase JWT bearer token required for authenticated endpoints
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +180,89 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    CreateBountyOrderResponse:
+      type: object
+      description: Response payload returned after creating a Razorpay order for bounty funding.
+      required:
+        - orderId
+        - razorpayOrderId
+        - razorpayKeyId
+        - amountMinor
+        - currency
+        - bountyId
+        - bountyTitle
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Internal bounty order record ID
+          example: 'a1b2c3d4-1111-2222-3333-444444444444'
+        razorpayOrderId:
+          type: string
+          description: Razorpay order ID to pass to the Checkout SDK
+          example: order_Nk8mQ2XyZ123
+        razorpayKeyId:
+          type: string
+          description: Public Razorpay key ID safe for browser use
+          example: rzp_live_XXXXXX
+        amountMinor:
+          type: integer
+          description: Amount in the smallest currency unit e.g. paise for INR
+          example: 50000
+        currency:
+          type: string
+          description: ISO 4217 currency code e.g. INR
+          example: INR
+        bountyId:
+          type: string
+          format: uuid
+          description: The bounty being funded
+          example: 'a1b2c3d4-1111-2222-3333-444444444444'
+        bountyTitle:
+          type: string
+          description: Human-readable bounty title shown in the Checkout dialog
+          example: Implement dark mode toggle
+    VerifyBountyOrderInput:
+      type: object
+      description: Payload used to verify a Razorpay payment callback for a bounty order.
+      required:
+        - razorpayOrderId
+        - razorpayPaymentId
+        - razorpaySignature
+      properties:
+        razorpayOrderId:
+          type: string
+          description: Razorpay order ID from the Checkout callback
+          example: order_Nk8mQ2XyZ123
+        razorpayPaymentId:
+          type: string
+          description: Razorpay payment ID from the Checkout callback
+          example: pay_Nk8mZ9AbC456
+        razorpaySignature:
+          type: string
+          description: HMAC-SHA256 signature from the Checkout callback
+          example: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    VerifyBountyOrderResponse:
+      type: object
+      description: Result of verifying a Razorpay bounty payment.
+      required:
+        - status
+        - bountyId
+        - bountyStatus
+      properties:
+        status:
+          type: string
+          enum:
+            - PAID
+            - ALREADY_PAID
+          description: PAID if the bounty was just funded ALREADY_PAID for idempotent re-verify
+          example: PAID
+        bountyId:
+          type: string
+          format: uuid
+          description: The funded bounty ID
+          example: 'a1b2c3d4-1111-2222-3333-444444444444'
+        bountyStatus:
+          type: string
+          description: The bounty lifecycle status after verification typically open
+          example: open
