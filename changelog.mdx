@@ -1,68 +1,61 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Notable product updates, improvements, and bug fixes shipped to the Gravity platform.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog covers notable product updates, improvements, and bug fixes shipped to the Gravity platform. Newest entries appear first.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="Unreleased" description="Current changes" tags={["feature", "improvement", "bugfix"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New Features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Bounty creation wizard** — Bounties now follow a guided three-step flow: describe your task, pick preferred tools from a searchable grid, and preview what builders will see before posting. Bounty descriptions can be auto-drafted from your chat, and bounties require payment to go live.
+- **Bounty submission review** — Bounty owners get a dedicated Updates feed in the sidebar with a full submission review interface. Shortlist, reject, or try submissions before accepting the winning build, and submissions remain hidden until the bounty's reveal date.
+- **My Agents with Running and One-Time tabs** — The agents page now separates scheduled agents from one-time marketplace runs. Tab state persists in the URL so navigating back restores your view.
+- **Live tool status and reconnect** — Agent detail pages show real-time connection status for each tool. Disconnected tools have a Reconnect button, and disconnecting an app connection now auto-pauses any agents that depend on it.
+- **Agent edit and delete** — Builders can edit a published agent's configuration or delete it from the agent details page.
+- **Durable runs** — Agent runs now survive tab closes. Reopening a chat reattaches to the in-progress run instead of starting over or hanging indefinitely.
+- **Resumable publish pipeline** — The agent publishing flow saves progress server-side. Leave mid-verification and resume from the dashboard, with a status bar showing the current pipeline stage.
+- **Builder question confirmations** — Chat questions now require explicit confirmation before advancing, preventing accidental skips. Builders can define fixed answer options that render as selectable chips.
+- **Public builder leaderboard** — A new leaderboard page ranks builders by total agent runs, agents published, and users reached.
+- **Searchable option lists** — When a question offers options, you can type to filter them. Multi-value inputs show entries as removable pill tokens.
 
-## How to read this changelog
+### Updates
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Chat timeout extended** — Agent responses now wait up to 130 seconds instead of 30, accommodating longer-running tasks.
+- **Run again for on-demand agents** — On-demand agents on the detail page have a Run Again button that returns you to the originating chat.
+- **USD-only currency** — Pricing and earnings are standardized to USD across the platform.
+
+### Bug Fixes
+
+- **Sessions merging** — New chat sessions no longer accidentally append messages to a previous session.
+- **Sign-in false failure** — Fixed an intermittent error that blocked sign-in even when the verification code was valid.
+- **Publish flow freeze** — Resolved a freeze that could occur when re-entering the publish flow in edit mode.
+- **Storage quota handling** — Sign-in no longer fails when browser storage is near capacity.
+
+
+</Update>
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 
