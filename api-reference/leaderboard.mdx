@@ -1,0 +1,93 @@
+---
+title: "Leaderboard API"
+description: "Retrieve the public builder leaderboard ranked by earnings and published agents through the AIGravity API."
+---
+
+## Retrieve the public builder leaderboard
+
+Retrieve a ranked public leaderboard of builders with total earnings and published agent counts. This endpoint is public and does not require authentication.
+
+<Callout kind="info">
+
+Send this request without an `Authorization` header. The API returns public leaderboard data only.
+
+
+</Callout>
+
+### GET `/api/leaderboard/builders`
+
+Returns builders ordered by rank, including earnings and published agent totals.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of builders to return. Defaults to `100`. Minimum value is `1`. Maximum value is `200`.
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET "http://localhost:3001/api/leaderboard/builders?limit=5"
+```
+
+```json
+[
+  {
+    "builderId": "bld_7h3k2m9q",
+    "builderName": "Ava Patel",
+    "rank": 1,
+    "totalEarnings": 18450.75,
+    "agentsPublished": 12
+  },
+  {
+    "builderId": "bld_4n8x1c6r",
+    "builderName": "Marcus Lee",
+    "rank": 2,
+    "totalEarnings": 15210.5,
+    "agentsPublished": 9
+  },
+  {
+    "builderId": "bld_9p2v5t1y",
+    "builderName": "Elena Garcia",
+    "rank": 3,
+    "totalEarnings": 13100,
+    "agentsPublished": 8
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="builderId" field-type="string" required="true">
+
+Unique builder identifier.
+
+</ResponseField>
+
+<ResponseField name="builderName" field-type="string" required="true">
+
+Public display name of the builder.
+
+</ResponseField>
+
+<ResponseField name="rank" field-type="number" required="true">
+
+Builder position in the leaderboard, starting at `1`.
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="number" required="true">
+
+Total earnings attributed to the builder.
+
+</ResponseField>
+
+<ResponseField name="agentsPublished" field-type="number" required="true">
+
+Number of published agents owned by the builder.
+
+</ResponseField>

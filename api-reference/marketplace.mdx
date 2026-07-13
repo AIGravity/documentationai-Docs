@@ -1,0 +1,193 @@
+---
+title: Marketplace API
+description: Execute marketplace agents and retrieve or settle run results with recency fallback through the AIGravity API.
+---
+
+## Endpoints
+
+Execute marketplace agents and retrieve or settle run results, with optional recency fallback when reattaching to an existing run. All endpoints require a Bearer JWT in the `Authorization` header.
+
+### Authentication
+
+Send your JWT with every request.
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/execute \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json"
+```
+
+```json
+{
+  "authenticated": true
+}
+```
+
+</CodeGroup>
+
+### POST `/api/marketplace/run-result`
+
+Retrieve a marketplace run result and optionally settle it against an internal gravity run.
+
+<Callout kind="info">
+
+`gravityRunId` is now optional. When you omit `gravityRunId`, the API skips settlement and returns the result without charging.
+
+`startedAfter` is a new optional ISO 8601 datetime parameter. Use `startedAfter` as a recency fallback guard when reattaching to a run.
+
+
+</Callout>
+
+<Callout kind="alert">
+
+The API uses `ValidationPipe` with `forbidNonWhitelisted`. Older API versions that do not recognize `startedAfter` reject the request. Deploy the web client and API together before sending `startedAfter`.
+
+
+</Callout>
+
+#### Request body
+
+<ParamField body="gravityRunId" param-type="string" required="false">
+
+Internal gravity run ID. When absent, the API skips settlement and returns the result without charging.
+
+</ParamField>
+
+<ParamField body="apRunId" param-type="string" required="false">
+
+Activepieces run ID.
+
+</ParamField>
+
+<ParamField body="startedAfter" param-type="string" required="false">
+
+ISO 8601 datetime used as a recency fallback guard when reattaching to a run.
+
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="result" field-type="object" required="true">
+
+Run result payload returned by the marketplace execution.
+
+</ResponseField>
+
+<ResponseField name="settled" field-type="boolean" required="true">
+
+Whether the API settled the run against `gravityRunId`.
+
+</ResponseField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/run-result \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gravityRunId": "grun_7fd21c9a",
+    "apRunId": "aprun_3b9d4e12",
+    "startedAfter": "2026-07-13T09:15:00.000Z"
+  }'
+```
+
+```json
+{
+  "result": {
+    "id": "aprun_3b9d4e12",
+    "status": "SUCCEEDED",
+    "output": {
+      "summary": "Processed 24 marketplace listings",
+      "matches": 24
+    }
+  },
+  "settled": true
+}
+```
+
+</CodeGroup>
+
+### POST `/api/marketplace/execute`
+
+Execute a marketplace agent with platform inputs and end-user supplied inputs.
+
+<Callout kind="info">
+
+The server reads the `Referer` header to determine the `returnTo` URL for OAuth flows.
+
+
+</Callout>
+
+#### Request body
+
+<ParamField body="agentId" param-type="string" required="true">
+
+Marketplace agent ID to execute.
+
+</ParamField>
+
+<ParamField body="inputs" param-type="array" required="true">
+
+Agent execution inputs.
+
+</ParamField>
+
+<ParamField body="consumerInputs" param-type="array" required="true">
+
+End-user supplied inputs.
+
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="runId" field-type="string" required="true">
+
+Run identifier for the marketplace execution.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current execution status.
+
+</ResponseField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/execute \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Referer: http://localhost:3000/marketplace/agents/agt_mkt_42" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentId": "agt_mkt_42",
+    "inputs": [
+      {
+        "key": "searchTerm",
+        "value": "B2B lead enrichment"
+      }
+    ],
+    "consumerInputs": [
+      {
+        "key": "companyDomain",
+        "value": "acme.io"
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "runId": "aprun_84dc2f61",
+  "status": "RUNNING"
+}
+```
+
+</CodeGroup>

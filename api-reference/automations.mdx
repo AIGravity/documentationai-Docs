@@ -1,0 +1,425 @@
+---
+title: Automations API
+description: List automations, inspect live tool health, reconnect disconnected tools, and manage app connections through the AIGravity API.
+---
+
+## Automations and apps endpoints
+
+List your automations with live tool health, reconnect disconnected tools, and manage app connections that can auto-pause dependent agents. All endpoints in this group require a Bearer JWT in the `Authorization` header.
+
+### GET `/api/automations`
+
+List the caller's automations.
+
+<Callout kind="info">
+
+This endpoint now returns `totalRuns` as the count of succeeded runs only, not all recorded runs.
+
+The response also includes `publishedWorkflowId` for the marketplace agent behind a subscription and `originSessionId` for the chat session used by the Run again flow.
+
+Each `connectedTools` item now includes `pieceName`, which is the full Activepieces piece name used for reconnect operations.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/automations \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aigravity_example_token"
+```
+
+```json
+[
+  {
+    "id": "aut_7f3c1a92",
+    "name": "Weekly pipeline report",
+    "description": "Collects spreadsheet metrics and posts a summary to Slack",
+    "steps": 4,
+    "lastRunAt": "2026-05-18T09:22:14.000Z",
+    "totalRuns": 18,
+    "publishedWorkflowId": "pubwf_2b91d840",
+    "originSessionId": "ses_a9d14be7",
+    "connectedTools": [
+      {
+        "pieceName": "@activepieces/piece-google-sheets",
+        "status": "connected",
+        "externalId": "conn_gsheets_ops_01"
+      },
+      {
+        "pieceName": "@activepieces/piece-slack",
+        "status": "disconnected",
+        "externalId": "conn_slack_team_44"
+      }
+    ]
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique automation identifier.
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Automation name.
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Automation description.
+
+</ResponseField>
+
+<ResponseField name="steps" field-type="number" required="true">
+
+Number of steps in the automation.
+
+</ResponseField>
+
+<ResponseField name="lastRunAt" field-type="string | null" required="true">
+
+Timestamp of the most recent run in ISO 8601 format, or `null` if the automation has not run.
+
+</ResponseField>
+
+<ResponseField name="totalRuns" field-type="number" required="true">
+
+Count of succeeded runs for the automation.
+
+</ResponseField>
+
+<ResponseField name="publishedWorkflowId" field-type="string | null" required="true">
+
+Marketplace workflow identifier behind the subscription, or `null` when the automation was not created from a published workflow.
+
+</ResponseField>
+
+<ResponseField name="originSessionId" field-type="string | null" required="true">
+
+Chat session identifier used as the source for Run again, or `null` when no originating session exists.
+
+</ResponseField>
+
+<ResponseField name="connectedTools" field-type="array" required="true">
+
+Connected tools associated with the automation.
+
+</ResponseField>
+
+<ResponseField name="connectedTools[].pieceName" field-type="string" required="true">
+
+Full Activepieces piece name used to identify the tool during reconnect.
+
+</ResponseField>
+
+<ResponseField name="connectedTools[].status" field-type="string" required="true">
+
+Current connection status for the tool.
+
+</ResponseField>
+
+<ResponseField name="connectedTools[].externalId" field-type="string | null" required="true">
+
+External connection identifier for the tool, or `null` when no external connection is linked.
+
+</ResponseField>
+
+### GET `/api/automations/{id}`
+
+Get one automation by ID with live tool health.
+
+<Callout kind="info">
+
+This endpoint performs live tool health checks against Activepieces. Tool status is checked in real time instead of returning a static snapshot.
+
+The handler now receives the full authenticated user context so tool health checks can run against the caller's current access.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/automations/aut_7f3c1a92 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aigravity_example_token"
+```
+
+```json
+{
+  "id": "aut_7f3c1a92",
+  "name": "Weekly pipeline report",
+  "description": "Collects spreadsheet metrics and posts a summary to Slack",
+  "steps": 4,
+  "lastRunAt": "2026-05-18T09:22:14.000Z",
+  "totalRuns": 18,
+  "publishedWorkflowId": "pubwf_2b91d840",
+  "originSessionId": "ses_a9d14be7",
+  "connectedTools": [
+    {
+      "pieceName": "@activepieces/piece-google-sheets",
+      "status": "connected",
+      "externalId": "conn_gsheets_ops_01"
+    },
+    {
+      "pieceName": "@activepieces/piece-slack",
+      "status": "disconnected",
+      "externalId": "conn_slack_team_44"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique automation identifier.
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Automation name.
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Automation description.
+
+</ResponseField>
+
+<ResponseField name="steps" field-type="number" required="true">
+
+Number of steps in the automation.
+
+</ResponseField>
+
+<ResponseField name="lastRunAt" field-type="string | null" required="true">
+
+Timestamp of the most recent run in ISO 8601 format, or `null` if the automation has not run.
+
+</ResponseField>
+
+<ResponseField name="totalRuns" field-type="number" required="true">
+
+Count of succeeded runs for the automation.
+
+</ResponseField>
+
+<ResponseField name="publishedWorkflowId" field-type="string | null" required="true">
+
+Marketplace workflow identifier behind the subscription, or `null` when the automation was not created from a published workflow.
+
+</ResponseField>
+
+<ResponseField name="originSessionId" field-type="string | null" required="true">
+
+Chat session identifier used as the source for Run again, or `null` when no originating session exists.
+
+</ResponseField>
+
+<ResponseField name="connectedTools" field-type="array" required="true">
+
+Connected tools with status checked live at request time.
+
+</ResponseField>
+
+<ResponseField name="connectedTools[].pieceName" field-type="string" required="true">
+
+Full Activepieces piece name used to identify the tool.
+
+</ResponseField>
+
+<ResponseField name="connectedTools[].status" field-type="string" required="true">
+
+Live health status for the tool connection.
+
+</ResponseField>
+
+<ResponseField name="connectedTools[].externalId" field-type="string | null" required="true">
+
+External connection identifier for the tool, or `null` when no external connection is linked.
+
+</ResponseField>
+
+### POST `/api/automations/{id}/tools/reconnect`
+
+Reconnect a tool for an automation.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+
+</ParamField>
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Full Activepieces piece name to reconnect, for example `@activepieces/piece-google-sheets`.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/automations/aut_7f3c1a92/tools/reconnect \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aigravity_example_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pieceName": "@activepieces/piece-google-sheets"
+  }'
+```
+
+```json
+{
+  "reconnected": true,
+  "pieceName": "@activepieces/piece-google-sheets"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="reconnected" field-type="boolean" required="true">
+
+Whether the reconnect operation succeeded.
+
+</ResponseField>
+
+<ResponseField name="pieceName" field-type="string" required="true">
+
+Full Activepieces piece name that was reconnected.
+
+</ResponseField>
+
+### DELETE `/api/apps/connections`
+
+Delete an app connection.
+
+<Callout kind="info">
+
+This endpoint now returns `200 OK` instead of `204 No Content`.
+
+The response body now includes `pausedAgents`, which lists agents that were auto-paused because they depended on the deleted connection.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`DELETE`
+
+
+</ParamField>
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Full Activepieces piece name for the app connection to delete.
+
+
+</ParamField>
+
+<ParamField body="externalId" param-type="string" required="true">
+
+External connection identifier to delete.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X DELETE http://localhost:3001/api/apps/connections \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.aigravity_example_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pieceName": "@activepieces/piece-slack",
+    "externalId": "conn_slack_team_44"
+  }'
+```
+
+```json
+{
+  "pausedAgents": [
+    {
+      "id": "agt_b83e219f",
+      "name": "Sales follow-up assistant"
+    },
+    {
+      "id": "agt_f18c02da",
+      "name": "Escalation triage bot"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="pausedAgents" field-type="array" required="true">
+
+Agents that were auto-paused because they depended on the deleted app connection.
+
+</ResponseField>
+
+<ResponseField name="pausedAgents[].id" field-type="string" required="true">
+
+Unique agent identifier.
+
+</ResponseField>
+
+<ResponseField name="pausedAgents[].name" field-type="string" required="true">
+
+Agent name.
+
+</ResponseField>

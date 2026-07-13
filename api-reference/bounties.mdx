@@ -1,0 +1,1570 @@
+---
+title: Bounties API
+description: Create bounties, preview specs, submit solutions, review submissions, and process Razorpay payments through the AIGravity API.
+---
+
+## Bounties endpoints
+
+Create and preview bounties from chat sessions, submit workflow solutions, manage the submission lifecycle, and process Razorpay payments. All Bounties API endpoints require a Bearer JWT in the `Authorization` header.
+
+### POST `/api/bounties`
+
+Create a bounty from a chat session.
+
+If a bounty already exists for the same chat session with status `open` or `pending_payment`, this endpoint returns the existing bounty instead of creating a new one.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session ID.
+
+
+
+</ParamField>
+
+<ParamField body="title" param-type="string" required="false">
+
+Bounty title.
+
+
+
+</ParamField>
+
+<ParamField body="summary" param-type="string" required="false">
+
+User-edited bounty summary.
+
+
+
+</ParamField>
+
+<ParamField body="answers" param-type="object" required="false">
+
+Structured question-and-answer payload used to generate the bounty.
+
+
+
+</ParamField>
+
+<ParamField body="answers.trigger" param-type="string" required="false">
+
+Trigger condition or event.
+
+
+
+</ParamField>
+
+<ParamField body="answers.apps" param-type="string[]" required="false">
+
+Apps or platforms involved in the workflow.
+
+
+
+</ParamField>
+
+<ParamField body="answers.output" param-type="string" required="false">
+
+Expected output or outcome.
+
+
+
+</ParamField>
+
+<ParamField body="amount" param-type="number" required="false">
+
+Payment amount for the bounty.
+
+
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="false">
+
+Currency code for the bounty payment.
+
+
+
+</ParamField>
+
+<Callout kind="info">
+
+When `paymentRequired` is `true`, the bounty stays hidden from listings until you fund it through Razorpay. The initial status is `pending_payment` when payment is required, otherwise `open`.
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "ses_9f3d2c11",
+    "title": "Build a Slack triage workflow",
+    "summary": "Route new support tickets from Slack into a review queue with labels.",
+    "answers": {
+      "trigger": "New message posted in the support-triage Slack channel",
+      "apps": ["Slack", "Notion"],
+      "output": "Create a triaged task in Notion with priority and owner"
+    },
+    "amount": 2500,
+    "currency": "INR"
+  }'
+```
+
+```json
+{
+  "id": "bty_8k2m4p1q",
+  "title": "Build a Slack triage workflow",
+  "summary": "Route new support tickets from Slack into a review queue with labels.",
+  "expiresAt": "2026-08-15T18:30:00.000Z",
+  "paymentRequired": true,
+  "amount": 2500,
+  "currency": "INR"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique bounty identifier.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Human-readable bounty summary.
+
+
+</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">
+
+Bounty expiration timestamp in ISO 8601 format.
+
+
+</ResponseField>
+
+<ResponseField name="paymentRequired" field-type="boolean" required="true">
+
+Whether the bounty must be funded before it becomes visible in listings.
+
+
+</ResponseField>
+
+<ResponseField name="amount" field-type="number" required="true">
+
+Configured payment amount.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Configured payment currency code.
+
+
+</ResponseField>
+
+### POST `/api/bounties/preview`
+
+Preview a bounty spec from chat answers before creating the bounty.
+
+This endpoint evaluates whether the request is valid, whether it looks buildable, and returns a structured bounty specification.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session ID.
+
+
+
+</ParamField>
+
+<ParamField body="answers" param-type="object" required="false">
+
+Structured question-and-answer payload used to generate the preview.
+
+
+
+</ParamField>
+
+<ParamField body="answers.trigger" param-type="string" required="false">
+
+Trigger condition or event.
+
+
+
+</ParamField>
+
+<ParamField body="answers.apps" param-type="string[]" required="false">
+
+Apps or platforms involved in the workflow.
+
+
+
+</ParamField>
+
+<ParamField body="answers.output" param-type="string" required="false">
+
+Expected output or outcome.
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/preview \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "ses_9f3d2c11",
+    "answers": {
+      "trigger": "A new lead is added in HubSpot",
+      "apps": ["HubSpot", "Gmail", "Airtable"],
+      "output": "Send a follow-up email and log the lead in Airtable"
+    }
+  }'
+```
+
+```json
+{
+  "summary": "Create a workflow that reacts to new HubSpot leads, sends a follow-up email, and records the lead in Airtable.",
+  "title": "Automate HubSpot lead follow-up",
+  "valid": true,
+  "issues": [],
+  "platforms": ["HubSpot", "Gmail", "Airtable"],
+  "tools": ["email", "crm", "database"],
+  "useCases": ["lead routing", "follow-up automation"],
+  "spec": {
+    "trigger": {
+      "kind": "event",
+      "detail": "A new lead is added in HubSpot"
+    },
+    "apps": ["HubSpot", "Gmail", "Airtable"],
+    "output": {
+      "kind": "action",
+      "detail": "Send a follow-up email and log the lead in Airtable"
+    },
+    "rules": [
+      "Only send one email per new lead",
+      "Log each processed lead once"
+    ],
+    "task": "Build a workflow that automates lead follow-up and tracking"
+  },
+  "buildable": true,
+  "buildableReason": "The required apps and actions map to supported workflow capabilities."
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Generated bounty summary.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Suggested bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="valid" field-type="boolean" required="true">
+
+Whether the preview input is structurally valid.
+
+
+</ResponseField>
+
+<ResponseField name="issues" field-type="string[]" required="true">
+
+Validation or quality issues detected during preview generation.
+
+
+</ResponseField>
+
+<ResponseField name="platforms" field-type="string[]" required="true">
+
+Platforms inferred from the input.
+
+
+</ResponseField>
+
+<ResponseField name="tools" field-type="string[]" required="true">
+
+Tools or capability categories inferred from the request.
+
+
+</ResponseField>
+
+<ResponseField name="useCases" field-type="string[]" required="true">
+
+Use case tags inferred from the request.
+
+
+</ResponseField>
+
+<ResponseField name="spec" field-type="object" required="true">
+
+Structured bounty specification.
+
+
+</ResponseField>
+
+<ResponseField name="spec.trigger" field-type="object" required="true">
+
+Trigger definition for the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="spec.trigger.kind" field-type="string" required="true">
+
+Trigger category.
+
+
+</ResponseField>
+
+<ResponseField name="spec.trigger.detail" field-type="string" required="true">
+
+Human-readable description of the trigger.
+
+
+</ResponseField>
+
+<ResponseField name="spec.apps" field-type="string[]" required="true">
+
+Apps referenced in the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="spec.output" field-type="object" required="true">
+
+Expected workflow result.
+
+
+</ResponseField>
+
+<ResponseField name="spec.output.kind" field-type="string" required="true">
+
+Output category.
+
+
+</ResponseField>
+
+<ResponseField name="spec.output.detail" field-type="string" required="true">
+
+Human-readable description of the output.
+
+
+</ResponseField>
+
+<ResponseField name="spec.rules" field-type="string[]" required="true">
+
+Constraints or operating rules for the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="spec.task" field-type="string" required="true">
+
+Single-sentence task definition for builders.
+
+
+</ResponseField>
+
+<ResponseField name="buildable" field-type="boolean" required="true">
+
+Whether the request appears implementable.
+
+
+</ResponseField>
+
+<ResponseField name="buildableReason" field-type="string" required="true">
+
+Reason supporting the buildability assessment.
+
+
+</ResponseField>
+
+### POST `/api/bounties/draft-brief`
+
+Generate a draft bounty brief from a chat session.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session ID.
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/draft-brief \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "ses_9f3d2c11"
+  }'
+```
+
+```json
+{
+  "brief": "Build a workflow that watches a Slack channel for new support requests, classifies urgency, and creates a tracked item in Notion for follow-up.",
+  "suggestedTitle": "Automate support triage from Slack to Notion"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="brief" field-type="string" required="true">
+
+Generated draft brief for the bounty.
+
+
+</ResponseField>
+
+<ResponseField name="suggestedTitle" field-type="string" required="true">
+
+Suggested title derived from the chat session.
+
+
+</ResponseField>
+
+### POST `/api/bounties/{bountyId}/submit`
+
+Submit a workflow solution to a bounty.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField path="bountyId" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow definition JSON for the submission.
+
+
+
+</ParamField>
+
+<ParamField body="builderQuestions" param-type="array" required="false">
+
+Builder question-and-answer pairs associated with the submission.
+
+
+
+</ParamField>
+
+<Callout kind="info">
+
+The workflow JSON must include a Publish Gate step. The `assertHasPublishGate` check runs before any save and returns `400` if the step is missing.
+
+
+
+</Callout>
+
+<Callout kind="alert">
+
+If the workflow does not contain a Publish Gate step, the API returns a `400` response with the message `Workflow must include a Publish Gate step.`
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/bty_8k2m4p1q/submit \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowJson": {
+      "name": "Slack triage workflow",
+      "steps": [
+        {
+          "id": "step_trigger",
+          "type": "slack.new_message",
+          "name": "Watch support-triage"
+        },
+        {
+          "id": "step_classify",
+          "type": "ai.classify",
+          "name": "Classify urgency"
+        },
+        {
+          "id": "step_publish_gate",
+          "type": "publish_gate",
+          "name": "Publish Gate"
+        }
+      ]
+    },
+    "builderQuestions": [
+      {
+        "question": "What fields should the Notion item include?",
+        "answer": "Priority, owner, source channel, and a short summary."
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "id": "sub_5x1q7d9m",
+  "bountyId": "bty_8k2m4p1q",
+  "status": "submitted"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique submission identifier.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the bounty the submission belongs to.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Submission status after creation.
+
+
+</ResponseField>
+
+### Error response
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/bty_8k2m4p1q/submit \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowJson": {
+      "name": "Incomplete workflow",
+      "steps": []
+    }
+  }'
+```
+
+```json
+{
+  "message": "Workflow must include a Publish Gate step."
+}
+```
+
+</CodeGroup>
+
+### GET `/api/bounties/{id}`
+
+Get bounty details.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<Callout kind="info">
+
+The `spec` field may be undefined for legacy bounty rows.
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/bounties/bty_8k2m4p1q \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "id": "bty_8k2m4p1q",
+  "title": "Build a Slack triage workflow",
+  "summary": "Route new support tickets from Slack into a review queue with labels.",
+  "status": "open",
+  "expiresAt": "2026-08-15T18:30:00.000Z",
+  "sessionId": "ses_9f3d2c11",
+  "awardedTo": null,
+  "spec": {
+    "trigger": {
+      "kind": "event",
+      "detail": "New message posted in the support-triage Slack channel"
+    },
+    "apps": ["Slack", "Notion"],
+    "output": {
+      "kind": "action",
+      "detail": "Create a triaged task in Notion with priority and owner"
+    },
+    "rules": [
+      "Do not create duplicate tasks",
+      "Preserve the original Slack message link"
+    ],
+    "task": "Build a support triage workflow from Slack to Notion"
+  }
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique bounty identifier.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Bounty summary.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current bounty status.
+
+
+</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">
+
+Bounty expiration timestamp in ISO 8601 format.
+
+
+</ResponseField>
+
+<ResponseField name="sessionId" field-type="string" required="true">
+
+Source chat session identifier.
+
+
+</ResponseField>
+
+<ResponseField name="awardedTo" field-type="string | null" required="true">
+
+Identifier of the accepted builder, or `null` if no submission has been accepted.
+
+
+</ResponseField>
+
+<ResponseField name="spec" field-type="object" required="false">
+
+Structured bounty specification. Legacy rows may omit this field.
+
+
+</ResponseField>
+
+<ResponseField name="spec.trigger" field-type="object" required="false">
+
+Trigger definition for the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="spec.trigger.kind" field-type="string" required="false">
+
+Trigger category.
+
+
+</ResponseField>
+
+<ResponseField name="spec.trigger.detail" field-type="string" required="false">
+
+Human-readable description of the trigger.
+
+
+</ResponseField>
+
+<ResponseField name="spec.apps" field-type="string[]" required="false">
+
+Apps referenced in the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="spec.output" field-type="object" required="false">
+
+Expected workflow result.
+
+
+</ResponseField>
+
+<ResponseField name="spec.output.kind" field-type="string" required="false">
+
+Output category.
+
+
+</ResponseField>
+
+<ResponseField name="spec.output.detail" field-type="string" required="false">
+
+Human-readable description of the output.
+
+
+</ResponseField>
+
+<ResponseField name="spec.rules" field-type="string[]" required="false">
+
+Constraints or operating rules for the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="spec.task" field-type="string" required="false">
+
+Single-sentence task definition for builders.
+
+
+</ResponseField>
+
+### GET `/api/bounties/by-session/{sessionId}`
+
+Get a bounty by chat session ID.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+
+</ParamField>
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Chat session identifier.
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/bounties/by-session/ses_9f3d2c11 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "id": "bty_8k2m4p1q",
+  "title": "Build a Slack triage workflow",
+  "summary": "Route new support tickets from Slack into a review queue with labels.",
+  "status": "open",
+  "expiresAt": "2026-08-15T18:30:00.000Z",
+  "sessionId": "ses_9f3d2c11",
+  "awardedTo": null,
+  "spec": {
+    "trigger": {
+      "kind": "event",
+      "detail": "New message posted in the support-triage Slack channel"
+    },
+    "apps": ["Slack", "Notion"],
+    "output": {
+      "kind": "action",
+      "detail": "Create a triaged task in Notion with priority and owner"
+    },
+    "rules": [
+      "Do not create duplicate tasks",
+      "Preserve the original Slack message link"
+    ],
+    "task": "Build a support triage workflow from Slack to Notion"
+  }
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique bounty identifier.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Bounty summary.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current bounty status.
+
+
+</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">
+
+Bounty expiration timestamp in ISO 8601 format.
+
+
+</ResponseField>
+
+<ResponseField name="sessionId" field-type="string" required="true">
+
+Source chat session identifier.
+
+
+</ResponseField>
+
+<ResponseField name="awardedTo" field-type="string | null" required="true">
+
+Identifier of the accepted builder, or `null` if no submission has been accepted.
+
+
+</ResponseField>
+
+<ResponseField name="spec" field-type="object" required="false">
+
+Structured bounty specification. Legacy rows may omit this field.
+
+
+</ResponseField>
+
+### Error response
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/bounties/by-session/ses_missing_001 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "message": "Bounty not found"
+}
+```
+
+</CodeGroup>
+
+### GET `/api/bounties/mine/updates`
+
+Get update rollups for the caller's bounties.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/bounties/mine/updates \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+[
+  {
+    "id": "bty_8k2m4p1q",
+    "title": "Build a Slack triage workflow",
+    "status": "open",
+    "submissionsCount": 3,
+    "lastSubmissionAt": "2026-08-11T09:22:14.000Z",
+    "submissionsLastSeenAt": "2026-08-11T07:00:00.000Z"
+  },
+  {
+    "id": "bty_3n7w2h6r",
+    "title": "Automate HubSpot lead follow-up",
+    "status": "pending_payment",
+    "submissionsCount": 0,
+    "lastSubmissionAt": null,
+    "submissionsLastSeenAt": null
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique bounty identifier.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current bounty status.
+
+
+</ResponseField>
+
+<ResponseField name="submissionsCount" field-type="number" required="true">
+
+Total number of submissions for the bounty.
+
+
+</ResponseField>
+
+<ResponseField name="lastSubmissionAt" field-type="string | null" required="true">
+
+Timestamp of the most recent submission, or `null` when none exist.
+
+
+</ResponseField>
+
+<ResponseField name="submissionsLastSeenAt" field-type="string | null" required="true">
+
+Timestamp when the caller last viewed submission updates, or `null` if never viewed.
+
+
+</ResponseField>
+
+### GET `/api/bounties/{id}/submissions`
+
+List submissions for a bounty.
+
+Only the bounty creator can access this endpoint.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<Callout kind="alert">
+
+If the caller is not the bounty creator, the API returns `403`.
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET http://localhost:3001/api/bounties/bty_8k2m4p1q/submissions \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+[
+  {
+    "id": "sub_5x1q7d9m",
+    "bountyId": "bty_8k2m4p1q",
+    "builderId": "usr_bld_42mnp8",
+    "builderName": "Priya Nair",
+    "status": "submitted",
+    "submittedAt": "2026-08-11T09:22:14.000Z",
+    "builderQuestions": [
+      {
+        "question": "What fields should the Notion item include?",
+        "answer": "Priority, owner, source channel, and a short summary."
+      }
+    ]
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique submission identifier.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the bounty the submission belongs to.
+
+
+</ResponseField>
+
+<ResponseField name="builderId" field-type="string" required="true">
+
+Identifier of the builder who submitted the workflow.
+
+
+</ResponseField>
+
+<ResponseField name="builderName" field-type="string" required="true">
+
+Display name of the builder.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current submission status.
+
+
+</ResponseField>
+
+<ResponseField name="submittedAt" field-type="string" required="true">
+
+Submission timestamp in ISO 8601 format.
+
+
+</ResponseField>
+
+<ResponseField name="builderQuestions" field-type="array" required="true">
+
+Builder question-and-answer pairs attached to the submission.
+
+
+</ResponseField>
+
+### PATCH `/api/bounties/{id}/submissions/{submissionId}/status`
+
+Update a submission's status.
+
+Only the bounty creator can access this endpoint.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`PATCH`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<ParamField path="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+
+
+</ParamField>
+
+<ParamField body="status" param-type="string" required="true" enum="submitted,shortlisted,rejected">
+
+New submission status.
+
+
+
+</ParamField>
+
+<Callout kind="info">
+
+The `accepted` status is not allowed here. Use `POST /api/bounties/{id}/submissions/{submissionId}/accept` to accept a submission.
+
+
+
+</Callout>
+
+<Callout kind="alert">
+
+If the bounty is not revealed or its status is not `open`, the API returns `400`.
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X PATCH http://localhost:3001/api/bounties/bty_8k2m4p1q/submissions/sub_5x1q7d9m/status \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "shortlisted"
+  }'
+```
+
+```json
+{
+  "id": "sub_5x1q7d9m",
+  "status": "shortlisted"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique submission identifier.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Updated submission status.
+
+
+</ResponseField>
+
+### POST `/api/bounties/{id}/submissions/{submissionId}/ensure-runnable`
+
+Check whether a submission can be activated.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<ParamField path="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/bty_8k2m4p1q/submissions/sub_5x1q7d9m/ensure-runnable \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "runnable": true,
+  "reason": null
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="runnable" field-type="boolean" required="true">
+
+Whether the submitted workflow can be activated.
+
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string | null" required="true">
+
+Reason the submission is not runnable, or `null` when runnable.
+
+
+</ResponseField>
+
+### POST `/api/bounties/{id}/submissions/{submissionId}/accept`
+
+Accept a submission and activate the agent.
+
+Only the bounty creator can access this endpoint.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<ParamField path="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+
+
+</ParamField>
+
+<ParamField body="consumerCopyId" param-type="string" required="false">
+
+Consumer copy identifier. Required for subscription agents.
+
+
+
+</ParamField>
+
+<ParamField body="scheduleConfig" param-type="object" required="false">
+
+Schedule configuration for scheduled-mode agents.
+
+
+
+</ParamField>
+
+<Callout kind="info">
+
+If activation fails, the bounty is reverted to `open` and the submission is reverted to its prior status.
+
+
+
+</Callout>
+
+<Callout kind="alert">
+
+The API returns `400` if the agent cannot be made runnable or if `consumerCopyId` is missing for a subscription agent.
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/bty_8k2m4p1q/submissions/sub_5x1q7d9m/accept \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "consumerCopyId": "ccp_12fa8d7q",
+    "scheduleConfig": {
+      "mode": "cron",
+      "expression": "0 */2 * * *"
+    }
+  }'
+```
+
+```json
+{
+  "activated": true,
+  "agentId": "agt_7p4n2v8x"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="activated" field-type="boolean" required="true">
+
+Whether the selected submission was activated successfully.
+
+
+</ResponseField>
+
+<ResponseField name="agentId" field-type="string" required="true">
+
+Identifier of the activated agent.
+
+
+</ResponseField>
+
+### POST `/api/bounties/{id}/pay/order`
+
+Create a Razorpay order for bounty payment.
+
+Only the bounty creator can access this endpoint.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<Callout kind="alert">
+
+The API returns `400` if Razorpay is not configured, the bounty status is not `pending_payment`, or the amount is `0`. It returns `403` if the caller is not the bounty creator.
+
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/bty_8k2m4p1q/pay/order \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "orderId": "order_Q7mP2a8Dz9sLx1",
+  "amount": 2500,
+  "currency": "INR"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="orderId" field-type="string" required="true">
+
+Razorpay order identifier.
+
+
+</ResponseField>
+
+<ResponseField name="amount" field-type="number" required="true">
+
+Order amount to be charged.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Order currency code.
+
+
+</ResponseField>
+
+### POST `/api/bounties/{id}/pay/verify`
+
+Verify a Razorpay payment for a bounty.
+
+Only the bounty creator can access this endpoint.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+
+
+</ParamField>
+
+<ParamField body="razorpayOrderId" param-type="string" required="true">
+
+Razorpay order identifier.
+
+
+
+</ParamField>
+
+<ParamField body="razorpayPaymentId" param-type="string" required="true">
+
+Razorpay payment identifier.
+
+
+
+</ParamField>
+
+<ParamField body="razorpaySignature" param-type="string" required="true">
+
+Razorpay signature returned by the checkout flow.
+
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/bty_8k2m4p1q/pay/verify \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "razorpayOrderId": "order_Q7mP2a8Dz9sLx1",
+    "razorpayPaymentId": "pay_Q7mR4j1Kc8Ytq2",
+    "razorpaySignature": "4f8b2f2e061e08ec3a8f7d4bc6ac9e10e6eab1f52c7d3494d91dd12fd6b09a3a"
+  }'
+```
+
+```json
+{
+  "verified": true,
+  "bountyId": "bty_8k2m4p1q"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="verified" field-type="boolean" required="true">
+
+Whether the Razorpay payment was verified successfully.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the funded bounty.
+
+
+</ResponseField>

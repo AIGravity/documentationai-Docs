@@ -1,0 +1,963 @@
+---
+title: Agents API
+description: Manage agents, submit verification streams, review submissions, and administer running automations through the AIGravity API.
+---
+
+## Overview
+
+Manage your own agents, submit them for verification, track review status, and administer running automations from the same API surface. All endpoints on this page require a Bearer JWT, and admin endpoints require a token with admin access.
+
+<Callout kind="info">
+
+Add your JWT in the `Authorization` header as `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example`.
+
+
+</Callout>
+
+## Agent ownership endpoints
+
+### GET `/api/agents/mine/{id}`
+
+Fetch one of your own agents by ID. If the agent does not exist or belongs to a different builder, the API returns the same `404` response to prevent ID probing.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/mine/{id}`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent identifier.
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for the authenticated builder.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/mine/agt_7f3c2a91 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "id": "agt_7f3c2a91",
+  "name": "Lead Qualifier",
+  "description": "Qualifies inbound sales leads and routes high-intent prospects.",
+  "status": "draft",
+  "workflowJson": {
+    "nodes": [
+      {
+        "id": "trigger_1",
+        "type": "webhook"
+      },
+      {
+        "id": "score_1",
+        "type": "llm_classifier"
+      }
+    ],
+    "edges": [
+      {
+        "from": "trigger_1",
+        "to": "score_1"
+      }
+    ]
+  },
+  "createdAt": "2026-02-18T10:14:22.000Z",
+  "updatedAt": "2026-02-21T08:31:05.000Z"
+}
+```
+
+</CodeGroup>
+
+### Error response
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/mine/agt_missing_91 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "message": "Agent not found"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique agent identifier.
+
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Agent name.
+
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Agent description shown to builders and reviewers.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current agent status.
+
+
+</ResponseField>
+
+<ResponseField name="workflowJson" field-type="object" required="true">
+
+Serialized workflow definition for the agent.
+
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the agent was created.
+
+
+</ResponseField>
+
+<ResponseField name="updatedAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the agent was last updated.
+
+
+</ResponseField>
+
+### DELETE `/api/agents/mine/{id}`
+
+Delete one of your own agents by ID. If the agent does not exist or belongs to a different builder, the API returns the same `404` response used by the read endpoint.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`DELETE`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/mine/{id}`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent identifier.
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for the authenticated builder.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X DELETE \
+  http://localhost:3001/api/agents/mine/agt_7f3c2a91 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "deleted": true
+}
+```
+
+</CodeGroup>
+
+### Error response
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X DELETE \
+  http://localhost:3001/api/agents/mine/agt_missing_91 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "message": "Agent not found"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="deleted" field-type="boolean" required="true">
+
+Returns `true` when the agent was deleted.
+
+
+</ResponseField>
+
+## Verification endpoint
+
+### POST `/api/agents/verify-stream`
+
+Submit an agent for verification and receive progress updates over server-sent events. Use this endpoint when you need automated checks to run immediately and want a streaming status channel for the verification lifecycle.
+
+<Callout kind="info">
+
+Duplicate submissions no longer return `409 Conflict`. The API now enriches the existing row instead, and stale auto-rejected rows with the same content hash are deleted before the verification run starts.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/verify-stream`
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for the authenticated user.
+
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="false" enum="publish,bounty,requested">
+
+Lifecycle row to update.
+
+
+</ParamField>
+
+<ParamField body="sourceId" param-type="string" required="false">
+
+Identifier for the source row referenced by `source`.
+
+
+</ParamField>
+
+<ParamField body="platforms" param-type="string[]" required="false">
+
+Curated platform tags associated with the agent.
+
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="false">
+
+Curated category tags associated with the agent.
+
+
+</ParamField>
+
+<ParamField body="workflowSteps" param-type="string[]" required="false">
+
+Workflow step names used during review and classification.
+
+
+</ParamField>
+
+<ParamField body="useCases" param-type="string[]" required="false">
+
+Use case descriptions for the agent.
+
+
+</ParamField>
+
+<ParamField body="builderQuestions" param-type="array" required="false">
+
+Builder question and answer pairs captured for review.
+
+
+</ParamField>
+
+<ParamField body="testContext" param-type="object" required="false">
+
+Server-side end-to-end test context, including `draftFlowId`, `answers`, `consumerInputs`, and `contentHash`.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -N -X POST \
+  http://localhost:3001/api/agents/verify-stream \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "source": "publish",
+    "sourceId": "pubreq_28c91d4f",
+    "platforms": ["slack", "hubspot"],
+    "categories": ["sales", "automation"],
+    "workflowSteps": ["capture lead", "score lead", "route contact"],
+    "useCases": ["Qualify inbound leads", "Assign owners in CRM"],
+    "builderQuestions": [
+      {
+        "question": "What input does the agent require?",
+        "answer": "Lead form payload and CRM credentials."
+      }
+    ],
+    "testContext": {
+      "draftFlowId": "dflow_9de45c2a",
+      "answers": {
+        "crmConnected": true
+      },
+      "consumerInputs": {
+        "company": "Northstar Health",
+        "email": "maya.rao@northstarhealth.com"
+      },
+      "contentHash": "sha256:61e2d9b6b6c3f8dd95f6f3c17a13a440f8a4f5b5fd5f4ae6c4b79d3a9ad30211"
+    }
+  }'
+```
+
+```json
+{
+  "event": "message",
+  "data": "SSE stream opened. Expect text/event-stream frames such as status updates, progress events, and final review state."
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="event stream" field-type="text/event-stream" required="true">
+
+Streaming response channel for verification progress and final result events.
+
+
+</ResponseField>
+
+## Review submission endpoints
+
+### GET `/api/agents/mine/reviews`
+
+List your agent review submissions. Use this endpoint to populate dashboard state, poll review progress, or resume a submission flow after `verify-stream` starts.
+
+<Callout kind="info">
+
+The review lifecycle now includes `checking` while `verify-stream` is in flight. The full status enum is `checking`, `pending`, `approved`, and `rejected`.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/mine/reviews`
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for the authenticated builder.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/mine/reviews \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+[
+  {
+    "id": "rev_82c4dd19",
+    "status": "checking",
+    "publishedWorkflowId": null,
+    "updatedAt": "2026-02-21T09:02:31.000Z",
+    "resumeState": {
+      "step": "automated_checks",
+      "progress": 62
+    },
+    "checksDecision": null,
+    "contentHash": "sha256:61e2d9b6b6c3f8dd95f6f3c17a13a440f8a4f5b5fd5f4ae6c4b79d3a9ad30211",
+    "createdAt": "2026-02-21T08:55:04.000Z"
+  },
+  {
+    "id": "rev_16f8a5c2",
+    "status": "approved",
+    "publishedWorkflowId": "pwf_c92d75af",
+    "updatedAt": "2026-02-20T14:10:19.000Z",
+    "resumeState": null,
+    "checksDecision": {
+      "score": 0.97,
+      "summary": "Passed automated checks"
+    },
+    "contentHash": "sha256:8e936dbac0e88f8f7db930ce58f96b89cc7b4326c91e4a5938d2852fcb7ed4a1",
+    "createdAt": "2026-02-20T13:31:48.000Z"
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique review submission identifier.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Review status. Possible values are `checking`, `pending`, `approved`, and `rejected`.
+
+
+</ResponseField>
+
+<ResponseField name="publishedWorkflowId" field-type="string | null" required="true">
+
+Published workflow identifier when the submission has been approved, otherwise `null`.
+
+
+</ResponseField>
+
+<ResponseField name="updatedAt" field-type="string | null" required="true">
+
+ISO 8601 timestamp of the last submission update, or `null` if no update has been recorded.
+
+
+</ResponseField>
+
+<ResponseField name="resumeState" field-type="object | null" required="true">
+
+State object used to resume or render the current verification lifecycle.
+
+
+</ResponseField>
+
+<ResponseField name="checksDecision" field-type="object | null" required="true">
+
+Automated checks decision payload when available.
+
+
+</ResponseField>
+
+<ResponseField name="contentHash" field-type="string" required="true">
+
+Stable content hash used to correlate equivalent submissions.
+
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp when the submission was created.
+
+
+</ResponseField>
+
+## Admin running automation endpoints
+
+### GET `/api/agents/admin/running-automations`
+
+List running automation rollups grouped by published agent. This endpoint returns one row per published workflow rather than one row per deployment record.
+
+<Callout kind="info">
+
+The response now returns per-agent rollups from published workflows, not per-deployment `user_automations` rows. The `id` field is a `published_workflows` ID, and `agentId` plus `totalRuns` were removed from list items.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/admin/running-automations`
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for an admin user.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/admin/running-automations \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+[
+  {
+    "id": "pwf_c92d75af",
+    "name": "Lead Qualifier",
+    "description": "Qualifies inbound sales leads and routes high-intent prospects.",
+    "steps": 3,
+    "lastRunAt": "2026-02-21T07:41:12.000Z"
+  },
+  {
+    "id": "pwf_48be29d1",
+    "name": "Support Deflection",
+    "description": "Answers routine support questions before escalation.",
+    "steps": 5,
+    "lastRunAt": "2026-02-21T06:12:44.000Z"
+  }
+]
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Published workflow identifier.
+
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Published agent name.
+
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Published agent description.
+
+
+</ResponseField>
+
+<ResponseField name="steps" field-type="number" required="true">
+
+Number of steps in the published automation.
+
+
+</ResponseField>
+
+<ResponseField name="lastRunAt" field-type="string | null" required="true">
+
+ISO 8601 timestamp of the most recent run, or `null` if the automation has not run yet.
+
+
+</ResponseField>
+
+### GET `/api/agents/admin/running-automations/{id}`
+
+Fetch detail for one running automation rollup. The `id` path parameter is a `published_workflows` identifier.
+
+<Callout kind="info">
+
+The `reviewNote` payload was redesigned. `nextRunAt` was removed, and `activeUsers` plus `pausedUsers` were added.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/admin/running-automations/{id}`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Published workflow identifier.
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for an admin user.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/admin/running-automations/pwf_c92d75af \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "id": "pwf_c92d75af",
+  "name": "Lead Qualifier",
+  "description": "Qualifies inbound sales leads and routes high-intent prospects.",
+  "steps": 3,
+  "lastRunAt": "2026-02-21T07:41:12.000Z",
+  "totalRuns": 1248,
+  "reviewNote": {
+    "kind": "automation_stats",
+    "totalRuns": 1248,
+    "creditsUsed": 963.5,
+    "lastRunAt": "2026-02-21T07:41:12.000Z",
+    "activeUsers": 41,
+    "pausedUsers": 6
+  }
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Published workflow identifier.
+
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Published agent name.
+
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Published agent description.
+
+
+</ResponseField>
+
+<ResponseField name="steps" field-type="number" required="true">
+
+Number of steps in the published automation.
+
+
+</ResponseField>
+
+<ResponseField name="lastRunAt" field-type="string | null" required="true">
+
+ISO 8601 timestamp of the most recent run, or `null` if the automation has not run yet.
+
+
+</ResponseField>
+
+<ResponseField name="totalRuns" field-type="number" required="true">
+
+Total completed runs across the published automation.
+
+
+</ResponseField>
+
+<ResponseField name="reviewNote" field-type="object" required="true">
+
+Rollup payload containing automation usage statistics.
+
+
+</ResponseField>
+
+## Admin review endpoints
+
+### GET `/api/agents/admin/pending/{id}`
+
+Fetch review detail for a pending submission. If automated checks are still running and the submission status is `checking`, the API returns `400` instead of pending review data.
+
+<Callout kind="info">
+
+`totalEarnings` is now denominated in USD and displayed as a dollar amount. Earlier responses used INR.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/admin/pending/{id}`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Review submission identifier.
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for an admin user.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/admin/pending/rev_82c4dd19 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "id": "rev_82c4dd19",
+  "status": "pending",
+  "publishedWorkflowId": null,
+  "resumeState": {
+    "step": "manual_review_queue",
+    "progress": 100
+  },
+  "checks": {
+    "score": 0.94,
+    "summary": "Automated checks completed"
+  },
+  "totalEarnings": "$184.25"
+}
+```
+
+</CodeGroup>
+
+### Error response
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X GET \
+  http://localhost:3001/api/agents/admin/pending/rev_82c4dd19 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "message": "Submission has not finished automated checks yet."
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Review submission identifier.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current review status.
+
+
+</ResponseField>
+
+<ResponseField name="publishedWorkflowId" field-type="string | null" required="true">
+
+Published workflow identifier if the review has already produced one, otherwise `null`.
+
+
+</ResponseField>
+
+<ResponseField name="resumeState" field-type="object | null" required="true">
+
+State object representing where the submission is in the review lifecycle.
+
+
+</ResponseField>
+
+<ResponseField name="checks" field-type="object | null" required="true">
+
+Automated checks payload for the submission.
+
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="string" required="true">
+
+Total earnings represented as a USD display string.
+
+
+</ResponseField>
+
+### POST `/api/agents/approve/{id}`
+
+Approve a pending agent review and create or associate the published workflow. If automated checks are still running and the submission status is `checking`, the API returns `400`.
+
+<Callout kind="info">
+
+Earlier `409` handling deleted the review row, which caused the builder dashboard card to disappear. The API now flips the status to `approved` and sets `published_workflow_id`, so the card persists and turns green.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/approve/{id}`
+
+
+</ParamField>
+
+<ParamField path="id" param-type="string" required="true">
+
+Review submission identifier.
+
+
+</ParamField>
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for an admin user.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST \
+  http://localhost:3001/api/agents/approve/rev_82c4dd19 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "approved": true,
+  "publishedWorkflowId": "pwf_c92d75af"
+}
+```
+
+</CodeGroup>
+
+### Error response
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST \
+  http://localhost:3001/api/agents/approve/rev_82c4dd19 \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```json
+{
+  "message": "Submission has not finished automated checks yet."
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="approved" field-type="boolean" required="true">
+
+Returns `true` when the submission was approved.
+
+
+</ResponseField>
+
+<ResponseField name="publishedWorkflowId" field-type="string" required="true">
+
+Published workflow identifier assigned during approval.
+
+
+</ResponseField>

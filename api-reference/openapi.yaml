@@ -1,13 +1,24 @@
-openapi: '3.0.0'
+openapi: '3.0.3'
 info:
   version: 1.0.0
   title: AIGravity Core API Service
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    This specification documents the full API surface for the AIGravity/core monorepo, including the NestJS application API and the internal AI service API.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    Getting started:
+    1. Use the NestJS API server at `http://localhost:3000` for product-facing operations such as agents, bounties, automations, apps, marketplace runs, and the public leaderboard.
+    2. Use the AI service server at `http://localhost:8000` for internal AI service operations described in this document.
+    3. Authenticate protected NestJS endpoints with a Bearer JWT in the `Authorization` header: `Authorization: Bearer <token>`.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    Authentication:
+    - Most NestJS endpoints require Bearer authentication.
+    - Public endpoints are `GET /health` and `GET /api/leaderboard/builders`.
+    - The internal AI service deletion endpoint `DELETE /internal/agents/{agent_id}` is documented as unauthenticated.
+
+    Usage notes:
+    - The `/api/agents/verify-stream` endpoint returns Server-Sent Events with media type `text/event-stream`.
+    - Bounty payment flows use Razorpay order creation and payment verification.
+    - Marketplace execution and result settlement support agent execution and run reconciliation workflows.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -18,21 +29,37 @@ info:
 servers:
   - url: http://localhost:3000
     description: API service local development server
+  - url: http://localhost:8000
+    description: AI service local development server
 tags:
   - name: Health
-    description: Service health and readiness operations for the API service
+    description: Service health and readiness
+  - name: Agents
+    description: Agent management, review lifecycle, and verification
+  - name: Bounties
+    description: Bounty creation, preview, submissions, and payments
+  - name: Automations
+    description: Automation listing, detail, and tool management
+  - name: Apps
+    description: App connections management
+  - name: Marketplace
+    description: Marketplace execution and run results
+  - name: Leaderboard
+    description: Public builder leaderboard
+  - name: AI Service Internal
+    description: Internal AI service operations
 paths:
   /health:
     get:
       tags:
         - Health
-      summary: Get API service health
-      description: Returns a simple health response for the AIGravity/core API service.
+      summary: Get service health
+      description: Returns a simple health response for the service exposed on the selected server.
       operationId: getHealth
       security: []
       responses:
         '200':
-          description: API service is reachable and healthy
+          description: Service is reachable and healthy
           content:
             application/json:
               schema:
@@ -41,18 +68,1510 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/agents/mine/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get one of the caller's agents
+      description: Returns a single agent owned by the authenticated caller. Returns 404 if the agent does not exist or belongs to another builder.
+      operationId: getMyAgentById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Agent'
+              example:
+                id: agt_123
+                name: Lead Enrichment Agent
+                description: Enriches new inbound leads and updates CRM records.
+                status: active
+                workflowJson:
+                  version: 1
+                  steps: []
+                createdAt: '2026-01-10T10:00:00Z'
+                updatedAt: '2026-01-15T12:30:00Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Agent not found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Agents
+      summary: Delete one of the caller's agents
+      description: Deletes a single agent owned by the authenticated caller. Returns 404 if the agent does not exist or belongs to another builder.
+      operationId: deleteMyAgentById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AgentId'
+      responses:
+        '200':
+          description: Agent deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - deleted
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+              example:
+                deleted: true
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Agent not found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/verify-stream:
+    post:
+      tags:
+        - Agents
+      summary: Submit agent for verification with streaming
+      description: Submits an agent verification request and returns a Server-Sent Events stream containing verification progress. Existing rows may be enriched instead of creating duplicates, and stale auto-rejected rows for the same content hash are deleted before re-run.
+      operationId: verifyAgentStream
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAgentDto'
+            example:
+              source: publish
+              sourceId: wf_123
+              platforms:
+                - slack
+                - google-sheets
+              categories:
+                - productivity
+              workflowSteps:
+                - Trigger
+                - Transform
+                - Publish Gate
+              useCases:
+                - Lead routing
+              builderQuestions:
+                - question: What inputs are required?
+                  answer: A webhook payload with email and company fields.
+              testContext:
+                draftFlowId: draft_123
+                answers:
+                  trigger: Webhook
+                  output: Update CRM
+                consumerInputs:
+                  - name: apiKey
+                    type: secret
+                contentHash: sha256:abc123
+      responses:
+        '200':
+          description: Verification stream opened
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                example: "event: progress\ndata: {\"status\":\"checking\"}\n\n"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/mine/reviews:
+    get:
+      tags:
+        - Agents
+      summary: List the caller's agent review submissions
+      description: Returns all review submissions created by the authenticated caller.
+      operationId: listMyAgentReviews
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Review submissions returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewSubmissionRow'
+              example:
+                - id: rev_123
+                  status: pending
+                  publishedWorkflowId: null
+                  updatedAt: '2026-01-15T12:30:00Z'
+                  resumeState: null
+                  checksDecision: null
+                  contentHash: sha256:abc123
+                  createdAt: '2026-01-15T12:00:00Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/admin/running-automations:
+    get:
+      tags:
+        - Agents
+      summary: List running automation rollups
+      description: Returns admin-visible rollups of running automations per published agent.
+      operationId: listAdminRunningAutomations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Running automation rollups returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RunningAutomationRollup'
+              example:
+                - id: pub_123
+                  name: Invoice Reminder Agent
+                  description: Sends reminder emails for unpaid invoices.
+                  steps:
+                    - type: trigger
+                      name: Schedule
+                    - type: action
+                      name: Send Email
+                  lastRunAt: '2026-01-20T08:00:00Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/admin/running-automations/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get one running automation rollup
+      description: Returns admin-visible detail for a single running automation rollup identified by published workflow ID.
+      operationId: getAdminRunningAutomationById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PublishedWorkflowId'
+      responses:
+        '200':
+          description: Running automation rollup detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunningAutomationRollupDetail'
+              example:
+                id: pub_123
+                name: Invoice Reminder Agent
+                description: Sends reminder emails for unpaid invoices.
+                steps:
+                  - type: trigger
+                    name: Schedule
+                  - type: action
+                    name: Send Email
+                lastRunAt: '2026-01-20T08:00:00Z'
+                totalRuns: 42
+                reviewNote:
+                  kind: automation_stats
+                  totalRuns: 42
+                  creditsUsed: 19.5
+                  lastRunAt: '2026-01-20T08:00:00Z'
+                  activeUsers: 12
+                  pausedUsers: 3
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/admin/pending/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get pending review detail
+      description: Returns admin detail for a pending review submission. If the submission is still in automated checking, the endpoint returns 400.
+      operationId: getAdminPendingAgentReviewById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewSubmissionId'
+      responses:
+        '200':
+          description: Pending review detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PendingReviewDetail'
+              example:
+                id: rev_123
+                status: pending
+                publishedWorkflowId: null
+                resumeState: null
+                checks:
+                  score: 91
+                totalEarnings: 123.45
+        '400':
+          description: Submission has not finished automated checks yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Submission has not finished automated checks yet.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/approve/{id}:
+    post:
+      tags:
+        - Agents
+      summary: Approve a pending agent review
+      description: Approves a pending agent review, flips status to approved, and sets the published workflow ID so the builder dashboard card persists. If the submission is still in automated checking, the endpoint returns 400.
+      operationId: approveAgentReviewById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ReviewSubmissionId'
+      responses:
+        '200':
+          description: Review approved
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - approved
+                  - publishedWorkflowId
+                properties:
+                  approved:
+                    type: boolean
+                    example: true
+                  publishedWorkflowId:
+                    type: string
+                    description: ID of the published workflow created or associated during approval.
+                    example: pub_123
+              example:
+                approved: true
+                publishedWorkflowId: pub_123
+        '400':
+          description: Submission has not finished automated checks yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Submission has not finished automated checks yet.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties:
+    post:
+      tags:
+        - Bounties
+      summary: Create a bounty
+      description: Creates a bounty for the authenticated caller. The operation is idempotent per chat session and returns an existing bounty if one already exists with status `open` or `pending_payment`.
+      operationId: createBounty
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBountyDto'
+            example:
+              sessionId: sess_123
+              title: Build a Slack lead notifier
+              summary: Create an automation that posts new leads to Slack.
+              answers:
+                trigger: New form submission
+                apps:
+                  - slack
+                  - hubspot
+                output: Post lead details to a Slack channel
+              amount: 250
+              currency: USD
+      responses:
+        '201':
+          description: Bounty created or existing bounty returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBountyResponse'
+              example:
+                id: bty_123
+                title: Build a Slack lead notifier
+                summary: Create an automation that posts new leads to Slack.
+                expiresAt: '2026-02-01T00:00:00Z'
+                paymentRequired: true
+                amount: 250
+                currency: USD
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/preview:
+    post:
+      tags:
+        - Bounties
+      summary: Preview a bounty
+      description: Generates a bounty preview from chat answers, including validity, buildability, and a normalized bounty specification.
+      operationId: previewBounty
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewBountyDto'
+            example:
+              sessionId: sess_123
+              answers:
+                trigger: New Typeform response
+                apps:
+                  - slack
+                  - notion
+                output: Save the response to Notion and alert Slack
+      responses:
+        '200':
+          description: Bounty preview generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BountyPreviewResponse'
+              example:
+                summary: Save Typeform responses to Notion and notify Slack.
+                title: Typeform to Notion with Slack alert
+                valid: true
+                issues: []
+                platforms:
+                  - slack
+                  - notion
+                tools:
+                  - typeform
+                  - notion
+                  - slack
+                useCases:
+                  - lead capture
+                spec:
+                  trigger:
+                    kind: app_event
+                    detail: New Typeform response
+                  apps:
+                    - slack
+                    - notion
+                  output:
+                    kind: app_action
+                    detail: Save to Notion and send Slack notification
+                  rules:
+                    - Include respondent name and email
+                  task: Build an automation from Typeform to Notion with Slack notifications.
+                buildable: true
+                buildableReason: Supported apps and flow pattern detected.
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/draft-brief:
+    post:
+      tags:
+        - Bounties
+      summary: Generate a draft bounty brief
+      description: Generates a draft bounty brief and a suggested title from an existing chat session.
+      operationId: generateBountyDraftBrief
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+              properties:
+                sessionId:
+                  type: string
+                  description: Chat session ID used to derive the draft brief.
+                  example: sess_123
+            example:
+              sessionId: sess_123
+      responses:
+        '200':
+          description: Draft brief generated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - brief
+                  - suggestedTitle
+                properties:
+                  brief:
+                    type: string
+                    description: Draft bounty brief text.
+                    example: Build an automation that captures inbound leads, enriches them, and sends them to Slack and the CRM.
+                  suggestedTitle:
+                    type: string
+                    description: Suggested title for the bounty.
+                    example: Lead capture and routing automation
+              example:
+                brief: Build an automation that captures inbound leads, enriches them, and sends them to Slack and the CRM.
+                suggestedTitle: Lead capture and routing automation
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{bountyId}/submit:
+    post:
+      tags:
+        - Bounties
+      summary: Submit a bounty solution
+      description: Submits a workflow solution for a bounty. The workflow JSON must include a Publish Gate step or the request fails with 400.
+      operationId: submitBountySolution
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBountySubmissionDto'
+            example:
+              workflowJson:
+                version: 1
+                steps:
+                  - name: Trigger
+                    type: webhook
+                  - name: Publish Gate
+                    type: publish_gate
+              builderQuestions:
+                - question: Any required credentials?
+                  answer: Slack bot token and CRM API key.
+      responses:
+        '201':
+          description: Bounty submission created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - bountyId
+                  - status
+                properties:
+                  id:
+                    type: string
+                    example: sub_123
+                  bountyId:
+                    type: string
+                    example: bty_123
+                  status:
+                    type: string
+                    example: submitted
+              example:
+                id: sub_123
+                bountyId: bty_123
+                status: submitted
+        '400':
+          description: Missing Publish Gate step in workflow JSON
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Workflow must include a Publish Gate step.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}:
+    get:
+      tags:
+        - Bounties
+      summary: Get bounty details
+      description: Returns details for a single bounty visible to the authenticated caller.
+      operationId: getBountyById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+      responses:
+        '200':
+          description: Bounty returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bounty'
+              example:
+                id: bty_123
+                title: Build a Slack lead notifier
+                summary: Create an automation that posts new leads to Slack.
+                status: open
+                expiresAt: '2026-02-01T00:00:00Z'
+                sessionId: sess_123
+                awardedTo: null
+                spec:
+                  trigger:
+                    kind: app_event
+                    detail: New form submission
+                  apps:
+                    - slack
+                    - hubspot
+                  output:
+                    kind: app_action
+                    detail: Post lead details to a Slack channel
+                  rules:
+                    - Include lead source
+                  task: Build a lead notification automation.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/by-session/{sessionId}:
+    get:
+      tags:
+        - Bounties
+      summary: Get bounty by session ID
+      description: Returns a bounty associated with the specified chat session ID.
+      operationId: getBountyBySessionId
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Bounty returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bounty'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          description: Bounty not found for session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Bounty not found
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/mine/updates:
+    get:
+      tags:
+        - Bounties
+      summary: Get bounty updates for the caller
+      description: Returns update rollups for bounties owned by the authenticated caller.
+      operationId: listMyBountyUpdates
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bounty updates returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BountyUpdate'
+              example:
+                - id: bty_123
+                  title: Build a Slack lead notifier
+                  status: open
+                  submissionsCount: 3
+                  lastSubmissionAt: '2026-01-20T10:00:00Z'
+                  submissionsLastSeenAt: '2026-01-20T11:00:00Z'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/submissions:
+    get:
+      tags:
+        - Bounties
+      summary: List submissions for a bounty
+      description: Returns all submissions for a bounty. Only the bounty creator may access this endpoint.
+      operationId: listBountySubmissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+      responses:
+        '200':
+          description: Bounty submissions returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BountySubmission'
+              example:
+                - id: sub_123
+                  bountyId: bty_123
+                  builderId: bld_123
+                  builderName: Alex Builder
+                  status: submitted
+                  submittedAt: '2026-01-20T10:00:00Z'
+                  builderQuestions:
+                    - question: Are paid APIs allowed?
+                      answer: Yes, if clearly documented.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/submissions/{submissionId}/status:
+    patch:
+      tags:
+        - Bounties
+      summary: Update a bounty submission status
+      description: Updates the status of a bounty submission. Only the bounty creator may access this endpoint. The `accepted` status is not allowed here and must use the accept endpoint.
+      operationId: updateBountySubmissionStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+        - $ref: '#/components/parameters/SubmissionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubmissionStatusDto'
+            example:
+              status: shortlisted
+      responses:
+        '200':
+          description: Submission status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - id
+                  - status
+                properties:
+                  id:
+                    type: string
+                    example: sub_123
+                  status:
+                    type: string
+                    example: shortlisted
+              example:
+                id: sub_123
+                status: shortlisted
+        '400':
+          description: Bounty not revealed or not open
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Bounty must be revealed and open before updating submission status.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Caller is not the bounty creator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Forbidden
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/submissions/{submissionId}/ensure-runnable:
+    post:
+      tags:
+        - Bounties
+      summary: Check whether a submission is runnable
+      description: Checks whether a bounty submission can be activated.
+      operationId: ensureBountySubmissionRunnable
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+        - $ref: '#/components/parameters/SubmissionId'
+      responses:
+        '200':
+          description: Runnable check completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - runnable
+                  - reason
+                properties:
+                  runnable:
+                    type: boolean
+                    example: true
+                  reason:
+                    type: string
+                    nullable: true
+                    example: null
+              example:
+                runnable: true
+                reason: null
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/submissions/{submissionId}/accept:
+    post:
+      tags:
+        - Bounties
+      summary: Accept a bounty submission
+      description: Accepts a bounty submission and activates the agent. On failure, the bounty is reverted to `open` and the submission is reverted to its prior status.
+      operationId: acceptBountySubmission
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+        - $ref: '#/components/parameters/SubmissionId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptSubmissionDto'
+            example:
+              consumerCopyId: copy_123
+              scheduleConfig:
+                cron: 0 9 * * *
+                timezone: UTC
+      responses:
+        '200':
+          description: Submission accepted and agent activated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - activated
+                  - agentId
+                properties:
+                  activated:
+                    type: boolean
+                    example: true
+                  agentId:
+                    type: string
+                    example: agt_activated_123
+              example:
+                activated: true
+                agentId: agt_activated_123
+        '400':
+          description: Agent cannot be made runnable or required activation input is missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: consumerCopyId is required for subscription agents.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/pay/order:
+    post:
+      tags:
+        - Bounties
+      summary: Create a Razorpay order for bounty payment
+      description: Creates a Razorpay order for a bounty payment. Only the bounty creator may access this endpoint.
+      operationId: createBountyPaymentOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+      responses:
+        '200':
+          description: Razorpay order created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - orderId
+                  - amount
+                  - currency
+                properties:
+                  orderId:
+                    type: string
+                    example: order_RZP_123
+                  amount:
+                    type: number
+                    format: double
+                    example: 250
+                  currency:
+                    type: string
+                    example: USD
+              example:
+                orderId: order_RZP_123
+                amount: 250
+                currency: USD
+        '400':
+          description: Razorpay not configured, bounty not pending payment, or amount is zero
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Bounty must be pending payment and have a non-zero amount.
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Caller is not the bounty creator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Forbidden
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/pay/verify:
+    post:
+      tags:
+        - Bounties
+      summary: Verify a Razorpay payment
+      description: Verifies a Razorpay payment for a bounty. Only the bounty creator may access this endpoint.
+      operationId: verifyBountyPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/BountyIdAsId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyBountyOrderDto'
+            example:
+              razorpayOrderId: order_RZP_123
+              razorpayPaymentId: pay_RZP_123
+              razorpaySignature: sig_abc123
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - verified
+                  - bountyId
+                properties:
+                  verified:
+                    type: boolean
+                    example: true
+                  bountyId:
+                    type: string
+                    example: bty_123
+              example:
+                verified: true
+                bountyId: bty_123
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/automations:
+    get:
+      tags:
+        - Automations
+      summary: List the caller's automations
+      description: Returns automation views for the authenticated caller. `totalRuns` counts only succeeded runs.
+      operationId: listAutomations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Automations returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AutomationView'
+              example:
+                - id: auto_123
+                  name: CRM Sync
+                  description: Syncs new leads into the CRM.
+                  steps:
+                    - type: trigger
+                      name: Webhook
+                    - type: action
+                      name: Create Contact
+                  lastRunAt: '2026-01-20T09:00:00Z'
+                  totalRuns: 17
+                  publishedWorkflowId: pub_123
+                  originSessionId: sess_123
+                  connectedTools:
+                    - pieceName: '@activepieces/piece-hubspot'
+                      status: connected
+                      externalId: conn_123
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/automations/{id}:
+    get:
+      tags:
+        - Automations
+      summary: Get automation detail
+      description: Returns automation detail with live tool health checks against Activepieces for the authenticated user.
+      operationId: getAutomationById
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AutomationId'
+      responses:
+        '200':
+          description: Automation returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationView'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/automations/{id}/tools/reconnect:
+    post:
+      tags:
+        - Automations
+      summary: Reconnect a tool for an automation
+      description: Reconnects a tool used by an automation.
+      operationId: reconnectAutomationTool
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AutomationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+              properties:
+                pieceName:
+                  type: string
+                  description: Activepieces piece name to reconnect.
+                  example: '@activepieces/piece-google-sheets'
+            example:
+              pieceName: '@activepieces/piece-google-sheets'
+      responses:
+        '200':
+          description: Tool reconnected
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - reconnected
+                  - pieceName
+                properties:
+                  reconnected:
+                    type: boolean
+                    example: true
+                  pieceName:
+                    type: string
+                    example: '@activepieces/piece-google-sheets'
+              example:
+                reconnected: true
+                pieceName: '@activepieces/piece-google-sheets'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/apps/connections:
+    delete:
+      tags:
+        - Apps
+      summary: Delete an app connection
+      description: Deletes an app connection for the authenticated caller and returns agents that were auto-paused because they depended on the deleted connection.
+      operationId: deleteAppConnection
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+                - externalId
+              properties:
+                pieceName:
+                  type: string
+                  description: Activepieces piece name for the connection.
+                  example: '@activepieces/piece-slack'
+                externalId:
+                  type: string
+                  description: External connection identifier.
+                  example: conn_123
+            example:
+              pieceName: '@activepieces/piece-slack'
+              externalId: conn_123
+      responses:
+        '200':
+          description: Connection deleted and dependent agents paused if necessary
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - pausedAgents
+                properties:
+                  pausedAgents:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - name
+                      properties:
+                        id:
+                          type: string
+                          example: agt_123
+                        name:
+                          type: string
+                          example: Slack Follow-up Agent
+                example:
+                  pausedAgents:
+                    - id: agt_123
+                      name: Slack Follow-up Agent
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/run-result:
+    post:
+      tags:
+        - Marketplace
+      summary: Retrieve or settle a marketplace run result
+      description: Retrieves a marketplace run result and optionally settles it. `gravityRunId` is optional; when absent, settlement is skipped. `startedAfter` is an ISO 8601 recency fallback guard for reattach.
+      operationId: getMarketplaceRunResult
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gravityRunId:
+                  type: string
+                  description: Internal gravity run ID. Optional; settlement is skipped when absent.
+                  example: grun_123
+                apRunId:
+                  type: string
+                  description: Activepieces run ID.
+                  example: ap_run_123
+                startedAfter:
+                  type: string
+                  format: date-time
+                  description: ISO 8601 datetime used as a recency fallback guard for reattach.
+                  example: '2026-01-20T09:00:00Z'
+            example:
+              gravityRunId: grun_123
+              apRunId: ap_run_123
+              startedAfter: '2026-01-20T09:00:00Z'
+      responses:
+        '200':
+          description: Marketplace run result retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                  - settled
+                properties:
+                  result:
+                    type: object
+                    additionalProperties: true
+                    description: Marketplace run result payload.
+                    example:
+                      status: succeeded
+                      output:
+                        recordsProcessed: 12
+                  settled:
+                    type: boolean
+                    example: true
+              example:
+                result:
+                  status: succeeded
+                  output:
+                    recordsProcessed: 12
+                settled: true
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/execute:
+    post:
+      tags:
+        - Marketplace
+      summary: Execute a marketplace agent
+      description: Executes a marketplace agent for the authenticated caller. The server may read the `Referer` header to determine return routing for OAuth flows.
+      operationId: executeMarketplaceAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agentId
+                - inputs
+                - consumerInputs
+              properties:
+                agentId:
+                  type: string
+                  description: Marketplace agent ID to execute.
+                  example: agt_market_123
+                inputs:
+                  type: array
+                  description: Agent execution inputs.
+                  items:
+                    type: object
+                    additionalProperties: true
+                  example:
+                    - name: company
+                      value: AIGravity
+                consumerInputs:
+                  type: array
+                  description: End-user supplied inputs.
+                  items:
+                    type: object
+                    additionalProperties: true
+                  example:
+                    - name: email
+                      value: user@example.com
+            example:
+              agentId: agt_market_123
+              inputs:
+                - name: company
+                  value: AIGravity
+              consumerInputs:
+                - name: email
+                  value: user@example.com
+      responses:
+        '200':
+          description: Marketplace agent execution started
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - runId
+                  - status
+                properties:
+                  runId:
+                    type: string
+                    example: run_123
+                  status:
+                    type: string
+                    example: started
+              example:
+                runId: run_123
+                status: started
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/leaderboard/builders:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get public builder leaderboard
+      description: Returns the public builder leaderboard. This endpoint does not require authentication.
+      operationId: listBuilderLeaderboard
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of builders to return.
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+            example: 100
+      responses:
+        '200':
+          description: Builder leaderboard returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BuilderLeaderboardRow'
+              example:
+                - builderId: bld_123
+                  builderName: Alex Builder
+                  rank: 1
+                  totalEarnings: 1245.5
+                  agentsPublished: 8
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/agents/{agent_id}:
+    delete:
+      tags:
+        - AI Service Internal
+      summary: Delete an agent from the AI service index
+      description: Deletes an agent document from the AI service Typesense search index. This is an internal endpoint and does not require authentication. On failure, the error is returned in the response payload and upstream callers may log the error without rolling back.
+      operationId: deleteInternalAgentFromIndex
+      security: []
+      parameters:
+        - name: agent_id
+          in: path
+          description: Agent identifier to delete from the AI service search index.
+          required: true
+          schema:
+            type: string
+            example: agt_123
+      responses:
+        '200':
+          description: Agent deletion attempt completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAgentResponse'
+              example:
+                deleted: true
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
+  parameters:
+    AgentId:
+      name: id
+      in: path
+      description: Agent identifier.
+      required: true
+      schema:
+        type: string
+        example: agt_123
+    PublishedWorkflowId:
+      name: id
+      in: path
+      description: Published workflow identifier.
+      required: true
+      schema:
+        type: string
+        example: pub_123
+    ReviewSubmissionId:
+      name: id
+      in: path
+      description: Review submission identifier.
+      required: true
+      schema:
+        type: string
+        example: rev_123
+    BountyId:
+      name: bountyId
+      in: path
+      description: Bounty identifier.
+      required: true
+      schema:
+        type: string
+        example: bty_123
+    BountyIdAsId:
+      name: id
+      in: path
+      description: Bounty identifier.
+      required: true
+      schema:
+        type: string
+        example: bty_123
+    SessionId:
+      name: sessionId
+      in: path
+      description: Chat session identifier.
+      required: true
+      schema:
+        type: string
+        example: sess_123
+    SubmissionId:
+      name: submissionId
+      in: path
+      description: Bounty submission identifier.
+      required: true
+      schema:
+        type: string
+        example: sub_123
+    AutomationId:
+      name: id
+      in: path
+      description: Automation identifier.
+      required: true
+      schema:
+        type: string
+        example: auto_123
   responses:
+    BadRequestError:
+      description: Invalid request or validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Bad request
+    UnauthorizedError:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
+    ForbiddenError:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Forbidden
+    NotFoundError:
+      description: Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Not found
+    ConflictError:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Conflict
+    UnprocessableEntityError:
+      description: Semantic validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unprocessable entity
     InternalServerError:
       description: Unexpected server error
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            message: Internal server error
   schemas:
     HealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
+      description: Permissive health response payload for a service.
       additionalProperties: true
       example:
         status: ok
@@ -66,3 +1585,813 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    DeleteAgentResponse:
+      type: object
+      description: Result of deleting an agent from the AI service search index.
+      required:
+        - deleted
+        - error
+      properties:
+        deleted:
+          type: boolean
+          description: Whether the delete operation succeeded.
+          example: true
+        error:
+          type: string
+          nullable: true
+          description: Error message when deletion fails.
+          example: null
+    BountySpec:
+      type: object
+      description: Normalized bounty specification derived from chat answers.
+      required:
+        - trigger
+        - apps
+        - output
+        - rules
+        - task
+      properties:
+        trigger:
+          type: object
+          required:
+            - kind
+            - detail
+          properties:
+            kind:
+              type: string
+              example: app_event
+            detail:
+              type: string
+              example: New form submission
+        apps:
+          type: array
+          items:
+            type: string
+          example:
+            - slack
+            - hubspot
+        output:
+          type: object
+          required:
+            - kind
+            - detail
+          properties:
+            kind:
+              type: string
+              example: app_action
+            detail:
+              type: string
+              example: Post lead details to a Slack channel
+        rules:
+          type: array
+          items:
+            type: string
+          example:
+            - Include lead source
+        task:
+          type: string
+          example: Build a lead notification automation.
+    AutomationView:
+      type: object
+      description: Automation view returned from the automations API.
+      required:
+        - id
+        - name
+        - description
+        - steps
+        - lastRunAt
+        - totalRuns
+        - publishedWorkflowId
+        - originSessionId
+        - connectedTools
+      properties:
+        id:
+          type: string
+          example: auto_123
+        name:
+          type: string
+          example: CRM Sync
+        description:
+          type: string
+          example: Syncs new leads into the CRM.
+        steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - type: trigger
+              name: Webhook
+            - type: action
+              name: Create Contact
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-01-20T09:00:00Z'
+        totalRuns:
+          type: number
+          format: double
+          example: 17
+        publishedWorkflowId:
+          type: string
+          nullable: true
+          example: pub_123
+        originSessionId:
+          type: string
+          nullable: true
+          example: sess_123
+        connectedTools:
+          type: array
+          items:
+            type: object
+            required:
+              - pieceName
+              - status
+              - externalId
+            properties:
+              pieceName:
+                type: string
+                example: '@activepieces/piece-hubspot'
+              status:
+                type: string
+                example: connected
+              externalId:
+                type: string
+                example: conn_123
+    ReviewSubmissionRow:
+      type: object
+      description: Review submission row for the caller.
+      required:
+        - id
+        - status
+        - updatedAt
+        - resumeState
+        - checksDecision
+        - contentHash
+        - createdAt
+      properties:
+        id:
+          type: string
+          example: rev_123
+        status:
+          type: string
+          enum:
+            - checking
+            - pending
+            - approved
+            - rejected
+          example: pending
+        publishedWorkflowId:
+          type: string
+          nullable: true
+          example: null
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-01-15T12:30:00Z'
+        resumeState:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example: null
+        checksDecision:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example: null
+        contentHash:
+          type: string
+          example: sha256:abc123
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-15T12:00:00Z'
+    VerifyAgentDto:
+      type: object
+      description: Request payload for agent verification streaming.
+      properties:
+        source:
+          type: string
+          nullable: true
+          enum:
+            - publish
+            - bounty
+            - requested
+          example: publish
+        sourceId:
+          type: string
+          nullable: true
+          example: wf_123
+        platforms:
+          type: array
+          items:
+            type: string
+          example:
+            - slack
+            - google-sheets
+        categories:
+          type: array
+          items:
+            type: string
+          example:
+            - productivity
+        workflowSteps:
+          type: array
+          items:
+            type: string
+          example:
+            - Trigger
+            - Publish Gate
+        useCases:
+          type: array
+          items:
+            type: string
+          example:
+            - Lead routing
+        builderQuestions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - question: What inputs are required?
+              answer: A webhook payload with email and company fields.
+        testContext:
+          type: object
+          nullable: true
+          additionalProperties: false
+          properties:
+            draftFlowId:
+              type: string
+              example: draft_123
+            answers:
+              type: object
+              additionalProperties: true
+              example:
+                trigger: Webhook
+                output: Update CRM
+            consumerInputs:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+              example:
+                - name: apiKey
+                  type: secret
+            contentHash:
+              type: string
+              example: sha256:abc123
+    CreateBountyDto:
+      type: object
+      description: Request payload for creating a bounty.
+      required:
+        - sessionId
+      properties:
+        sessionId:
+          type: string
+          example: sess_123
+        title:
+          type: string
+          example: Build a Slack lead notifier
+        summary:
+          type: string
+          example: Create an automation that posts new leads to Slack.
+        answers:
+          type: object
+          nullable: true
+          additionalProperties: false
+          properties:
+            trigger:
+              type: string
+              example: New form submission
+            apps:
+              type: array
+              items:
+                type: string
+              example:
+                - slack
+                - hubspot
+            output:
+              type: string
+              example: Post lead details to a Slack channel
+        amount:
+          type: number
+          format: double
+          example: 250
+        currency:
+          type: string
+          example: USD
+    PreviewBountyDto:
+      type: object
+      description: Request payload for previewing a bounty.
+      required:
+        - sessionId
+      properties:
+        sessionId:
+          type: string
+          example: sess_123
+        answers:
+          type: object
+          nullable: true
+          additionalProperties: false
+          properties:
+            trigger:
+              type: string
+              example: New Typeform response
+            apps:
+              type: array
+              items:
+                type: string
+              example:
+                - slack
+                - notion
+            output:
+              type: string
+              example: Save the response to Notion and alert Slack
+    CreateBountySubmissionDto:
+      type: object
+      description: Request payload for submitting a bounty solution.
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+          example:
+            version: 1
+            steps:
+              - name: Trigger
+                type: webhook
+              - name: Publish Gate
+                type: publish_gate
+        builderQuestions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - question: Any required credentials?
+              answer: Slack bot token and CRM API key.
+    AcceptSubmissionDto:
+      type: object
+      description: Request payload for accepting a bounty submission.
+      properties:
+        consumerCopyId:
+          type: string
+          nullable: true
+          example: copy_123
+        scheduleConfig:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example:
+            cron: 0 9 * * *
+            timezone: UTC
+    UpdateSubmissionStatusDto:
+      type: object
+      description: Request payload for updating a bounty submission status.
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - submitted
+            - shortlisted
+            - rejected
+          example: shortlisted
+    VerifyBountyOrderDto:
+      type: object
+      description: Request payload for verifying a Razorpay bounty order.
+      required:
+        - razorpayOrderId
+        - razorpayPaymentId
+        - razorpaySignature
+      properties:
+        razorpayOrderId:
+          type: string
+          example: order_RZP_123
+        razorpayPaymentId:
+          type: string
+          example: pay_RZP_123
+        razorpaySignature:
+          type: string
+          example: sig_abc123
+    Agent:
+      type: object
+      description: Agent detail owned by a builder.
+      required:
+        - id
+        - name
+        - description
+        - status
+        - workflowJson
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          example: agt_123
+        name:
+          type: string
+          example: Lead Enrichment Agent
+        description:
+          type: string
+          example: Enriches new inbound leads and updates CRM records.
+        status:
+          type: string
+          example: active
+        workflowJson:
+          type: object
+          additionalProperties: true
+          example:
+            version: 1
+            steps: []
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-01-10T10:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-01-15T12:30:00Z'
+    RunningAutomationRollup:
+      type: object
+      description: Admin rollup of running automations for a published workflow.
+      required:
+        - id
+        - name
+        - description
+        - steps
+        - lastRunAt
+      properties:
+        id:
+          type: string
+          example: pub_123
+        name:
+          type: string
+          example: Invoice Reminder Agent
+        description:
+          type: string
+          example: Sends reminder emails for unpaid invoices.
+        steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - type: trigger
+              name: Schedule
+            - type: action
+              name: Send Email
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-01-20T08:00:00Z'
+    RunningAutomationRollupDetail:
+      type: object
+      description: Detailed admin rollup of one running automation.
+      required:
+        - id
+        - name
+        - description
+        - steps
+        - lastRunAt
+        - totalRuns
+        - reviewNote
+      properties:
+        id:
+          type: string
+          example: pub_123
+        name:
+          type: string
+          example: Invoice Reminder Agent
+        description:
+          type: string
+          example: Sends reminder emails for unpaid invoices.
+        steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-01-20T08:00:00Z'
+        totalRuns:
+          type: number
+          format: double
+          example: 42
+        reviewNote:
+          type: object
+          required:
+            - kind
+            - totalRuns
+            - creditsUsed
+            - lastRunAt
+            - activeUsers
+            - pausedUsers
+          properties:
+            kind:
+              type: string
+              enum:
+                - automation_stats
+              example: automation_stats
+            totalRuns:
+              type: number
+              format: double
+              example: 42
+            creditsUsed:
+              type: number
+              format: double
+              example: 19.5
+            lastRunAt:
+              type: string
+              format: date-time
+              example: '2026-01-20T08:00:00Z'
+            activeUsers:
+              type: number
+              format: double
+              example: 12
+            pausedUsers:
+              type: number
+              format: double
+              example: 3
+    PendingReviewDetail:
+      type: object
+      description: Admin detail for a pending review submission.
+      required:
+        - id
+        - status
+        - resumeState
+        - checks
+        - totalEarnings
+      properties:
+        id:
+          type: string
+          example: rev_123
+        status:
+          type: string
+          example: pending
+        publishedWorkflowId:
+          type: string
+          nullable: true
+          example: null
+        resumeState:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example: null
+        checks:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example:
+            score: 91
+        totalEarnings:
+          type: number
+          format: double
+          description: Total earnings denominated in USD.
+          example: 123.45
+    CreateBountyResponse:
+      type: object
+      description: Response returned when creating a bounty.
+      required:
+        - id
+        - title
+        - summary
+        - expiresAt
+        - paymentRequired
+        - amount
+        - currency
+      properties:
+        id:
+          type: string
+          example: bty_123
+        title:
+          type: string
+          example: Build a Slack lead notifier
+        summary:
+          type: string
+          example: Create an automation that posts new leads to Slack.
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-02-01T00:00:00Z'
+        paymentRequired:
+          type: boolean
+          example: true
+        amount:
+          type: number
+          format: double
+          example: 250
+        currency:
+          type: string
+          example: USD
+    BountyPreviewResponse:
+      type: object
+      description: Response returned when previewing a bounty.
+      required:
+        - summary
+        - title
+        - valid
+        - issues
+        - platforms
+        - tools
+        - useCases
+        - spec
+        - buildable
+        - buildableReason
+      properties:
+        summary:
+          type: string
+          example: Save Typeform responses to Notion and notify Slack.
+        title:
+          type: string
+          example: Typeform to Notion with Slack alert
+        valid:
+          type: boolean
+          example: true
+        issues:
+          type: array
+          items:
+            type: string
+          example: []
+        platforms:
+          type: array
+          items:
+            type: string
+          example:
+            - slack
+            - notion
+        tools:
+          type: array
+          items:
+            type: string
+          example:
+            - typeform
+            - notion
+            - slack
+        useCases:
+          type: array
+          items:
+            type: string
+          example:
+            - lead capture
+        spec:
+          $ref: '#/components/schemas/BountySpec'
+        buildable:
+          type: boolean
+          example: true
+        buildableReason:
+          type: string
+          example: Supported apps and flow pattern detected.
+    Bounty:
+      type: object
+      description: Bounty detail.
+      required:
+        - id
+        - title
+        - summary
+        - status
+        - expiresAt
+        - sessionId
+        - awardedTo
+        - spec
+      properties:
+        id:
+          type: string
+          example: bty_123
+        title:
+          type: string
+          example: Build a Slack lead notifier
+        summary:
+          type: string
+          example: Create an automation that posts new leads to Slack.
+        status:
+          type: string
+          example: open
+        expiresAt:
+          type: string
+          format: date-time
+          example: '2026-02-01T00:00:00Z'
+        sessionId:
+          type: string
+          nullable: true
+          example: sess_123
+        awardedTo:
+          type: string
+          nullable: true
+          example: null
+        spec:
+          $ref: '#/components/schemas/BountySpec'
+    BountyUpdate:
+      type: object
+      description: Update rollup for a bounty owned by the caller.
+      required:
+        - id
+        - title
+        - status
+        - submissionsCount
+        - lastSubmissionAt
+        - submissionsLastSeenAt
+      properties:
+        id:
+          type: string
+          example: bty_123
+        title:
+          type: string
+          example: Build a Slack lead notifier
+        status:
+          type: string
+          example: open
+        submissionsCount:
+          type: number
+          format: double
+          example: 3
+        lastSubmissionAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-01-20T10:00:00Z'
+        submissionsLastSeenAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-01-20T11:00:00Z'
+    BountySubmission:
+      type: object
+      description: Bounty submission detail.
+      required:
+        - id
+        - bountyId
+        - builderId
+        - builderName
+        - status
+        - submittedAt
+        - builderQuestions
+      properties:
+        id:
+          type: string
+          example: sub_123
+        bountyId:
+          type: string
+          example: bty_123
+        builderId:
+          type: string
+          example: bld_123
+        builderName:
+          type: string
+          example: Alex Builder
+        status:
+          type: string
+          example: submitted
+        submittedAt:
+          type: string
+          format: date-time
+          example: '2026-01-20T10:00:00Z'
+        builderQuestions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - question: Are paid APIs allowed?
+              answer: Yes, if clearly documented.
+    BuilderLeaderboardRow:
+      type: object
+      description: Public leaderboard row for a builder.
+      required:
+        - builderId
+        - builderName
+        - rank
+        - totalEarnings
+        - agentsPublished
+      properties:
+        builderId:
+          type: string
+          example: bld_123
+        builderName:
+          type: string
+          example: Alex Builder
+        rank:
+          type: number
+          format: double
+          example: 1
+        totalEarnings:
+          type: number
+          format: double
+          example: 1245.5
+        agentsPublished:
+          type: number
+          format: double
+          example: 8
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

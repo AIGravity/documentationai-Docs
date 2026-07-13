@@ -1,17 +1,11 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Verify AI service health and delete agents from the search index through the internal FastAPI AI service API.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
-
-<Callout kind="info">
-
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
-
-</Callout>
+The AI service exposes a public health endpoint and an internal agent deletion endpoint. Use `GET /health` to verify that the service is running, and use `DELETE /internal/agents/{agent_id}` to remove an agent from the search index.
 
 ## Endpoint
 
@@ -23,17 +17,20 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirement was found in the FastAPI route implementation.
+
 
 </ParamField>
 
@@ -59,11 +56,13 @@ This endpoint does not accept any request inputs beyond the request method and p
 
 None. The route path is static and does not define any path parameters.
 
+
 </ParamField>
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. No query parameters are defined in the route handler.
+
 
 </ParamField>
 
@@ -71,13 +70,8 @@ None. No query parameters are defined in the route handler.
 
 None. Send the request without a body.
 
+
 </ParamField>
-
-<Callout kind="info">
-
-No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
-
-</Callout>
 
 ## Response
 
@@ -86,6 +80,7 @@ A successful request returns a JSON object with a single status field.
 <ResponseField name="status" field-type="string" required="true">
 
 Service health status. The current implementation returns `ok`.
+
 
 </ResponseField>
 
@@ -99,11 +94,69 @@ Service health status. The current implementation returns `ok`.
 
 </Response>
 
+## Internal endpoints
+
+### DELETE `/internal/agents/{agent_id}`
+
+Delete an agent from the AI service search index. This is an internal endpoint and does not require authentication.
+
+<Callout kind="info">
+
+On failure, the `error` field is set in the response payload. Upstream callers log the error and never roll back — the caller is responsible for handling the failure.
+
+
+</Callout>
+
+<ParamField path="agent_id" param-type="string" required="true">
+
+Agent identifier to delete from the search index.
+
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X DELETE http://localhost:8000/internal/agents/agt_7f3c2a91
+```
+
+```json
+{
+  "deleted": true,
+  "error": null
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="deleted" field-type="boolean" required="true">
+
+Whether the agent was successfully removed from the Typesense search index.
+
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string|null" required="true">
+
+Error message when deletion fails, or `null` when deletion succeeds.
+
+
+</ResponseField>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "deleted": true,
+  "error": null
+}
+```
+
+</Response>
+
 ## Implementation notes
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
-
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. The AI service exposes the health endpoint and the internal agent deletion endpoint.
 
 ## Likely error responses
 
@@ -112,3 +165,5 @@ The current implementation is minimal, so likely error behavior is limited to fr
 - **`404 Not Found`** — Returned when you request a path that is not defined.
 - **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
 - **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+
+The `DELETE /internal/agents/{agent_id}` endpoint may return `200 OK` even when deletion fails. In that case, check the `error` field in the response payload instead of relying only on the HTTP status code.
