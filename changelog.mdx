@@ -5,48 +5,26 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable API and documentation updates for the AIGravity core platform.
 
 ## Release history
 
-1. **Unreleased**
+1. **Bounty funding with Razorpay pay-to-post**
+   - **API**
+     - New endpoint `POST /api/bounties/{id}/pay/order` creates a Razorpay order to fund a bounty in `pending_payment` status. Returns Razorpay Checkout parameters including order ID, key ID, amount in minor units, and currency.
+     - New endpoint `POST /api/bounties/{id}/pay/verify` verifies the HMAC-SHA256 Checkout signature, marks the order as paid, and transitions the bounty from `pending_payment` to `open`. Returns `PAID` or `ALREADY_PAID` for idempotent re-calls.
+     - `POST /api/bounties` response now includes `paymentRequired` (boolean), `amount` (number), and `currency` (string). When `paymentRequired` is true, the bounty starts in `pending_payment` status and the client must complete the pay-to-post flow before it goes live.
+     - `GET /api/bounties/by-session/{sessionId}` response expanded with `bountyId`, `title`, `amount`, `currency`, and `status` fields for dashboard state reconstruction after session reload.
+     - `POST /api/webhooks/razorpay` now routes bounty orders before credit orders. For `payment.captured` and `order.paid` events, the handler checks `bounty_orders` first, then falls back to `credit_orders`.
+   - **Data models**
+     - New `bounty_orders` table with UUID primary key, foreign keys to `bounties` and `auth.users`, CHECK constraints on `amount_minor` and `status`, and a UNIQUE constraint on `razorpay_order_id` for idempotency.
+     - New columns on `bounties` table: `payment_status` (default `unpaid`, backfilled to `paid` for existing bounties) and `funded_at` (TIMESTAMPTZ).
+     - New `VerifyBountyOrderDto` class-validator DTO with three required string fields: `razorpayOrderId`, `razorpayPaymentId`, `razorpaySignature`.
+     - Migration `017_bounty_orders.sql` creates the table, adds columns, backfills existing data, and creates three indexes.
    - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
-
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+     - OpenAPI specification updated to version 1.1.0 with bounty and payment tags, Bearer auth scheme, and schemas for all new and modified endpoints.
+     - NestJS API reference page now documents all bounty endpoints with request/response examples, parameter descriptions, and error codes.
+     - Data Models Reference page updated with bounty_orders table schema, bounties table additions, DTO documentation, and migration details.
 
 ## How to read this changelog
 
@@ -57,12 +35,20 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
+
 </Card>
+
+
 
 </Columns>
 

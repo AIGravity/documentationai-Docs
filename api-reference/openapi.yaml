@@ -1,13 +1,16 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
+  version: 1.1.0
   title: AIGravity Core API Service
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health endpoint, bounty creation and retrieval
+    endpoints, and the Razorpay pay-to-post funding flow for bounties.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    The repository also contains a separate AI service implemented with FastAPI that
+    exposes its own `GET /health` endpoint. That endpoint is not described in this
+    API reference specification.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +24,10 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Bounties
+    description: Bounty creation, retrieval, and pay-to-post funding operations
+  - name: Payments
+    description: Razorpay payment order creation, verification, and webhook handling
 paths:
   /health:
     get:
@@ -41,6 +48,207 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/bounties:
+    post:
+      tags:
+        - Bounties
+      summary: Create a bounty
+      description: >
+        Creates a bounty for a chat session. When Razorpay is enabled and the bounty
+        amount is greater than zero, the bounty is created with status `pending_payment`
+        and `paymentRequired: true` in the response — the client must complete payment
+        before the bounty goes live. When Razorpay is disabled or the amount is zero,
+        the bounty is immediately `open`. If the session already has an `open` or
+        `pending_payment` bounty, the existing bounty is returned (idempotent — no new
+        row or charge).
+      operationId: createBounty
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBountyRequest'
+      responses:
+        '201':
+          description: Bounty created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBountyResponse'
+              example:
+                id: 7f8a9b0c-1234-5678-9abc-def012345678
+                title: Build a Gmail to Linear issue creator
+                summary: Create a tool that converts Gmail emails into Linear issues
+                expiresAt: '2025-08-01T00:00:00Z'
+                paymentRequired: true
+                amount: 500
+                currency: INR
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/by-session/{sessionId}:
+    get:
+      tags:
+        - Bounties
+      summary: Get bounty details by chat session
+      description: >
+        Returns the most recent bounty associated with the given chat session ID,
+        including its funding status. Used by the dashboard to reconstruct bounty
+        state after a session reload. Returns `null` when no bounty exists for the
+        session.
+      operationId: getBountyBySession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Chat session UUID
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+      responses:
+        '200':
+          description: Bounty details or null
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BountyBySession'
+              example:
+                expiresAt: '2025-08-01T00:00:00Z'
+                bountyId: 7f8a9b0c-1234-5678-9abc-def012345678
+                title: Build a Gmail to Linear issue creator
+                amount: 500
+                currency: INR
+                status: open
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/{id}/pay/order:
+    post:
+      tags:
+        - Payments
+      summary: Create a Razorpay order to fund a bounty
+      description: >
+        Creates a Razorpay order for a bounty in `pending_payment` status. Only the
+        bounty's creator may call this endpoint. Returns the parameters needed to open
+        Razorpay Checkout in the browser.
+      operationId: createBountyPayOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bounty UUID to fund
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+      responses:
+        '201':
+          description: Razorpay order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateBountyOrderResponse'
+              example:
+                orderId: a1b2c3d4-1234-5678-9abc-def012345678
+                razorpayOrderId: order_PqRsTuVwXyZ
+                razorpayKeyId: rzp_live_xxxxxxxxxx
+                amountMinor: 50000
+                currency: INR
+                bountyId: 7f8a9b0c-1234-5678-9abc-def012345678
+                bountyTitle: Build a Gmail to Linear issue creator
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/pay/verify:
+    post:
+      tags:
+        - Payments
+      summary: Verify Razorpay payment and activate a bounty
+      description: >
+        Verifies the HMAC-SHA256 signature from a completed Razorpay Checkout, marks
+        the order as paid, and transitions the bounty from `pending_payment` to `open`.
+        Called by the browser immediately after payment success. The Razorpay webhook
+        serves as a backstop if the browser call fails after payment.
+      operationId: verifyBountyPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Bounty UUID being funded (used for logging; the order is looked up by razorpayOrderId)
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyBountyOrderRequest'
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyBountyOrderResponse'
+              example:
+                status: PAID
+                bountyId: 7f8a9b0c-1234-5678-9abc-def012345678
+                bountyStatus: open
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/webhooks/razorpay:
+    post:
+      tags:
+        - Payments
+      summary: Razorpay webhook handler
+      description: >
+        Processes Razorpay payment events for both bounty orders and credit orders.
+        For `payment.captured` and `order.paid` events, the handler checks bounty
+        orders first, then falls back to credit orders. For `payment.failed` events,
+        it marks the corresponding order as failed if it is still pending. This
+        endpoint requires no authentication — Razorpay webhook signature verification
+        is used instead.
+      operationId: razorpayWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Razorpay webhook payload (opaque to this spec)
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookResponse'
+              example:
+                ok: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
 components:
   responses:
     InternalServerError:
@@ -49,6 +257,37 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: >-
+        Invalid request — missing fields, validation failure, or business rule
+        violation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: The authenticated user is not permitted to perform this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +305,279 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    CreateBountyRequest:
+      type: object
+      description: Request body for creating a bounty.
+      required:
+        - title
+        - amount
+        - currency
+        - sessionId
+      properties:
+        title:
+          type: string
+          description: Bounty title.
+          example: Build a Gmail to Linear issue creator
+        summary:
+          type: string
+          description: Short description of the bounty requirements.
+          example: Create a tool that converts Gmail emails into Linear issues
+        amount:
+          type: number
+          format: float
+          description: Prize amount in major units (e.g. 500 for Rs.500).
+          example: 500
+        currency:
+          type: string
+          description: Currency code (legacy 'RS' is accepted and normalized to 'INR').
+          example: INR
+        sessionId:
+          type: string
+          format: uuid
+          description: Chat session UUID this bounty belongs to.
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+    CreateBountyResponse:
+      type: object
+      description: >-
+        Response from creating a bounty. When paymentRequired is true, the client
+        must call POST /api/bounties/{id}/pay/order and POST /api/bounties/{id}/pay/verify
+        before the bounty goes live.
+      required:
+        - id
+        - title
+        - summary
+        - expiresAt
+        - paymentRequired
+        - amount
+        - currency
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Bounty UUID.
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+        title:
+          type: string
+          description: Bounty title.
+          example: Build a Gmail to Linear issue creator
+        summary:
+          type: string
+          description: Bounty summary.
+          example: Create a tool that converts Gmail emails into Linear issues
+        expiresAt:
+          type: string
+          format: date-time
+          description: Bounty expiry timestamp (ISO 8601).
+          example: '2025-08-01T00:00:00Z'
+        paymentRequired:
+          type: boolean
+          description: >-
+            Whether payment is required before the bounty goes live. True when
+            Razorpay is enabled and amount is greater than zero.
+          example: true
+        amount:
+          type: number
+          format: float
+          description: Prize amount in major units.
+          example: 500
+        currency:
+          type: string
+          description: Currency code.
+          example: INR
+    BountyBySession:
+      type: object
+      description: >-
+        Bounty details for a chat session, returned by GET
+        /api/bounties/by-session/{sessionId}. Null when no bounty exists.
+      nullable: true
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          description: Bounty expiry timestamp (ISO 8601).
+          example: '2025-08-01T00:00:00Z'
+        bountyId:
+          type: string
+          format: uuid
+          description: Bounty UUID.
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+        title:
+          type: string
+          description: Bounty title.
+          example: Build a Gmail to Linear issue creator
+        amount:
+          type: number
+          format: float
+          description: Prize amount in major units.
+          example: 500
+        currency:
+          type: string
+          description: Currency code.
+          example: INR
+        status:
+          type: string
+          enum:
+            - pending_payment
+            - open
+            - awarded
+            - expired
+          description: Current bounty lifecycle status.
+          example: open
+    CreateBountyOrderResponse:
+      type: object
+      description: Parameters needed to open Razorpay Checkout for bounty funding.
+      required:
+        - orderId
+        - razorpayOrderId
+        - razorpayKeyId
+        - amountMinor
+        - currency
+        - bountyId
+        - bountyTitle
+      properties:
+        orderId:
+          type: string
+          format: uuid
+          description: Internal bounty order UUID.
+          example: a1b2c3d4-1234-5678-9abc-def012345678
+        razorpayOrderId:
+          type: string
+          description: Razorpay order identifier (order_xxx).
+          example: order_PqRsTuVwXyZ
+        razorpayKeyId:
+          type: string
+          description: Public Razorpay key ID for Checkout initialization (safe for the browser).
+          example: rzp_live_xxxxxxxxxx
+        amountMinor:
+          type: integer
+          description: Amount in minor units (paise/cents). Rs.500 = 50000.
+          example: 50000
+        currency:
+          type: string
+          description: ISO 4217 currency code (legacy 'RS' is coerced to 'INR').
+          example: INR
+        bountyId:
+          type: string
+          format: uuid
+          description: Bounty UUID.
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+        bountyTitle:
+          type: string
+          description: Bounty title.
+          example: Build a Gmail to Linear issue creator
+    VerifyBountyOrderRequest:
+      type: object
+      description: Razorpay Checkout verification parameters.
+      required:
+        - razorpayOrderId
+        - razorpayPaymentId
+        - razorpaySignature
+      properties:
+        razorpayOrderId:
+          type: string
+          description: Razorpay order identifier (order_xxx) from the /pay/order response.
+          example: order_PqRsTuVwXyZ
+        razorpayPaymentId:
+          type: string
+          description: Razorpay payment identifier (pay_xxx) from the Checkout success handler.
+          example: pay_AbCdEfGhIjKl
+        razorpaySignature:
+          type: string
+          description: HMAC-SHA256 signature of order_id|payment_id from the Checkout success handler.
+          example: a1b2c3d4e5f6...
+    VerifyBountyOrderResponse:
+      type: object
+      description: >-
+        Result of payment verification. PAID means this call settled the payment.
+        ALREADY_PAID means the order was already settled (idempotent re-call or race
+        with webhook).
+      required:
+        - status
+        - bountyId
+        - bountyStatus
+      properties:
+        status:
+          type: string
+          enum:
+            - PAID
+            - ALREADY_PAID
+          description: Whether this call settled the payment or it was already settled.
+          example: PAID
+        bountyId:
+          type: string
+          format: uuid
+          description: Bounty UUID that was activated.
+          example: 7f8a9b0c-1234-5678-9abc-def012345678
+        bountyStatus:
+          type: string
+          description: Current bounty lifecycle status after verification.
+          example: open
+    WebhookResponse:
+      type: object
+      description: Acknowledgement response for Razorpay webhook processing.
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          description: Whether the webhook was processed successfully.
+          example: true
+    BountyStatus:
+      type: string
+      enum:
+        - pending_payment
+        - open
+        - awarded
+        - expired
+      description: Lifecycle status of a bounty.
+    BountyOrderStatus:
+      type: string
+      enum:
+        - PENDING
+        - PAID
+        - FAILED
+        - EXPIRED
+      description: Status of a bounty funding order.
+    BountyOrder:
+      type: object
+      description: A bounty funding order record.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Order UUID.
+        bountyId:
+          type: string
+          format: uuid
+          description: Bounty UUID this order funds.
+        userId:
+          type: string
+          format: uuid
+          description: User UUID who created the order.
+        amountMinor:
+          type: integer
+          description: Amount in minor units (paise/cents).
+        currency:
+          type: string
+          description: Currency code.
+        razorpayOrderId:
+          type: string
+          description: Razorpay order identifier (order_xxx).
+        razorpayPaymentId:
+          type: string
+          nullable: true
+          description: Razorpay payment identifier (pay_xxx), set when payment succeeds.
+        status:
+          $ref: '#/components/schemas/BountyOrderStatus'
+        failReason:
+          type: string
+          nullable: true
+          description: Reason for payment failure, set when status is FAILED.
+        createdAt:
+          type: string
+          format: date-time
+          description: Order creation timestamp.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Order last update timestamp.

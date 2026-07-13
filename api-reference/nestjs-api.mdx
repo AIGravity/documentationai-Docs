@@ -1,21 +1,25 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  Bounty creation, pay-to-post funding flow, and health endpoint reference for
+  the NestJS backend service.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The code analysis found a public health endpoint at `GET /health`, plus bounty creation, bounty retrieval, and Razorpay pay-to-post funding endpoints.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
 
 </Callout>
 
@@ -29,11 +33,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +47,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +67,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +75,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +85,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +93,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +128,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +153,599 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+---
+
+### POST `/api/bounties`
+
+Create a bounty for a chat session. When Razorpay is enabled and the bounty amount is greater than zero, the bounty is created with `pending_payment` status and `paymentRequired: true` — the client must complete payment via the pay-to-post flow before the bounty goes live. When Razorpay is disabled or the amount is zero, the bounty is immediately `open`. If the session already has an `open` or `pending_payment` bounty, the existing bounty is returned without creating a new one.
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer token required via `SupabaseAuthGuard`. The JWT `sub` claim is extracted as the `userId`.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="title" param-type="string" required="true" show-location="false">
+
+Bounty title.
+
+
+</ParamField>
+
+<ParamField body="summary" param-type="string" required="true" show-location="false">
+
+Short description of the bounty requirements.
+
+
+</ParamField>
+
+<ParamField body="amount" param-type="number" required="true" show-location="false">
+
+Prize amount in major units. For example, `500` represents Rs.500.
+
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true" show-location="false">
+
+Currency code. Legacy `RS` is accepted and normalized to `INR`.
+
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string (UUID)" required="true" show-location="false">
+
+Chat session UUID this bounty belongs to.
+
+
+</ParamField>
+
+#### Example request body
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "title": "Build a Gmail to Linear issue creator",
+  "summary": "Create a tool that converts Gmail emails into Linear issues",
+  "amount": 500,
+  "currency": "INR",
+  "sessionId": "7f8a9b0c-1234-5678-9abc-def012345678"
+}
+```
+
+</CodeGroup>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"title":"Build a Gmail to Linear issue creator","summary":"Create a tool that converts Gmail emails into Linear issues","amount":500,"currency":"INR","sessionId":"7f8a9b0c-1234-5678-9abc-def012345678"}'
+```
+
+</CodeGroup>
+
+#### Response
+
+<CodeGroup tabs="201 Created">
+
+```json
+{
+  "id": "7f8a9b0c-1234-5678-9abc-def012345678",
+  "title": "Build a Gmail to Linear issue creator",
+  "summary": "Create a tool that converts Gmail emails into Linear issues",
+  "expiresAt": "2025-08-01T00:00:00Z",
+  "paymentRequired": true,
+  "amount": 500,
+  "currency": "INR"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Bounty UUID.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Bounty summary.
+
+
+</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">
+
+Bounty expiry timestamp in ISO 8601 format.
+
+
+</ResponseField>
+
+<ResponseField name="paymentRequired" field-type="boolean" required="true">
+
+Whether payment is required before the bounty goes live. This is `true` when Razorpay is enabled and `amount` is greater than zero.
+
+
+</ResponseField>
+
+<ResponseField name="amount" field-type="number" required="true">
+
+Prize amount in major units.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+Currency code.
+
+
+</ResponseField>
+
+#### Likely error responses
+
+##### 400 bad request
+
+A `400` response indicates a validation failure, such as missing or invalid request fields.
+
+##### 401 unauthorized
+
+A `401` response indicates the JWT is missing, expired, or invalid.
+
+### GET `/api/bounties/by-session/{sessionId}`
+
+Returns the most recent bounty associated with the given chat session ID, including its funding status. Used by the dashboard to reconstruct bounty state after a session reload. Returns `null` when no bounty exists for the session.
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer token required.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="sessionId" param-type="string (UUID)" required="true">
+
+Chat session UUID.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i http://localhost:3001/api/bounties/by-session/7f8a9b0c-1234-5678-9abc-def012345678 \
+  -H "Authorization: Bearer <token>"
+```
+
+</CodeGroup>
+
+#### Response
+
+<CodeGroup tabs="200 OK">
+
+```json
+{
+  "expiresAt": "2025-08-01T00:00:00Z",
+  "bountyId": "7f8a9b0c-1234-5678-9abc-def012345678",
+  "title": "Build a Gmail to Linear issue creator",
+  "amount": 500,
+  "currency": "INR",
+  "status": "open"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="expiresAt" field-type="string">
+
+Bounty expiry timestamp in ISO 8601 format.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string">
+
+Bounty UUID.
+
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string">
+
+Bounty title.
+
+
+</ResponseField>
+
+<ResponseField name="amount" field-type="number">
+
+Prize amount in major units.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string">
+
+Currency code.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string">
+
+Current bounty lifecycle status. One of `pending_payment`, `open`, `awarded`, or `expired`.
+
+
+</ResponseField>
+
+#### Likely error responses
+
+##### 401 unauthorized
+
+A `401` response indicates the JWT is missing, expired, or invalid.
+
+### POST `/api/bounties/{id}/pay/order`
+
+Creates a Razorpay order to fund a bounty in `pending_payment` status. Only the bounty's creator may call this endpoint. Returns the parameters needed to open Razorpay Checkout in the browser.
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer token required.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="id" param-type="string (UUID)" required="true">
+
+Bounty UUID to fund.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/7f8a9b0c-1234-5678-9abc-def012345678/pay/order \
+  -H "Authorization: Bearer <token>"
+```
+
+</CodeGroup>
+
+#### Response
+
+<CodeGroup tabs="201 Created">
+
+```json
+{
+  "orderId": "a1b2c3d4-1234-5678-9abc-def012345678",
+  "razorpayOrderId": "order_PqRsTuVwXyZ",
+  "razorpayKeyId": "rzp_live_xxxxxxxxxx",
+  "amountMinor": 50000,
+  "currency": "INR",
+  "bountyId": "7f8a9b0c-1234-5678-9abc-def012345678",
+  "bountyTitle": "Build a Gmail to Linear issue creator"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="orderId" field-type="string" required="true">
+
+Internal bounty order UUID.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayOrderId" field-type="string" required="true">
+
+Razorpay order identifier in the `order_xxx` format. Pass this value to Razorpay Checkout as `order_id`.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayKeyId" field-type="string" required="true">
+
+Public Razorpay key ID that is safe to expose in the browser.
+
+
+</ResponseField>
+
+<ResponseField name="amountMinor" field-type="integer" required="true">
+
+Amount in minor units such as paise or cents. Rs.500 is returned as `50000`.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+ISO 4217 currency code. Legacy `RS` is coerced to `INR`.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Bounty UUID.
+
+
+</ResponseField>
+
+<ResponseField name="bountyTitle" field-type="string" required="true">
+
+Bounty title.
+
+
+</ResponseField>
+
+#### Likely error responses
+
+##### 400 bad request
+
+A `400` response indicates Razorpay is not configured, the bounty amount is less than or equal to zero, or the bounty is not in `pending_payment` status.
+
+##### 401 unauthorized
+
+A `401` response indicates the JWT is missing, expired, or invalid.
+
+##### 403 forbidden
+
+A `403` response indicates the caller is not the bounty creator.
+
+##### 404 not found
+
+A `404` response indicates the bounty was not found.
+
+### POST `/api/bounties/{id}/pay/verify`
+
+Verifies the HMAC-SHA256 signature from a completed Razorpay Checkout, marks the order as paid, and transitions the bounty from `pending_payment` to `open`. Called by the browser immediately after payment success. The Razorpay webhook serves as a backstop if the browser call fails after payment.
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer token required.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="id" param-type="string (UUID)" required="true">
+
+Bounty UUID being funded. The server uses this value for logging; it looks up the order by `razorpayOrderId` from the request body.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="razorpayOrderId" param-type="string" required="true" show-location="false">
+
+Razorpay order identifier in the `order_xxx` format from the `/pay/order` response.
+
+
+</ParamField>
+
+<ParamField body="razorpayPaymentId" param-type="string" required="true" show-location="false">
+
+Razorpay payment identifier in the `pay_xxx` format from the Checkout success handler.
+
+
+</ParamField>
+
+<ParamField body="razorpaySignature" param-type="string" required="true" show-location="false">
+
+HMAC-SHA256 signature of `order_id|payment_id` from the Checkout success handler.
+
+
+</ParamField>
+
+#### Example request body
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "razorpayOrderId": "order_PqRsTuVwXyZ",
+  "razorpayPaymentId": "pay_AbCdEfGhIjKl",
+  "razorpaySignature": "a1b2c3d4e5f6..."
+}
+```
+
+</CodeGroup>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/bounties/7f8a9b0c-1234-5678-9abc-def012345678/pay/verify \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"razorpayOrderId":"order_PqRsTuVwXyZ","razorpayPaymentId":"pay_AbCdEfGhIjKl","razorpaySignature":"a1b2c3d4e5f6..."}'
+```
+
+</CodeGroup>
+
+#### Response
+
+<CodeGroup tabs="200 OK">
+
+```json
+{
+  "status": "PAID",
+  "bountyId": "7f8a9b0c-1234-5678-9abc-def012345678",
+  "bountyStatus": "open"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="status" field-type="string" required="true">
+
+Whether this call settled the payment. Returned values are `PAID` or `ALREADY_PAID`.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Bounty UUID that was activated.
+
+
+</ResponseField>
+
+<ResponseField name="bountyStatus" field-type="string" required="true">
+
+Current bounty lifecycle status after verification. This is typically `open`.
+
+
+</ResponseField>
+
+#### Likely error responses
+
+##### 400 bad request
+
+A `400` response indicates Razorpay is not configured, the payment signature is invalid, or the request body failed validation.
+
+##### 401 unauthorized
+
+A `401` response indicates the JWT is missing, expired, or invalid.
+
+##### 404 not found
+
+A `404` response indicates the order was not found or belongs to a different user.
+
+### POST `/api/webhooks/razorpay`
+
+Processes Razorpay payment events for both bounty orders and credit orders. For `payment.captured` and `order.paid` events, the handler checks bounty orders first, then falls back to credit orders. For `payment.failed` events, it marks the corresponding order as failed if it is still pending.
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication required. Razorpay webhook signature verification is used instead.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="request body" param-type="object" required="true" show-location="false">
+
+The Razorpay webhook payload as an opaque object.
+
+
+</ParamField>
+
+#### Response
+
+<CodeGroup tabs="200 OK">
+
+```json
+{
+  "ok": true
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Whether the webhook was processed successfully.
+
+
+</ResponseField>
+
+#### Likely error responses
+
+##### 400 bad request
+
+A `400` response indicates the webhook payload is malformed.
+
+## Bounty lifecycle states
+
+<Callout kind="info">
+
+| Status | Description |
+| --- | --- |
+| `pending_payment` | Created, awaiting Razorpay payment. Hidden from the public bounty list. |
+| `open` | Live and accepting submissions. |
+| `awarded` | A winner has been chosen. |
+| `expired` | Past the expiry date. |
+
+
+</Callout>
+
+## Pay-to-post flow
+
+Pay-to-post adds a payment step between bounty creation and public listing when Razorpay funding is required. The client creates the bounty, opens Razorpay Checkout with the generated order, then verifies the completed payment so the bounty moves to `open`.
+
+<Callout kind="info">
+
+- `POST /api/bounties` is idempotent per chat session. If the session already has an `open` or `pending_payment` bounty, the API returns the existing bounty.
+- `POST /api/bounties/{id}/pay/order` is idempotent on `razorpay_order_id` through a database `UNIQUE` constraint.
+- `POST /api/bounties/{id}/pay/verify` is idempotent. `markBountyFunded` is scoped to `status='pending_payment'`, so a second call is a no-op.
+
+
+</Callout>
+
+## Related docs
+
+<Columns cols={1}>
+
+<Card title="Data Models Reference" href="/data-models-reference" icon="database" cta="View data models" />
+
+
+</Columns>
