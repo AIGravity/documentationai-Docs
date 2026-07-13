@@ -1,57 +1,88 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Inventory of database tables, request validation schemas, and response shapes across the API and AI services, including bounty funding, agent review lifecycle, and connection management.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+The repository defines a working data layer across the API and AI services. Database tables are created and evolved with SQL migrations, request validation uses decorated DTO schemas with field-level constraints, and health endpoints still return small inline response shapes.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+The current schema work centers on three areas: bounty funding, the agent review lifecycle for publishing, and app connection management. Those structures now provide persisted entities, validation contracts for incoming requests, and migration history for schema changes.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+This reference inventories the data structures that are implemented in the checked-in repository today. It covers persisted tables, request validation schemas, and endpoint-local response shapes.
+
 
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now includes persisted tables, request validation contracts, and migration-backed schema changes.
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Named domain models | Database tables for bounties, agent reviews, and app connections |
+| ORM or database models | SQL migrations define table schemas directly |
+| DTO classes | Request validation schemas for agent verification, bounty payment, and connection management |
+| Named validation schemas | class-validator decorated DTOs with field-level constraints |
+| Migration files | SQL migrations for bounty orders, agent review lifecycle, and review state |
+| Inline response shapes | Health endpoint responses (API and AI service) |
+| Persisted entities | Bounty orders, agent reviews, published workflows |
 
 ### Model-like definitions found
 
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
+- **Bounty orders table** — payment tracking for funded bounties
+- **Agent review lifecycle table** — tracks verification, approval, and rejection of submitted agents
+- **Bounties table extensions** — payment status and funding timestamps
+- **Request validation schemas** — agent verification, bounty payment verification, connection disconnection
+- **NestJS API health response** — inline response shape: `{ status: "ok", service: "api" }`
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
-
-<Callout kind="danger">
-
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
-
-</Callout>
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The repository uses SQL migrations to define and evolve the database schema. Instead of relying on a generated model layer, schema changes are expressed directly in migrations that add new tables, extend existing tables, and preserve lifecycle state as product features expand.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+Recent migration work covers three concrete changes. Migrations create a `bounty_orders` table for payment order tracking, extend the agent review lifecycle with additional statuses and state-carrying columns, and add payment tracking fields to the `bounties` table so funding can be confirmed and timestamped.
 
-### Repository-level signals
+## Database tables
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
+### bounty_orders
+
+Tracks payment orders created to fund bounties. Each row represents one funding attempt for a bounty.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| id | UUID | Primary key |
+| bounty_id | UUID | Foreign key to the bounties table |
+| user_id | UUID | The bounty creator who initiated the payment |
+| razorpay_order_id | string | Gateway order identifier |
+| amount | number | Payment amount in minor currency units |
+| currency | string | ISO currency code |
+| status | string | Order lifecycle state |
+| created_at | timestamp | Row creation time |
+
+### pending_agent_reviews
+
+Tracks the review lifecycle for agents submitted for publishing. The table now supports a full lifecycle instead of a single pending-only state.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| id | UUID | Primary key |
+| status | string | One of: checking, pending, approved, rejected |
+| published_workflow_id | UUID | Links to the live published agent after approval |
+| resume_state | JSON | E2E test run handle for resuming interrupted publish flows |
+| checks | JSON | Complete verification gate results for rehydration |
+| updated_at | timestamp | Last modification time, used for real-time updates |
+
+### bounties
+
+The bounties table now includes payment-tracking fields for funded work.
+
+| Column | Type | Description |
+| --- | --- | --- |
+| payment_status | string | One of: unpaid, paid. Existing rows were backfilled as paid. |
+| funded_at | timestamp | When the bounty payment was confirmed |
 
 ## NestJS API response shape
 
@@ -76,10 +107,10 @@ export class HealthController {
 ### Classification
 
 - **Kind** — Inline response shape
-- **Named entity or DTO** — None found in the analyzed code
+- **Named entity or DTO** — None for this endpoint response
 - **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
+- **Relationships** — None
+- **Validation rules** — None on the response object
 
 ### Response fields
 
@@ -87,17 +118,19 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
 
+
 </ResponseField>
 
 ### Notes
 
-This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
+This response shape is defined inline inside the controller method. No DTO class, serializer, or schema definition backs the response.
 
 ## FastAPI response shape
 
@@ -118,10 +151,10 @@ def health():
 ### Classification
 
 - **Kind** — Inline response shape
-- **Named model** — None found in the analyzed code
+- **Named model** — None for this endpoint response
 - **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
+- **Relationships** — None
+- **Validation rules** — None on the response object
 
 ### Response fields
 
@@ -129,70 +162,193 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
 
-The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
+The returned object is defined directly in the route handler. This shape remains endpoint-local rather than a reusable persisted model.
 
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+The API now defines request validation schemas for agent submission, bounty payment verification, and connection management. These schemas enforce required fields and field-level constraints before the API processes the request.
 
-### NestJS API
+### Agent verification schema
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+Used when submitting an agent draft for review.
 
-### FastAPI service
+<ParamField body="name" param-type="string" required="true" show-location="false">
 
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+Agent name. Must be between 3 and 60 characters.
 
-<Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+</ParamField>
 
-</Callout>
+<ParamField body="workflowJson" param-type="object" required="true" show-location="false">
+
+Serialized workflow definition submitted for verification.
+
+
+</ParamField>
+
+<ParamField body="summary" param-type="string" required="false" show-location="false">
+
+Short description of the agent. Must be between 30 and 600 characters when provided.
+
+
+</ParamField>
+
+<ParamField body="problemSolved" param-type="string" required="false" show-location="false">
+
+Problem statement the agent addresses. Must be between 30 and 400 characters when provided.
+
+
+</ParamField>
+
+<ParamField body="tools" param-type="string[]" required="false" show-location="false">
+
+List of tools used by the agent.
+
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="false" show-location="false" enum="publish,bounty,requested">
+
+Submission source for the agent draft.
+
+
+</ParamField>
+
+<ParamField body="sourceId" param-type="string" required="false" show-location="false">
+
+Identifier associated with the submission source.
+
+
+</ParamField>
+
+<ParamField body="platforms" param-type="string[]" required="false" show-location="false">
+
+Platforms the agent supports or targets.
+
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="false" show-location="false">
+
+Categories used to classify the submission.
+
+
+</ParamField>
+
+<ParamField body="workflowSteps" param-type="string[]" required="false" show-location="false">
+
+Ordered workflow step summaries for the submitted agent.
+
+
+</ParamField>
+
+<ParamField body="useCases" param-type="string[]" required="false" show-location="false">
+
+Example use cases for the agent.
+
+
+</ParamField>
+
+<ParamField body="builderQuestions" param-type="array" required="false" show-location="false">
+
+Structured answers or prompts collected from the builder during submission.
+
+
+</ParamField>
+
+<ParamField body="testContext" param-type="object" required="false" show-location="false">
+
+Optional verification context object used to resume or validate review flows.
+
+
+</ParamField>
+
+<ParamField body="testContext.draftFlowId" param-type="string" required="false" show-location="false">
+
+Draft workflow identifier stored inside `testContext`.
+
+
+</ParamField>
+
+<ParamField body="testContext.answers" param-type="array" required="false" show-location="false">
+
+Collected answer set used during verification.
+
+
+</ParamField>
+
+<ParamField body="testContext.consumerInputs" param-type="object" required="false" show-location="false">
+
+Consumer-facing input payload used for test execution.
+
+
+</ParamField>
+
+<ParamField body="testContext.contentHash" param-type="string" required="false" show-location="false">
+
+Content hash used to identify the exact draft state under review.
+
+
+</ParamField>
+
+### Bounty payment verification schema
+
+Used when verifying a bounty payment after checkout.
+
+<ParamField body="razorpayOrderId" param-type="string" required="true" show-location="false">
+
+Gateway order identifier. Must be a non-empty string.
+
+
+</ParamField>
+
+<ParamField body="razorpayPaymentId" param-type="string" required="true" show-location="false">
+
+Gateway payment identifier. Must be a non-empty string.
+
+
+</ParamField>
+
+<ParamField body="razorpaySignature" param-type="string" required="true" show-location="false">
+
+Signature returned by the payment gateway. Must be a non-empty string.
+
+
+</ParamField>
+
+### Connection disconnection schema
+
+Used when disconnecting an app connection.
+
+<ParamField body="id" param-type="string" required="true" show-location="false">
+
+Connection identifier to disconnect.
+
+
+</ParamField>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+SQL migrations now manage schema evolution for the repository. They capture both new tables and incremental changes to existing tables so the application can introduce funding workflows and a richer publishing review lifecycle without breaking earlier data.
 
-### Summary
-
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
-
-### Current implication
-
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+Recent migrations added the `bounty_orders` table, introduced `payment_status` and `funded_at` on the `bounties` table, and backfilled existing bounty rows as paid. The same migration stream also extended `pending_agent_reviews` with the statuses `checking`, `approved`, and `rejected`, plus `published_workflow_id`, `resume_state`, and `checks` to support resumable verification and publish state.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
-
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
-
-<Callout kind="danger">
-
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
-
-</Callout>
+The data layer continues to evolve as new product features are added. The `bounty_orders` table and the expanded agent review lifecycle are the most recent additions, and they establish the current direction for funding, publishing, and operational state management.
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>

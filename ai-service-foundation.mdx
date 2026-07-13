@@ -1,23 +1,24 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: How the FastAPI-based AI service starts, manages dependencies with uv, exposes health status, ranks agent candidates during chat handoff, and packages for container deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, and the service now includes agent search ranking logic that scores and filters matching agents during chat handoff.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The service includes agent search ranking logic that evaluates tool coverage, platform match, and agent type when ordering candidates. The ranking weight for tool coverage is controlled by the `SEARCH_TOOL_WEIGHT` environment variable.
+
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The service provides a health check endpoint and agent search ranking logic that powers chat handoff. The inspected code shows a direct app bootstrap, route registration, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service combines operational scaffolding with agent search ranking that scores candidates by tool coverage, platform match, and agent type. When the user has selected preferred tools, agents are soft-filtered so that candidates using at least one selected tool fill result slots first.
 
 ## Bootstrap in main.py
 
@@ -48,11 +49,11 @@ Grounded bootstrap details:
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The bootstrap path is straightforward, with route registration happening inline. Agent search ranking logic operates as part of the service's request handling rather than as a separate startup concern.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The health endpoint is the simplest route in the service. It returns a plain JSON object with one field.
 
 <CodeGroup tabs="Route,Response">
 
@@ -132,7 +133,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The service reads the `SEARCH_TOOL_WEIGHT` environment variable to control agent search ranking behavior. Beyond this, no database, auth, or migration packages appear in the analyzed dependency list.
 
 ## Run locally
 
@@ -183,7 +184,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The Dockerfile does not define a non-root user, healthcheck instruction, or deployment-time setup. It packages and runs the service as-is, with the `SEARCH_TOOL_WEIGHT` variable configurable at container runtime.
 
 ## CI workflow
 
@@ -196,7 +197,12 @@ On `dev`, the workflow generates a development version using the base version, t
 ## Related docs
 
 <Columns cols={3}>
+
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
+
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
+
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+
+
 </Columns>

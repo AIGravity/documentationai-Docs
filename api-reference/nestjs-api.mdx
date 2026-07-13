@@ -1,25 +1,20 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Reference for every NestJS API endpoint — health checks, bounty payments, agent management, and app connections — including auth requirements, request/response shapes, and error codes.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents every NestJS API endpoint currently exposed by the service across four groups: health, bounties for payment flows, agents for owner management, and apps for connection management. `GET /health` is public, while every other endpoint requires a Bearer JWT in the `Authorization` header.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+All endpoints except `GET /health` require a Bearer JWT in the `Authorization` header. Ownership checks use the JWT subject claim, so callers cannot supply a different user ID in the request or request body.
+
 
 </Callout>
 
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
-
-</Callout>
-
-## Endpoint
+## Health
 
 ### GET `/health`
 
@@ -29,25 +24,22 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="true" show-location="false">
 
-No authentication requirements were found in the analyzed code.
+No authentication requirements were found for this endpoint.
+
 
 </ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
 
 ## Request details
 
@@ -59,6 +51,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -67,13 +60,15 @@ None. The route is fixed at `GET /health`.
 
 None. The handler does not define or consume query string values.
 
+
 </ParamField>
 
 ### Headers
 
 <ParamField body="custom headers" param-type="none" required="false" show-location="false">
 
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
+None. No custom request headers are required beyond standard HTTP headers handled by the framework.
+
 
 </ParamField>
 
@@ -82,6 +77,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -114,19 +110,21 @@ A successful request returns a JSON object that identifies the service and repor
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Health state returned by the endpoint. The implemented response returns `ok`.
+
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Service identifier returned by the endpoint. The implemented response returns `api`.
+
 
 </ResponseField>
 
 ## Likely error responses
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+The route does not define custom error handling. The most likely failures are framework-level errors.
 
 ### 404 not found
 
@@ -134,8 +132,647 @@ A `404` response is likely when you request the wrong path or use the wrong HTTP
 
 ### 500 internal server error
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+A `500` response is only likely if the runtime fails while serving the request. No route-specific error branches are expected for this handler.
 
-## Notes
+## Bounties
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+### POST `/api/bounties/{id}/pay/order`
+
+Create a payment order for a bounty that is pending payment. The response returns the checkout parameters your client needs to open the payment modal.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/bounties/{id}/pay/order`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required. Only the bounty creator can call this endpoint.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier to fund. The value must be a UUID.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST "http://localhost:3001/api/bounties/6f2d7c7c-2c72-45e4-9e52-c4a3f3d1e631/pay/order" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+#### Response 201
+
+A successful request returns the order identifiers and checkout metadata.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "orderId": "ord_9f4a2e31c8b7",
+  "razorpayOrderId": "order_Q2x8Kp7mN4sL1a",
+  "razorpayKeyId": "rzp_test_example_7kLm2Pq9",
+  "amountMinor": 250000,
+  "currency": "INR",
+  "bountyId": "6f2d7c7c-2c72-45e4-9e52-c4a3f3d1e631",
+  "bountyTitle": "Build Slack notifications for weekly usage reports"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="orderId" field-type="string" required="true">
+
+Internal payment order identifier for the created funding attempt.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayOrderId" field-type="string" required="true">
+
+Gateway order identifier used by the checkout flow and payment verification step.
+
+
+</ResponseField>
+
+<ResponseField name="razorpayKeyId" field-type="string" required="true">
+
+Public gateway key your client uses to initialize checkout.
+
+
+</ResponseField>
+
+<ResponseField name="amountMinor" field-type="number" required="true">
+
+Bounty amount in the payment provider's minor currency unit.
+
+
+</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">
+
+ISO currency code for the payment order.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the bounty being funded.
+
+
+</ResponseField>
+
+<ResponseField name="bountyTitle" field-type="string" required="true">
+
+Title of the bounty being funded.
+
+
+</ResponseField>
+
+#### Error responses
+
+- **400 bad request** — Payment is not configured, the bounty amount is zero, or the bounty is not in a pending payment state.
+- **401 unauthorized** — The request does not include a valid Bearer JWT.
+- **403 forbidden** — The caller is not the bounty creator.
+- **404 not found** — The bounty does not exist.
+
+### POST `/api/bounties/{id}/pay/verify`
+
+Verify the payment signature after checkout completes and activate the bounty. This endpoint is idempotent and returns a distinct status when the bounty was already funded.
+
+<Callout kind="info">
+
+If the bounty was already funded, the endpoint returns `status` as `ALREADY_PAID` instead of creating a second successful funding transition.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/bounties/{id}/pay/verify`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required. The caller must be the same user who created the payment order.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier being funded. The value must be a UUID.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="razorpayOrderId" param-type="string" required="true">
+
+Gateway order identifier returned by the order creation endpoint.
+
+
+</ParamField>
+
+<ParamField body="razorpayPaymentId" param-type="string" required="true">
+
+Gateway payment identifier returned after checkout completes.
+
+
+</ParamField>
+
+<ParamField body="razorpaySignature" param-type="string" required="true">
+
+Payment signature returned by the gateway. The service verifies this signature before marking the bounty as paid.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST "http://localhost:3001/api/bounties/6f2d7c7c-2c72-45e4-9e52-c4a3f3d1e631/pay/verify" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "razorpayOrderId": "order_Q2x8Kp7mN4sL1a",
+    "razorpayPaymentId": "pay_Q2xA9t4Lm8bC2d",
+    "razorpaySignature": "8c1e7a4f9d25b3c6e2a9f1d8b7c4e5a6"
+  }'
+```
+
+</CodeGroup>
+
+#### Response 200
+
+A successful verification returns the payment state and resulting bounty status.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "status": "PAID",
+  "bountyId": "6f2d7c7c-2c72-45e4-9e52-c4a3f3d1e631",
+  "bountyStatus": "ACTIVE"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="status" field-type="string" required="true">
+
+Verification result. The value is `PAID` when this request activates the bounty, or `ALREADY_PAID` when the bounty was already funded.
+
+
+</ResponseField>
+
+<ResponseField name="bountyId" field-type="string" required="true">
+
+Identifier of the funded bounty.
+
+
+</ResponseField>
+
+<ResponseField name="bountyStatus" field-type="string" required="true">
+
+Current bounty lifecycle state after verification completes.
+
+
+</ResponseField>
+
+#### Error responses
+
+- **400 bad request** — Payment is not configured or the submitted signature is invalid.
+- **401 unauthorized** — The request does not include a valid Bearer JWT.
+- **404 not found** — The payment order does not exist or the caller does not own it.
+
+## Agents
+
+### GET `/api/agents/mine/{id}`
+
+Return the full detail of a published agent owned by the caller, including the stored workflow template and curated publish fields. This endpoint powers the back-to-edit flow from the agent details page.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/mine/{id}`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required. Only the agent builder can access this endpoint.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Published workflow identifier. The value must be a valid UUID.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X GET "http://localhost:3001/api/agents/mine/3d8c1d5a-4b72-4e10-8c7b-2f4b9d7c5a11" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+</CodeGroup>
+
+#### Response 200
+
+A successful request returns the stored published agent detail, including workflow content and publish metadata.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "id": "3d8c1d5a-4b72-4e10-8c7b-2f4b9d7c5a11",
+  "name": "Customer onboarding assistant",
+  "summary": "Guides new workspace members through setup and role-based access.",
+  "platforms": ["Slack", "Web"],
+  "tools": ["Knowledge Base", "Email"],
+  "useCases": ["Onboarding", "Support"],
+  "categories": ["HR", "Operations"],
+  "problemSolved": "Reduces repeated setup questions during employee onboarding.",
+  "workflowSteps": [
+    "Collect the new hire role and team",
+    "Share the correct setup checklist",
+    "Escalate missing access requests"
+  ],
+  "builderQuestions": [
+    {
+      "id": "q_profile_role",
+      "question": "What role is the new team member joining in?",
+      "type": "text",
+      "required": true
+    }
+  ],
+  "workflowJson": {
+    "version": 1,
+    "nodes": [
+      {
+        "id": "start",
+        "type": "trigger"
+      }
+    ],
+    "edges": []
+  },
+  "publishedAt": "2025-02-18T09:42:11.000Z"
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Published workflow identifier.
+
+
+</ResponseField>
+
+<ResponseField name="name" field-type="string" required="true">
+
+Published agent name.
+
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="true">
+
+Short description used in agent listings and details.
+
+
+</ResponseField>
+
+<ResponseField name="platforms" field-type="string[]" required="true">
+
+Platforms associated with the published agent.
+
+
+</ResponseField>
+
+<ResponseField name="tools" field-type="string[]" required="true">
+
+Tools or integrations associated with the agent.
+
+
+</ResponseField>
+
+<ResponseField name="useCases" field-type="string[]" required="true">
+
+Curated use case labels for the agent.
+
+
+</ResponseField>
+
+<ResponseField name="categories" field-type="string[]" required="true">
+
+Category labels assigned during publishing.
+
+
+</ResponseField>
+
+<ResponseField name="problemSolved" field-type="string | null" required="true">
+
+Longer problem statement, or `null` if the field was not populated.
+
+
+</ResponseField>
+
+<ResponseField name="workflowSteps" field-type="string[]" required="true">
+
+Ordered workflow step descriptions shown for the published agent.
+
+
+</ResponseField>
+
+<ResponseField name="builderQuestions" field-type="array" required="true">
+
+Structured builder-defined questions stored with the published agent.
+
+
+</ResponseField>
+
+<ResponseField name="workflowJson" field-type="object | null" required="true">
+
+Serialized workflow template, or `null` if no workflow payload is stored.
+
+
+</ResponseField>
+
+<ResponseField name="publishedAt" field-type="string | null" required="true">
+
+Publication timestamp in ISO 8601 format, or `null` if unavailable.
+
+
+</ResponseField>
+
+#### Error responses
+
+- **400 bad request** — The `id` value is not a valid UUID.
+- **401 unauthorized** — The request does not include a valid Bearer JWT.
+- **404 not found** — The agent does not exist or belongs to a different builder.
+
+### DELETE `/api/agents/mine/{id}`
+
+Permanently delete a published agent and its associated data. The deletion also removes consumer copies and attempts to remove the search index entry.
+
+<Callout kind="info">
+
+`searchIndexDeleted` is `false` when search index cleanup fails after the database deletion succeeds.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`DELETE`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/mine/{id}`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required. Only the agent builder can delete this resource.
+
+
+</ParamField>
+
+#### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Published workflow identifier. The value must be a valid UUID.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X DELETE "http://localhost:3001/api/agents/mine/3d8c1d5a-4b72-4e10-8c7b-2f4b9d7c5a11" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+</CodeGroup>
+
+#### Response 200
+
+A successful deletion confirms the database delete result and whether search index cleanup also succeeded.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "deleted": true,
+  "searchIndexDeleted": true
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="deleted" field-type="boolean" required="true">
+
+Whether the published agent was deleted from the primary data store.
+
+
+</ResponseField>
+
+<ResponseField name="searchIndexDeleted" field-type="boolean" required="true">
+
+Whether the search index entry was removed successfully.
+
+
+</ResponseField>
+
+#### Error responses
+
+- **400 bad request** — The `id` value is not a valid UUID.
+- **401 unauthorized** — The request does not include a valid Bearer JWT.
+- **404 not found** — The agent does not exist or belongs to a different builder.
+
+## Apps
+
+### DELETE `/api/apps/connections`
+
+Delete one of the caller's app connections. Any active agent that references the deleted connection is paused automatically.
+
+<Callout kind="info">
+
+This endpoint previously returned `204 No Content` with an empty body. It now returns `200 OK` with the list of agents that were auto-paused. The `pausedAgents` array is empty when no active agents referenced the deleted connection.
+
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`DELETE`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/apps/connections`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+Bearer JWT required.
+
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="id" param-type="string" required="true">
+
+Connection identifier to disconnect.
+
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X DELETE "http://localhost:3001/api/apps/connections" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": "conn_7c4d91f2a8b3"
+  }'
+```
+
+</CodeGroup>
+
+#### Response 200
+
+A successful request returns the agents that were paused as a side effect of the disconnect.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "pausedAgents": [
+    {
+      "id": "agt_2f91c7d4b6a8",
+      "name": "Weekly revenue sync"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+#### Response fields
+
+<ResponseField name="pausedAgents" field-type="array" required="true">
+
+List of active agents that were paused after the connection was deleted. The array is empty when no active agents referenced the connection.
+
+
+</ResponseField>
+
+#### Error responses
+
+- **400 bad request** — The caller's workspace is not yet provisioned.
+- **401 unauthorized** — The request does not include a valid Bearer JWT.

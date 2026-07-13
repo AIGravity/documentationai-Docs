@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It currently covers the NestJS API service health endpoint, bounty payment and funding operations, agent owner management operations, and app connection management operations.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,12 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Bounties
+    description: Bounty payment and funding operations
+  - name: Agents
+    description: Agent owner management operations
+  - name: Apps
+    description: App connection management operations
 paths:
   /health:
     get:
@@ -41,7 +47,165 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/pay/order:
+    post:
+      tags:
+        - Bounties
+      summary: Create bounty payment order
+      description: Creates a payment order for a bounty pending payment. Returns checkout parameters needed to open the payment modal. Only the bounty creator can call this.
+      operationId: createBountyPayOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Payment order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BountyPayOrderResponse'
+        '400':
+          description: Payment not configured, bounty amount is zero, or bounty is not pending payment
+        '401':
+          description: Missing or invalid JWT
+        '403':
+          description: Caller is not the bounty creator
+        '404':
+          description: Bounty not found
+  /api/bounties/{id}/pay/verify:
+    post:
+      tags:
+        - Bounties
+      summary: Verify bounty payment
+      description: Verifies the payment signature after checkout and activates the bounty. Idempotent — returns ALREADY_PAID if the bounty was already funded.
+      operationId: verifyBountyPayOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyBountyOrderRequest'
+      responses:
+        '200':
+          description: Payment verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyBountyOrderResponse'
+        '400':
+          description: Payment not configured or invalid signature
+        '401':
+          description: Missing or invalid JWT
+        '404':
+          description: Order not found or caller is not the order owner
+  /api/agents/mine/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get owned agent detail
+      description: Returns full detail of a published agent owned by the caller, including the workflow template and curated publish fields.
+      operationId: getOwnedAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Published workflow UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agent detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentDetail'
+        '400':
+          description: Invalid UUID
+        '401':
+          description: Missing or invalid JWT
+        '404':
+          description: Agent not found or owned by a different builder
+    delete:
+      tags:
+        - Agents
+      summary: Delete owned agent
+      description: Permanently deletes a published agent and all associated data including consumer copies and search index entry.
+      operationId: deleteOwnedAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Published workflow UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agent deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAgentResponse'
+        '400':
+          description: Invalid UUID
+        '401':
+          description: Missing or invalid JWT
+        '404':
+          description: Agent not found or owned by a different builder
+  /api/apps/connections:
+    delete:
+      tags:
+        - Apps
+      summary: Disconnect app connection
+      description: Deletes one of the caller's app connections. Any active agent referencing the deleted connection is automatically paused. Previously returned 204 No Content; now returns 200 OK with the list of paused agents.
+      operationId: disconnectAppConnection
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DisconnectConnectionRequest'
+      responses:
+        '200':
+          description: Connection deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisconnectConnectionResponse'
+        '400':
+          description: Workspace not yet provisioned
+        '401':
+          description: Missing or invalid JWT
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -66,3 +230,165 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    BountyPayOrderResponse:
+      type: object
+      required:
+        - orderId
+        - razorpayOrderId
+        - razorpayKeyId
+        - amountMinor
+        - currency
+        - bountyId
+        - bountyTitle
+      properties:
+        orderId:
+          type: string
+          description: Internal payment order identifier
+        razorpayOrderId:
+          type: string
+          description: Gateway order identifier
+        razorpayKeyId:
+          type: string
+          description: Public gateway key for checkout
+        amountMinor:
+          type: number
+          description: Amount in minor currency units
+        currency:
+          type: string
+          description: ISO currency code
+        bountyId:
+          type: string
+          description: Bounty UUID
+        bountyTitle:
+          type: string
+          description: Bounty title
+    VerifyBountyOrderRequest:
+      type: object
+      required:
+        - razorpayOrderId
+        - razorpayPaymentId
+        - razorpaySignature
+      properties:
+        razorpayOrderId:
+          type: string
+          description: Gateway order identifier
+        razorpayPaymentId:
+          type: string
+          description: Gateway payment identifier
+        razorpaySignature:
+          type: string
+          description: Payment signature for verification
+    VerifyBountyOrderResponse:
+      type: object
+      required:
+        - status
+        - bountyId
+        - bountyStatus
+      properties:
+        status:
+          type: string
+          enum:
+            - PAID
+            - ALREADY_PAID
+          description: Verification result
+        bountyId:
+          type: string
+          description: Funded bounty UUID
+        bountyStatus:
+          type: string
+          description: Bounty lifecycle state after verification
+    AgentDetail:
+      type: object
+      required:
+        - id
+        - name
+        - summary
+        - platforms
+        - tools
+        - useCases
+        - categories
+        - problemSolved
+        - workflowSteps
+        - builderQuestions
+        - workflowJson
+        - publishedAt
+      properties:
+        id:
+          type: string
+          description: Published workflow UUID
+        name:
+          type: string
+        summary:
+          type: string
+        platforms:
+          type: array
+          items:
+            type: string
+        tools:
+          type: array
+          items:
+            type: string
+        useCases:
+          type: array
+          items:
+            type: string
+        categories:
+          type: array
+          items:
+            type: string
+        problemSolved:
+          type: string
+          nullable: true
+        workflowSteps:
+          type: array
+          items:
+            type: string
+        builderQuestions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        workflowJson:
+          type: object
+          nullable: true
+          additionalProperties: true
+        publishedAt:
+          type: string
+          nullable: true
+          description: ISO 8601 timestamp
+    DeleteAgentResponse:
+      type: object
+      required:
+        - deleted
+        - searchIndexDeleted
+      properties:
+        deleted:
+          type: boolean
+        searchIndexDeleted:
+          type: boolean
+          description: Whether search index entry was removed
+    DisconnectConnectionRequest:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: Connection identifier to disconnect
+    DisconnectConnectionResponse:
+      type: object
+      required:
+        - pausedAgents
+      properties:
+        pausedAgents:
+          type: array
+          items:
+            type: object
+            required:
+              - id
+              - name
+            properties:
+              id:
+                type: string
+              name:
+                type: string

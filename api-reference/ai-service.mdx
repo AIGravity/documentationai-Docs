@@ -1,17 +1,11 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Reference for the FastAPI AI service health endpoint and agent search ranking behavior, including tool coverage weighting and soft filtering.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
-
-<Callout kind="info">
-
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
-
-</Callout>
+This page documents the FastAPI AI service health endpoint and the agent search ranking behavior used to order matching agents during chat handoff. The service exposes `GET /health` and applies ranking logic that accounts for relevance, tool coverage, and platform or type matches when searching for agents.
 
 ## Endpoint
 
@@ -23,17 +17,20 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirement was found in the FastAPI route implementation.
+
 
 </ParamField>
 
@@ -59,11 +56,13 @@ This endpoint does not accept any request inputs beyond the request method and p
 
 None. The route path is static and does not define any path parameters.
 
+
 </ParamField>
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. No query parameters are defined in the route handler.
+
 
 </ParamField>
 
@@ -71,11 +70,13 @@ None. No query parameters are defined in the route handler.
 
 None. Send the request without a body.
 
+
 </ParamField>
 
 <Callout kind="info">
 
-No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in the service route implementation.
+
 
 </Callout>
 
@@ -86,6 +87,7 @@ A successful request returns a JSON object with a single status field.
 <ResponseField name="status" field-type="string" required="true">
 
 Service health status. The current implementation returns `ok`.
+
 
 </ResponseField>
 
@@ -99,11 +101,61 @@ Service health status. The current implementation returns `ok`.
 
 </Response>
 
-## Implementation notes
+## Agent search ranking
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+When a user describes a task in chat, the AI service searches for matching agents and ranks candidates before presenting results. Ranking uses a blend score that starts with base relevance and then applies additional weighting for tool coverage and platform or type matches.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+### How agent candidates are ranked
+
+The ranking score combines the underlying search relevance score with two additional factors that affect ordering:
+
+<ParamField body="tool coverage" param-type="number" required="true" show-location="false">
+
+The fraction of an agent's required tools that the user already has connected. Agents where the user has all required integrations rank higher than agents that would require new connections. This factor is weighted by `SEARCH_TOOL_WEIGHT`, which defaults to `0.20`.
+
+
+</ParamField>
+
+<ParamField body="platform and type match" param-type="score adjustment" required="true" show-location="false">
+
+Bonuses applied when an agent matches the user's relevant platforms or agent types.
+
+
+</ParamField>
+
+### Soft filtering by tools
+
+When the user has selected preferred tools, the service splits candidates into two groups before final result assembly:
+
+<ParamField body="fits" param-type="group" required="true" show-location="false">
+
+Agents that use at least one of the user's selected tools, or agents that declare no tool requirements. These candidates fill result slots first.
+
+
+</ParamField>
+
+<ParamField body="misfits" param-type="group" required="true" show-location="false">
+
+Agents that declare tool requirements but none of those requirements match the user's selected tools. These candidates only backfill remaining slots when needed.
+
+
+</ParamField>
+
+This soft filtering keeps results aligned with the user's preferences without producing empty result sets when tool overlap is limited.
+
+### Handoff turn behavior
+
+The service now runs agent search on the handoff turn itself, before asking the user about preferred tools.
+
+- If matching agents are found, the service asks the tools question and then re-ranks results using the user's tool selections.
+- If no matching agents are found, the service skips the tools question and moves directly to the no-agent or bounty path.
+
+<Callout kind="info">
+
+This behavior prevents unnecessary questions when no agents match the user's task description.
+
+
+</Callout>
 
 ## Likely error responses
 
