@@ -1,15 +1,16 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Endpoints for AI-powered category suggestion, description generation, and agent verification on the AIGravity FastAPI service.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+The AI service exposes health, chat, and agent verification endpoints. Verification routes are prefixed with `/verification` and include category generation, description generation, workflow step generation, setup field validation, and streaming agent verification.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+
 
 </Callout>
 
@@ -23,17 +24,20 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
 
+
 </ParamField>
 
 <ParamField body="auth" param-type="string" required="false" show-location="false">
 
 No authentication requirement was found in the FastAPI route implementation.
+
 
 </ParamField>
 
@@ -51,33 +55,116 @@ curl -X GET http://localhost:8000/health
 
 </CodeGroup>
 
+### POST /verification/generate-categories
+
+Use this endpoint to classify an agent workflow into marketplace categories from a fixed taxonomy.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/verification/generate-categories`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+No authentication requirement was found in the route implementation. This endpoint is intended for internal service-to-service use and is called by the NestJS API.
+
+
+</ParamField>
+
 ## Request details
 
-This endpoint does not accept any request inputs beyond the request method and path.
+This endpoint accepts a JSON body with workflow context used for deterministic category classification.
 
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+<ParamField body="workflow_json" param-type="object" required="true" show-location="false">
 
-None. The route path is static and does not define any path parameters.
+The workflow JSON to classify.
 
-</ParamField>
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. No query parameters are defined in the route handler.
 
 </ParamField>
 
-<ParamField body="request body" param-type="none" required="false" show-location="false">
+<ParamField body="name" param-type="string" required="false" show-location="false">
 
-None. Send the request without a body.
+Agent name. Defaults to `""` and improves classification accuracy when provided.
+
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="false" show-location="false">
+
+Agent description. Defaults to `""` and improves classification accuracy when provided.
+
 
 </ParamField>
 
 <Callout kind="info">
 
-No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+The classifier uses an LLM with temperature `0.0` for deterministic output. It maps results into a closed set of marketplace categories and drops any off-list answers.
+
 
 </Callout>
+
+### Category taxonomy
+
+The endpoint only returns categories from this fixed taxonomy:
+
+- Everyday
+- Customer service
+- Sales
+- Engineering
+- Finance
+- HR
+- IT
+- Legal
+- Marketing
+- Operations
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:8000/verification/generate-categories \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_json": {
+      "nodes": [
+        {
+          "id": "lead_lookup",
+          "type": "search_crm",
+          "name": "Find account owner"
+        },
+        {
+          "id": "draft_email",
+          "type": "generate_email",
+          "name": "Draft follow-up email"
+        }
+      ],
+      "edges": [
+        {
+          "source": "lead_lookup",
+          "target": "draft_email"
+        }
+      ]
+    },
+    "name": "Outbound sales follow-up agent",
+    "description": "Looks up account ownership and drafts personalized follow-up emails for open opportunities."
+  }'
+```
+
+```json
+{
+  "categories": ["Sales", "Operations"]
+}
+```
+
+</CodeGroup>
 
 ## Response
 
@@ -87,13 +174,25 @@ A successful request returns a JSON object with a single status field.
 
 Service health status. The current implementation returns `ok`.
 
+
+</ResponseField>
+
+### GenerateCategoriesResponse
+
+The category generation endpoint returns up to three categories from the fixed marketplace taxonomy.
+
+<ResponseField name="categories" field-type="string[]" required="true">
+
+Suggested marketplace categories. The response contains 1 to 3 taxonomy values on success. If classification fails or the model returns unusable output, the endpoint returns an empty array.
+
+
 </ResponseField>
 
 <Response tabs="200 OK" show-lines="false">
 
 ```json
 {
-  "status": "ok"
+  "categories": ["Sales", "Operations"]
 }
 ```
 
@@ -103,12 +202,13 @@ Service health status. The current implementation returns `ok`.
 
 The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The AI service now includes a verification router with endpoints for category generation, description generation, workflow step generation, fillable field detection, setup field scoring, request alignment checking, prewarming, and streaming agent verification. The verification stack is pre-warmed on startup.
 
 ## Likely error responses
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+The current implementation mixes direct framework responses with fail-open verification behavior.
 
 - **`404 Not Found`** — Returned when you request a path that is not defined.
 - **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+- **`200 OK` with empty `categories`** — Returned by `POST /verification/generate-categories` when classification fails or the model output cannot be mapped to the fixed taxonomy.
+- **`502 Bad Gateway`** — Other verification endpoints may return this status when upstream LLM calls fail.

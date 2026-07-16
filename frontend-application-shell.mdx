@@ -1,93 +1,66 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: How the Remix frontend is structured today, including routes, auth context, API integration, builder tools, leaderboard, bounties, and packaging.
 ---
 
 ## Overview
 
-The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+The frontend is now a full Remix application with product-specific routes for the builder dashboard, agent customization, publishing, leaderboard, bounties, admin review, settings, and public landing pages. It includes an auth context that supports both user and builder account types, an API client for backend integration, and a builder sidebar that remains visible on builder routes even when you are signed out.
 
 ## App purpose and current scope
 
-Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+The frontend now serves as the primary application surface for both users and builders. It supports two account types, with builder-specific flows for agent creation, publishing, review submission, and dashboard management, while keeping public discovery pages available without authentication.
+
+The auth modal can open on either the user or builder side depending on context. API integration now drives agent publishing, leaderboard data, bounty listings, and AI-powered content generation used during agent customization.
 
 <Callout kind="info">
 
-This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+This page reflects the current implementation in `apps/web`. The frontend now includes product routes, auth state, account-type-aware session handling, builder workflows, leaderboard and bounty experiences, admin review UI, local scripts, and Docker packaging.
+
 
 </Callout>
 
-The implemented files that define the shell are:
-
-- `apps/web/app/root.tsx`
-- `apps/web/app/app.css`
-- `apps/web/app/routes/_index.tsx`
-- `apps/web/app/routes/home.tsx`
-- `apps/web/app/welcome/welcome.tsx`
-- `apps/web/vite.config.ts`
-- `apps/web/package.json`
-- `apps/web/Dockerfile`
-- `apps/web/VERSION`
-
 ## Route map
 
-Two routes are currently implemented, and both render the same shared component.
+The route surface now spans public discovery pages, builder workflows, account management, and admin review tooling.
 
-### `/`
+### Public routes
 
-The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
+- **`/`** — Landing page
+- **`/leaderboard`** — Competition leaderboard with ranked workflows, quality-based scoring, locked, live, and ended states, and a countdown timer
+- **`/how-it-works`** — Static explainer page for the builder competition
+- **`/its-real`** — Static trust page covering prizes and payouts
+- **`/bounties`** — Bounties listing with difficulty filters for All, Easy, Medium, and Difficult, plus shuffled bounty cards
+- **`/bounties/:bountyId`** — Bounty detail page with difficulty indicator and submission count
 
-<CodeGroup tabs="Route component,Route metadata">
+### Builder routes
 
-```tsx
-import { Welcome } from "../welcome/welcome";
+Builder routes support agent management and publishing flows. The builder sidebar remains visible on these routes even when the current visitor is signed out.
 
-export default function Home() {
-  return <Welcome />;
-}
-```
+- **`/builder-dashboard`** — Builder dashboard with published agents and an empty state
+- **`/customize-agent`** — Agent customization page with AI-powered category autofill, AI-assisted content improvement, and AI edit tracking
+- **`/publish-agent`** — Agent publishing flow
+- **`/requested-agents`** — Requested agents listing
 
-```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
-```
+### User and auth routes
 
-</CodeGroup>
+Authentication is modal-driven rather than isolated to a single sign-in page. The modal supports an `initialAccountType` input so the UI opens on the user or builder side that matches the current flow.
 
-### `/home`
+- **Auth modal** — Opens in user or builder mode based on context
+- **Settings** — Account management with side-aware post-logout redirect behavior
 
-The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route and also renders `Welcome`.
+### Admin routes
 
-<CodeGroup tabs="Route component,Route metadata">
+Admin review pages now expose review state directly in the frontend rather than relying on placeholder screens.
 
-```tsx
-import { Welcome } from "../welcome/welcome";
+- **Admin pending review detail** — Shows review details with quality scores formatted to 2 decimal places
+- **Admin pending review cards** — Displays review queue cards with score output
 
-export default function Home() {
-  return <Welcome />;
-}
-```
-
-```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
-```
-
-</CodeGroup>
-
-Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+A previous experimental `/leaderboard2` route is no longer part of the app. Its design work has been merged into the main `/leaderboard` experience.
 
 ## Root layout
 
-`apps/web/app/root.tsx` defines the application document shell. It imports global CSS, registers font-related links, provides the HTML document structure, and renders the route outlet.
+`apps/web/app/root.tsx` still defines the application document shell, imports global CSS, registers font-related links, and renders the route outlet. The root now also provides auth state to the rest of the app so routes can react to the current session and account type.
 
 ### Global style import and linked assets
 
@@ -118,11 +91,11 @@ export const links: LinksFunction = () => [
 
 This is the only font configuration currently present. The shell preconnects to Google Fonts and loads Inter for the global sans stack.
 
-### Document structure and Remix primitives
+### Document structure and auth providers
 
-The `Layout` export defines the outer document and includes the standard Remix primitives used by the app shell.
+The `Layout` export still defines the outer document and includes the standard Remix primitives used by the app shell. The `App` export now wraps the route tree in auth-aware providers before rendering the outlet.
 
-<CodeGroup tabs="Layout,App outlet">
+<CodeGroup tabs="Layout,App shell">
 
 ```tsx
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -146,7 +119,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 ```tsx
 export default function App() {
-  return <Outlet />;
+  return (
+    <AuthProvider>
+      <Outlet />
+    </AuthProvider>
+  );
 }
 ```
 
@@ -156,7 +133,10 @@ A few points matter here:
 
 - `Meta` renders route-level metadata such as the title and description exported by route modules.
 - `Links` injects the stylesheet and font links registered through Remix.
-- `Outlet` is the only content rendered by the root app component, so the shell currently applies no shared navigation, providers, or app frame around routes.
+- The auth provider manages authentication state for both user and builder flows.
+- The auth context exposes `openAuthModal`, including support for an optional account type input when a route needs to open the modal on a specific side.
+- The auth context also tracks the active account type so session-expired and post-logout flows can redirect to the correct side of the app.
+- Builder routes render shared chrome, including the builder sidebar, above route content rather than leaving every route fully unframed.
 - `ScrollRestoration` and `Scripts` are included at the document level, which is the expected baseline for Remix apps.
 
 ## Error handling
@@ -255,6 +235,8 @@ From this file alone, the shell currently guarantees:
 - `html` and `body` default to a white background
 - dark mode switches the background to `var(--color-gray-950)` and enables `color-scheme: dark`
 
+The stylesheet has also expanded beyond the initial shell baseline. Current product styling includes custom presentation for leaderboard medals, incentive cards, bounty difficulty indicators, and locked leaderboard states.
+
 ### Vite and Remix configuration
 
 The build configuration is defined in `apps/web/vite.config.ts`.
@@ -276,63 +258,55 @@ export default defineConfig({
 
 No additional server settings, proxy behavior, environment-specific overrides, or custom build options are configured here. The shell uses the default behavior provided by these plugins.
 
-## Welcome and home UI
+## Product UI overview
 
-The visible UI for both routes lives in `apps/web/app/welcome/welcome.tsx`. It is still a placeholder screen intended to confirm that the shell is running.
+The starter welcome screen has been replaced by product pages that support public discovery, builder workflows, and admin review.
 
-### What the current UI does
+### Builder dashboard
 
-The component renders a centered layout, a logo that switches by color scheme, and a small navigation card with external links.
+The builder dashboard shows published agents and provides a true empty state instead of a generic placeholder. When no agents are published yet, the empty state narrows the next action to a single `How it works` call to action.
 
-<CodeGroup tabs="Main layout,Navigation card">
+The builder sidebar remains visible even when the current visitor is signed out. In that state, the sidebar presents a sign-in action that opens the auth modal directly on the builder side rather than sending the visitor through a generic user flow.
 
-```tsx
-<main className="flex items-center justify-center pt-16 pb-4">
-  <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
-    <header className="flex flex-col items-center gap-9">
-      <div className="w-[500px] max-w-[100vw] p-4">
-        <img src={logoLight} alt="React Router" className="block w-full dark:hidden" />
-        <img src={logoDark} alt="React Router" className="hidden w-full dark:block" />
-      </div>
-    </header>
-```
+### Customize-agent page
 
-```tsx
-<nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-  <p className="leading-6 text-gray-700 dark:text-gray-200 text-center">
-    What&apos;s next?
-  </p>
-  <ul>
-    {resources.map(({ href, text, icon }) => (
-      <li key={href}>
-        <a
-          className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {icon}
-          {text}
-        </a>
-      </li>
-    ))}
-  </ul>
-</nav>
-```
+The customize-agent page now supports AI-powered category autofill. The app can analyze workflow context and prefill marketplace categories so builders do not need to classify every agent manually from scratch.
 
-</CodeGroup>
+The `Improve with AI` flow can generate or polish the agent name, description, and problem statement. When AI-generated content appears in the form, the page also shows a hint so builders can distinguish generated text from manual edits.
 
-### What the current UI does not do
+The page tracks manual edits against the AI baseline for analytics. That tracking makes it possible to measure where builders accept, reject, or revise generated suggestions.
 
-At this stage, the welcome screen is not connected to any application behavior. The current implementation has:
+### Leaderboard
 
-- no API integration
-- no backend data fetches
-- no auth or session UI
-- no domain-specific navigation
-- no business workflow screens
+The leaderboard ranks published workflows by quality score and formats those scores to 2 decimal places. It now represents the competition lifecycle directly in the UI instead of acting as a static ranking screen.
 
-The two external links in the resources list open in a new tab, and the screen remains a starter-style landing page rather than an application homepage.
+The board supports three distinct phases:
+
+- **Locked** — Before the competition opens, the board stays visible but locked
+- **Live** — During the competition, rankings update and the countdown timer remains active
+- **Ended** — After the competition ends, the board serves frozen final standings
+
+The top of the page also highlights the top 5 positions with podium treatment and prize information. Once the competition has ended, the leaderboard remains available as a final record rather than resetting to a new live state.
+
+### Bounties
+
+The bounties page lists available opportunities with a difficulty filter for All, Easy, Medium, and Difficult. Cards are shuffled so the listing does not always privilege the same items by position.
+
+Each bounty card displays difficulty using color-coded indicators:
+
+- **Green** — Easy
+- **Yellow** — Medium
+- **Red** — Difficult
+
+Bounty detail pages now emphasize difficulty and submission count instead of reward amount. That shift makes the page better aligned with competition participation and review activity.
+
+### Admin review surfaces
+
+Admin review UI now includes both queue cards and detail views. Score displays are formatted consistently, with quality scores shown to 2 decimal places in both summary and review-detail contexts.
+
+### Tool name display
+
+The product UI now preserves brand-specific capitalization for services that were previously rendered with incorrect title casing. Corrected examples include SerpAPI, VLM Run, LinkupAPI, Fireflies.ai, TickTick, and PostHog.
 
 ## Local run and build
 
@@ -341,6 +315,7 @@ The two external links in the resources list open in a new tab, and the screen r
 <Callout kind="tip">
 
 Run these commands from `apps/web` so `package.json` and the local build output resolve as expected.
+
 
 </Callout>
 
@@ -420,18 +395,24 @@ A few implementation details matter:
 
 ## Current limitations
 
-<Callout kind="alert">
+<Callout kind="info">
 
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
+The frontend now includes authentication, backend API integration, and product UI across builder, public, and admin flows. Remaining work is concentrated on polish, edge cases, and feature completeness rather than foundational application infrastructure.
+
 
 </Callout>
 
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+That shift changes the nature of frontend planning. Most follow-on work now builds on established routing, auth, shared chrome, and backend connectivity instead of starting from a scaffold.
 
 ## Related foundation docs
 
 <Columns cols={3}>
+
   <Card title="API service foundation" href="/api-service-foundation" icon="database" />
+
   <Card title="Health checks" href="/health-checks" icon="shield" />
+
   <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+
+
 </Columns>

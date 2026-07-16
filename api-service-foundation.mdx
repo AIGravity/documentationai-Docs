@@ -1,21 +1,24 @@
 ---
 title: API Service Foundation
-description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+description: How the NestJS API service boots, wires feature modules, enables CORS and JWT auth, persists through Supabase, and exposes agent, leaderboard, and health endpoints.
 ---
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service is now a full NestJS application in `apps/api` with more than 20 feature modules spanning agent publishing, review workflows, leaderboard, bounties, marketplace, chat, authentication, payments, telemetry, and supporting platform services. It still boots as a single Nest application, but the runtime surface is no longer limited to one controller or one route.
+
+The service uses `ConfigModule` for environment-driven configuration, `SupabaseModule` for PostgreSQL persistence, and guard-based authentication for protected endpoints. JWT-protected routes use `SupabaseAuthGuard`, while public routes remain available without authentication where appropriate.
 
 <Callout kind="info">
 
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+The current implementation includes agent, leaderboard, bounties, marketplace, chat, auth, and health endpoints, with JWT-guarded routes across protected controller actions.
+
 
 </Callout>
 
 ## Bootstrap flow
 
-`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. All of that behavior is hardcoded in the entrypoint rather than driven by environment-based configuration.
+`apps/api/src/main.ts` still creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server on a fixed port. The bootstrap remains small, but it now runs against an application graph that includes global configuration, authentication, persistence, and multiple feature modules.
 
 <CodeGroup tabs="main.ts,Behavior summary">
 
@@ -47,13 +50,19 @@ await app.listen(3001);
 
 The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the full set of controllers, providers, and imported modules available at runtime.
 
-Because `AppModule` is currently minimal, bootstrap is also minimal. There are no global pipes, interceptors, guards, filters, or prefixes configured in the inspected entrypoint.
+Because the module graph is now broad, bootstrap initializes a full feature-oriented API rather than a single-controller foundation app. The entrypoint is still lean, with no global pipes, interceptors, guards, filters, or prefixes configured directly in `main.ts`.
+
+### Configuration loading
+
+The service now relies on `ConfigModule` for environment-driven configuration. `ConfigModule` is registered globally and loads from `.env`, so feature modules can resolve configuration values without re-importing configuration support in every module.
+
+That moves environment access into the Nest dependency graph instead of leaving runtime configuration entirely hardcoded. CORS and port binding in `main.ts` still remain explicit in the bootstrap file.
 
 ### CORS configuration
 
 CORS is enabled with `app.enableCors(...)` and allows exactly one origin: `http://localhost:3000`. The configuration also sets `credentials: true`, so browsers can include credentials on cross-origin requests from that origin.
 
-That setup is enough for local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables or a configuration module.
+That setup is enough for local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables in the inspected bootstrap file.
 
 ### Port binding
 
@@ -63,16 +72,43 @@ The service binds to port `3001` with `app.listen(3001)`. There is no `process.e
 
 The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
 
+
 </Callout>
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
+`AppModule` is the full application root, and it now imports a large set of feature modules instead of wiring a single controller-only app. The module graph covers authentication, persistence, public discovery surfaces, builder workflows, billing, telemetry, safety, and external integration layers.
 
 <CodeGroup tabs="app.module.ts,Current application graph">
 
 ```ts
 @Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ".env",
+    }),
+    SupabaseModule,
+    AuthModule,
+    AgentsModule,
+    LeaderboardModule,
+    BountiesModule,
+    MarketplaceModule,
+    BuilderModule,
+    BuilderProfileModule,
+    ChatModule,
+    AutomationsModule,
+    RequestedAgentsModule,
+    PaymentsModule,
+    AdminBillingModule,
+    TelemetryModule,
+    GuardrailModule,
+    ComposioModule,
+    LlmModule,
+    TriggersModule,
+    ActivepiecesModule,
+    AppsModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule {}
@@ -80,42 +116,78 @@ export class AppModule {}
 
 ```text
 AppModule
+├── ConfigModule
+├── SupabaseModule
+├── AuthModule
+├── AgentsModule
+├── LeaderboardModule
+├── BountiesModule
+├── MarketplaceModule
+├── BuilderModule
+├── BuilderProfileModule
+├── ChatModule
+├── AutomationsModule
+├── RequestedAgentsModule
+├── PaymentsModule
+├── AdminBillingModule
+├── TelemetryModule
+├── GuardrailModule
+├── ComposioModule
+├── LlmModule
+├── TriggersModule
+├── ActivepiecesModule
+├── AppsModule
 └── HealthController
 ```
 
 </CodeGroup>
 
-### Current module graph
+### Root module responsibilities
 
-The module graph is intentionally small:
+`AppModule` now acts as the composition layer for the service. It imports configuration, persistence, authentication, public API modules, internal orchestration modules, and integration-facing modules into one application graph.
 
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
+`HealthController` is still registered directly on `AppModule`. That keeps the liveness endpoint available at the root application level while the rest of the API surface is organized into feature modules.
 
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+### Key feature modules
 
-### What is not wired yet
+The current application graph includes these major modules:
 
-Several common Nest application concerns are absent from the inspected files:
+- **`ConfigModule`** — global configuration with `.env` file support
+- **`SupabaseModule`** — PostgreSQL database access and shared Supabase integration
+- **`AuthModule`** — JWT and Supabase-backed authentication flows
+- **`AgentsModule`** — agent publishing, verification, and review pipeline
+- **`LeaderboardModule`** — public workflow leaderboard and seasonal results
+- **`BountiesModule`** — bounty submission flows with difficulty levels
+- **`MarketplaceModule`** — public marketplace surfaces
+- **`BuilderModule`** — builder flow orchestration
+- **`BuilderProfileModule`** — builder public profiles
+- **`ChatModule`** — chat interface
+- **`AutomationsModule`** — consumer automation runs
+- **`RequestedAgentsModule`** — requested-agent workflows
+- **`PaymentsModule`** — payment processing
+- **`AdminBillingModule`** — admin billing views
+- **`TelemetryModule`** — analytics and telemetry
+- **`GuardrailModule`** — content safety
+- **`ComposioModule`** — tool and integration reachability
+- **`LlmModule`** — LLM access layer
+- **`TriggersModule`** — trigger management
+- **`ActivepiecesModule`** — Activepieces instance integration
+- **`AppsModule`** — app catalogue
 
-- auth modules, guards, JWT, or session handling
-- DTO classes and validation pipes
-- database configuration, repositories, entities, or migrations
-- domain-specific modules and services
-- `ConfigModule` or other environment-driven configuration
-- OpenAPI or Swagger setup
+### Architecture characteristics
+
+The service now follows a full module-based architecture rather than exposing behavior directly from a single controller layer. Cross-cutting concerns such as authentication and persistence are part of the application graph, while request validation is handled with DTOs and `class-validator` in feature-level request models.
 
 <Callout kind="info">
 
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
+The service now has a full module-based architecture with auth guards, DTO validation, and Supabase persistence across feature areas.
+
 
 </Callout>
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+`GET /health` remains the simplest endpoint in the service, but it is now one route among many rather than the only implemented API path. It still returns a plain inline object and does not use a DTO, schema, or health-check integration package.
 
 <CodeGroup tabs="health.controller.ts,Response example">
 
@@ -149,11 +221,15 @@ Because there is no API versioning or prefix configuration in the bootstrap file
 The response is a small JSON object with two fields.
 
 <ResponseField name="status" field-type="string" required="true">
+
 Returns `ok` in the current implementation.
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
+
 Returns `api` in the current implementation.
+
 </ResponseField>
 
 ### What the endpoint does not include
@@ -161,6 +237,40 @@ Returns `api` in the current implementation.
 The health endpoint is intentionally bare. It does not check downstream dependencies, validate output through a schema, or map through a response DTO.
 
 There is also no health library integration in the inspected files. The endpoint reports service availability by returning a static object from the controller.
+
+## Authentication and authorization
+
+Protected endpoints use `SupabaseAuthGuard` to validate JWT bearer tokens before controller handlers run. That guard establishes the authenticated request context used by feature modules such as agents, bounties, builder flows, and other user-scoped operations.
+
+Admin-only endpoints add `AdminGuard` on top of JWT authentication. Those routes require both a valid authenticated user and an authorization check that verifies admin access.
+
+### Auth context
+
+The authenticated request context exposes the current user identity to downstream handlers. At minimum, that context includes the authenticated user ID and email, which feature controllers use to scope reads, writes, reviews, and ownership checks.
+
+That keeps user identity resolution in the auth layer instead of repeating token parsing logic inside controller methods. Public routes can skip that guard chain entirely when no authenticated context is required.
+
+### Public and protected surfaces
+
+Not every route requires authentication. Leaderboard endpoints and the health endpoint are public, while protected feature modules require JWT authentication through `SupabaseAuthGuard`.
+
+Admin review workflows are stricter. Those routes require both JWT authentication and admin role verification before allowing review or moderation actions.
+
+## Agent and leaderboard endpoints
+
+The service now exposes a substantial API surface across agent publishing and public leaderboard access. These endpoints sit in dedicated feature modules rather than being attached directly to the root application module.
+
+### Agents controller surface
+
+`AgentsController` exposes 27 endpoints under `/api/agents`. That surface covers publishing flows, review submission, AI-powered previews for categories and descriptions, workflow-step generation, verification streaming, and admin review management.
+
+All agent endpoints require JWT authentication. Admin review endpoints add role-based enforcement, so they require both authenticated access and admin verification.
+
+### Leaderboard controller surface
+
+`LeaderboardController` exposes public endpoints under `/api/leaderboard` for workflow rankings and frozen seasonal results. Those routes are intentionally public-facing, which makes them available without JWT authentication.
+
+That separation reflects the service's access model. Builder and submission workflows are identity-aware, while read-only leaderboard views remain open.
 
 ## Runtime and build
 
@@ -206,6 +316,7 @@ The package metadata and runtime scripts point to different built entrypoints. `
 <Callout kind="alert">
 
 The compiled output path is likely inconsistent with the `start` script. With `rootDir` set to `./` and the source entrypoint at `src/main.ts`, emitted files likely land under `dist/src/`, which makes `bun dist/main.js` a probable mismatch.
+
 
 </Callout>
 
@@ -374,23 +485,20 @@ The deploy job exists, but it does not perform a real deployment yet. The inspec
 
 The CI pipeline includes release and deployment scaffolding, but deployment is not implemented. The deploy job is placeholder-only in the current workflow.
 
+
 </Callout>
 
 ## Current limitations
 
-<Callout kind="danger">
+<Callout kind="alert">
 
-The inspected API service is a foundation app, not a feature-complete backend. It currently has:
+The service has moved well beyond the original foundation app, but a few operational issues still remain:
 
-- no DTOs
-- no auth
-- no persistence or database integration
-- no domain modules or services
-- no environment-based configuration
-- no OpenAPI or Swagger setup
-- no active test step in CI
-- no lint step, even though the workflow job is labeled Build and Lint
+- `main.ts` listens on `3001`, while the Dockerfile exposes `3000`
+- the API CI workflow does not enforce an active lint step
+- the API CI workflow does not enforce an active test step
+
 
 </Callout>
 
-The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.
+The implementation now includes modular features, JWT authentication, DTO validation, and Supabase-backed persistence. The next layer of work should focus on tightening operational consistency, especially the port alignment and CI quality gates.

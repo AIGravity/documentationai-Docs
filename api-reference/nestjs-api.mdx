@@ -1,21 +1,16 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Endpoints for agent publishing, AI category preview, and leaderboard rankings on the AIGravity NestJS API service.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API service exposes public health and leaderboard endpoints, plus authenticated agent endpoints for category preview, publishing, and review submission. Agent routes require JWT authentication, while leaderboard and health routes are public.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and controller implementations in the AIGravity core repository, rather than direct file reads through the docs repository tool.
 
-</Callout>
-
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
 
 </Callout>
 
@@ -29,11 +24,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +38,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +58,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +66,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +76,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +84,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +119,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -136,6 +141,670 @@ A `404` response is likely when you request the wrong path or use the wrong HTTP
 
 A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
 
+## POST `/api/agents/preview-categories`
+
+Use this endpoint to get AI-generated marketplace category suggestions before publishing an agent.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/preview-categories`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+JWT required.
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="workflowJson" param-type="object" required="true" show-location="false">
+
+The uploaded workflow JSON.
+
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="false" show-location="false">
+
+Agent name. Providing a name improves classification accuracy.
+
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="false" show-location="false">
+
+Agent description. Providing a description improves classification accuracy.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+The category suggester uses a fixed marketplace taxonomy: `Everyday`, `Customer service`, `Sales`, `Engineering`, `Finance`, `HR`, `IT`, `Legal`, `Marketing`, and `Operations`.
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/agents/preview-categories \
+  -H "Authorization: Bearer sb_example_jwt_token_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowJson": {
+      "nodes": [
+        {
+          "id": "lead-qualifier",
+          "type": "agent",
+          "name": "Lead qualifier"
+        }
+      ],
+      "edges": []
+    },
+    "name": "Pipeline triage assistant",
+    "description": "Classifies inbound leads and routes them to the right rep"
+  }'
+```
+
+</CodeGroup>
+
+## Response
+
+A successful request returns one to three suggested categories.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "categories": ["Sales", "Operations"]
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="categories" field-type="string[]" required="true">
+
+Suggested marketplace categories. The response contains one to three values selected from the fixed taxonomy.
+
+
+</ResponseField>
+
+### Behavior
+
+The endpoint calls the AI service to classify the workflow for marketplace discovery. If the AI call fails for any reason, the endpoint returns an empty `categories` array so category preview never blocks publishing.
+
+## POST `/api/agents/publish`
+
+Use this endpoint to publish a completed agent workflow to the marketplace.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/publish`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+JWT required.
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="workflowJson" param-type="object" required="true" show-location="false">
+
+The workflow definition.
+
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true" show-location="false">
+
+Agent name.
+
+
+</ParamField>
+
+<ParamField body="summary" param-type="string" required="false" show-location="false">
+
+Agent description.
+
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="false" show-location="false">
+
+Marketplace categories. The server accepts up to three categories.
+
+
+</ParamField>
+
+<ParamField body="problemSolved" param-type="string" required="false" show-location="false">
+
+Description of the problem the agent solves.
+
+
+</ParamField>
+
+<ParamField body="workflowSteps" param-type="string[]" required="false" show-location="false">
+
+Step-by-step workflow description.
+
+
+</ParamField>
+
+<ParamField body="tools" param-type="string[]" required="false" show-location="false">
+
+Tools used by the workflow.
+
+
+</ParamField>
+
+<ParamField body="platforms" param-type="string[]" required="false" show-location="false">
+
+Supported platforms.
+
+
+</ParamField>
+
+<ParamField body="useCases" param-type="string[]" required="false" show-location="false">
+
+Use case tags.
+
+
+</ParamField>
+
+<ParamField body="builderQuestions" param-type="array" required="false" show-location="false">
+
+Per-question configuration objects.
+
+
+</ParamField>
+
+<ParamField body="aiGenerated" param-type="object" required="false" show-location="false">
+
+AI-generated baseline content for edit tracking. Supported nested fields are `name`, `description`, `problemSolved`, `workflowSteps`, and `categories`. When present, the server stores this baseline and computes which fields you changed after the AI suggestion.
+
+
+</ParamField>
+
+<ParamField body="requestedAgentId" param-type="string" required="false" show-location="false">
+
+Requested-agent identifier. The expected format is a UUID.
+
+
+</ParamField>
+
+<ParamField body="testRunId" param-type="string" required="false" show-location="false">
+
+Test run identifier for credit estimation.
+
+
+</ParamField>
+
+<Callout kind="info">
+
+The `aiGenerated` field is optional and backwards-compatible. If you omit it, the server skips AI baseline tracking.
+
+
+</Callout>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/agents/publish \
+  -H "Authorization: Bearer sb_example_jwt_token_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowJson": {
+      "nodes": [
+        {
+          "id": "ops-agent",
+          "type": "agent",
+          "name": "Operations coordinator"
+        }
+      ],
+      "edges": []
+    },
+    "name": "Operations coordinator",
+    "summary": "Routes requests, summarizes updates, and assigns follow-up actions",
+    "categories": ["Operations", "Sales"],
+    "problemSolved": "Reduces manual handoff work across revenue and operations teams",
+    "workflowSteps": [
+      "Collect incoming request details",
+      "Classify the request type",
+      "Create follow-up tasks for the assigned team"
+    ],
+    "tools": ["Slack", "Notion", "HubSpot"],
+    "platforms": ["Web"],
+    "useCases": ["handoff-automation", "lead-routing"],
+    "builderQuestions": [
+      {
+        "id": "team-size",
+        "label": "How many reps need assignments?",
+        "type": "number"
+      }
+    ],
+    "aiGenerated": {
+      "name": "Operations coordinator",
+      "description": "Automates request routing for go-to-market teams",
+      "problemSolved": "Eliminates manual triage and assignment work",
+      "workflowSteps": [
+        "Collect request details",
+        "Classify urgency",
+        "Assign the request"
+      ],
+      "categories": ["Operations"]
+    },
+    "requestedAgentId": "7d4e1e8a-3a4a-4a0a-a3c3-8d8a21b2a901",
+    "testRunId": "testrun_01j2v6s9m4p8"
+  }'
+```
+
+</CodeGroup>
+
+## Response
+
+A successful request returns the published agent record and the corresponding search index document.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "agent": {
+    "id": "agt_01j2v7c4qk8m",
+    "name": "Operations coordinator",
+    "status": "published"
+  },
+  "searchDocument": {
+    "objectID": "agt_01j2v7c4qk8m",
+    "name": "Operations coordinator",
+    "categories": ["Operations", "Sales"]
+  }
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="agent" field-type="object" required="true">
+
+Published agent record.
+
+
+</ResponseField>
+
+<ResponseField name="searchDocument" field-type="object" required="true">
+
+Search index document created or updated for marketplace discovery.
+
+
+</ResponseField>
+
+## POST `/api/agents/review-submission`
+
+Use this endpoint to submit an agent for admin review before publishing.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/agents/review-submission`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+JWT required.
+
+
+</ParamField>
+
+### Request body
+
+This endpoint accepts the same publishing fields as `POST /api/agents/publish`, plus review metadata.
+
+<ParamField body="source" param-type="string" required="true" show-location="false" enum="publish,bounty,requested">
+
+Submission source.
+
+
+</ParamField>
+
+<ParamField body="sourceId" param-type="string" required="false" show-location="false">
+
+Bounty or requested-agent identifier.
+
+
+</ParamField>
+
+<ParamField body="creditCost" param-type="integer" required="false" show-location="false">
+
+Credits per run.
+
+
+</ParamField>
+
+<ParamField body="issues" param-type="array" required="false" show-location="false">
+
+Verification issues returned by the verify stream.
+
+
+</ParamField>
+
+<ParamField body="aiGenerated" param-type="object" required="false" show-location="false">
+
+AI-generated baseline content carried through the admin approval path. The shape matches the `aiGenerated` field on the publish endpoint.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/agents/review-submission \
+  -H "Authorization: Bearer sb_example_jwt_token_9xmk7q2r" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflowJson": {
+      "nodes": [
+        {
+          "id": "finance-agent",
+          "type": "agent",
+          "name": "Finance close assistant"
+        }
+      ],
+      "edges": []
+    },
+    "name": "Finance close assistant",
+    "summary": "Prepares month-end close tasks and alerts owners about missing inputs",
+    "categories": ["Finance", "Operations"],
+    "source": "publish",
+    "creditCost": 12,
+    "issues": [
+      {
+        "code": "missing-fallback",
+        "severity": "warning",
+        "message": "The workflow has no manual escalation branch"
+      }
+    ],
+    "aiGenerated": {
+      "name": "Finance close assistant",
+      "description": "Coordinates close tasks for accounting teams",
+      "problemSolved": "Reduces manual status chasing during close",
+      "workflowSteps": [
+        "Read task status",
+        "Detect blockers",
+        "Notify owners"
+      ],
+      "categories": ["Finance"]
+    }
+  }'
+```
+
+</CodeGroup>
+
+## Response
+
+A successful request returns the pending review record.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "id": "rev_01j2v8c5t0df",
+  "status": "pending",
+  "source": "publish"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Pending review identifier.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current review status.
+
+
+</ResponseField>
+
+<ResponseField name="source" field-type="string" required="true">
+
+Submission source recorded for the review.
+
+
+</ResponseField>
+
+## GET `/api/leaderboard/workflows`
+
+Use this endpoint to fetch the per-workflow leaderboard ranked by quality score.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/leaderboard/workflows`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication required.
+
+
+</ParamField>
+
+### Query parameters
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of ranked workflows to return. Defaults to `100` and is clamped to the range `1` through `200`.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/leaderboard/workflows?limit=25"
+```
+
+</CodeGroup>
+
+## Response
+
+A successful request returns ranked workflow entries and the total number of published workflows in the leaderboard.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "items": [
+    {
+      "workflowId": "wf_01j2v91f4mce",
+      "workflowName": "Sales triage copilot",
+      "builderUserId": "usr_01j2v8x73nqp",
+      "builderName": "Jane Chen",
+      "avatarUrl": "https://cdn.aigravity.dev/avatars/jane-chen.png",
+      "score": 97.4,
+      "builderWorkflows": 6
+    }
+  ],
+  "total": 148
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="items" field-type="array" required="true">
+
+Ranked workflow entries. Each item includes `workflowId`, `workflowName`, `builderUserId`, `builderName`, `avatarUrl`, `score`, and `builderWorkflows`.
+
+
+</ResponseField>
+
+<ResponseField name="total" field-type="integer" required="true">
+
+Total number of ranked workflows.
+
+
+</ResponseField>
+
+### Ranking behavior
+
+The leaderboard sorts workflows by highest score first. If two workflows have the same score, the builder with more total published workflows ranks higher.
+
+<Callout kind="info">
+
+A single builder can appear multiple times because the leaderboard ranks published workflows, not unique builders.
+
+
+</Callout>
+
+## GET `/api/leaderboard/results`
+
+Use this endpoint to fetch frozen final leaderboard standings after a competition season closes.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/api/leaderboard/results`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication required.
+
+
+</ParamField>
+
+### Query parameters
+
+<ParamField query="season" param-type="string" required="false">
+
+Competition season identifier. Defaults to `season-01`.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i "http://localhost:3001/api/leaderboard/results?season=season-01"
+```
+
+</CodeGroup>
+
+## Response
+
+This endpoint returns the same response shape as `GET /api/leaderboard/workflows`.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "items": [
+    {
+      "workflowId": "wf_01j2v91f4mce",
+      "workflowName": "Sales triage copilot",
+      "builderUserId": "usr_01j2v8x73nqp",
+      "builderName": "Jane Chen",
+      "avatarUrl": "https://cdn.aigravity.dev/avatars/jane-chen.png",
+      "score": 97.4,
+      "builderWorkflows": 6,
+      "prize": "$500"
+    }
+  ],
+  "total": 148
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="items" field-type="array" required="true">
+
+Ranked workflow entries. The response shape matches `GET /api/leaderboard/workflows` and may include a `prize` field for ranked positions.
+
+
+</ResponseField>
+
+<ResponseField name="total" field-type="integer" required="true">
+
+Total number of ranked workflows in the returned standings.
+
+
+</ResponseField>
+
+### Behavior
+
+Before the season close date, the endpoint returns live provisional standings. After the season closes, it serves a frozen snapshot from the leaderboard results table. The freeze operation is idempotent.
+
 ## Notes
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+The API now uses explicit `/api` prefixes on controller routes for agent and leaderboard endpoints. Agent endpoints require JWT authentication through a Supabase auth guard, while health and leaderboard routes remain public. The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so local requests use `http://localhost:3001`.

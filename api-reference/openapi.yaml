@@ -5,9 +5,9 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers the NestJS API service health, agent publishing, AI category preview, and leaderboard endpoints.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    Authentication for protected endpoints uses a Bearer JWT in the `Authorization` header as `Bearer <token>`.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +21,10 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Agents
+    description: Agent publishing, review, and AI-powered preview endpoints
+  - name: Leaderboard
+    description: Public workflow leaderboard and seasonal results endpoints
 paths:
   /health:
     get:
@@ -41,8 +45,149 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/agents/preview-categories:
+    post:
+      tags:
+        - Agents
+      summary: Get AI-suggested marketplace categories
+      description: Classifies a workflow into 1-3 marketplace categories from a fixed taxonomy. Returns an empty array on AI failure.
+      operationId: previewAgentCategories
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewCategoriesRequest'
+      responses:
+        '200':
+          description: Suggested marketplace categories
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewCategoriesResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/publish:
+    post:
+      tags:
+        - Agents
+      summary: Publish an agent to the marketplace
+      description: Publishes a completed agent workflow. Optionally accepts AI-generated baseline content for edit tracking.
+      operationId: publishAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentRequest'
+      responses:
+        '200':
+          description: Agent published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishAgentResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/review-submission:
+    post:
+      tags:
+        - Agents
+      summary: Submit an agent for admin review
+      description: Submits a workflow for admin review before publishing. Accepts the same fields as publish plus review metadata and optional AI baseline content.
+      operationId: submitAgentReviewSubmission
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmissionRequest'
+      responses:
+        '200':
+          description: Review submission created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewSubmissionResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/leaderboard/workflows:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get per-workflow leaderboard
+      description: Returns published workflows ranked by quality score. A builder may appear multiple times.
+      operationId: getWorkflowLeaderboard
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of workflow leaderboard entries to return.
+          required: false
+          schema:
+            type: integer
+            default: 100
+            minimum: 1
+            maximum: 200
+      responses:
+        '200':
+          description: Workflow leaderboard results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/leaderboard/results:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get frozen leaderboard results
+      description: Returns frozen final standings after a competition season closes. Before close, returns live provisional standings.
+      operationId: getLeaderboardResults
+      security: []
+      parameters:
+        - name: season
+          in: query
+          description: Season identifier for the leaderboard results.
+          required: false
+          schema:
+            type: string
+            default: season-01
+      responses:
+        '200':
+          description: Seasonal leaderboard results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   responses:
+    UnauthorizedError:
+      description: Missing or invalid authentication credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UnauthorizedError'
     InternalServerError:
       description: Unexpected server error
       content:
@@ -66,3 +211,310 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    PreviewCategoriesRequest:
+      type: object
+      description: Request payload for AI-powered marketplace category suggestions.
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          description: Workflow JSON to classify.
+          additionalProperties: true
+          example:
+            nodes: []
+            edges: []
+        name:
+          type: string
+          description: Optional workflow name to improve classification.
+          example: Lead enrichment workflow
+        description:
+          type: string
+          description: Optional workflow description to improve classification.
+          example: Enriches inbound leads and routes them to the correct CRM owner.
+    PreviewCategoriesResponse:
+      type: object
+      description: Suggested marketplace categories for a workflow.
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          description: Suggested marketplace categories. May be empty if AI classification fails.
+          items:
+            type: string
+          example:
+            - sales
+            - automation
+    AiGeneratedContent:
+      type: object
+      description: Optional AI-generated baseline content used for edit tracking.
+      properties:
+        name:
+          type: string
+          description: AI-generated workflow name.
+          example: Smart Lead Routing Agent
+        description:
+          type: string
+          description: AI-generated workflow description.
+          example: Automatically classifies and routes inbound leads to the right sales representative.
+        problemSolved:
+          type: string
+          description: AI-generated problem statement.
+          example: Reduces manual lead triage and accelerates response time.
+        workflowSteps:
+          type: array
+          description: AI-generated workflow steps.
+          items:
+            type: string
+          example:
+            - Receive a new lead from the web form
+            - Classify the lead based on region and company size
+            - Assign the lead to the appropriate owner
+        categories:
+          type: array
+          description: AI-generated category suggestions.
+          items:
+            type: string
+          example:
+            - sales
+            - lead-management
+    BuilderQuestion:
+      type: object
+      description: Additional builder-supplied question and answer content.
+      additionalProperties: true
+      example:
+        question: What input is required?
+        answer: A lead object with company, contact, and region fields.
+    PublishAgentRequest:
+      type: object
+      description: Request payload for publishing an agent workflow to the marketplace.
+      required:
+        - workflowJson
+        - name
+      properties:
+        workflowJson:
+          type: object
+          description: Workflow JSON definition to publish.
+          additionalProperties: true
+          example:
+            nodes: []
+            edges: []
+        name:
+          type: string
+          description: Marketplace display name for the agent.
+          minLength: 1
+          example: Smart Lead Routing Agent
+        summary:
+          type: string
+          description: Short summary of the workflow.
+          example: Routes inbound leads to the best matching sales owner.
+        categories:
+          type: array
+          description: Marketplace categories assigned to the workflow.
+          items:
+            type: string
+          example:
+            - sales
+            - automation
+        problemSolved:
+          type: string
+          description: Description of the problem solved by the workflow.
+          example: Eliminates manual lead routing and improves follow-up speed.
+        workflowSteps:
+          type: array
+          description: Ordered list of workflow steps.
+          items:
+            type: string
+          example:
+            - Capture the incoming lead
+            - Evaluate lead attributes
+            - Assign the lead to a sales owner
+        tools:
+          type: array
+          description: Tools or services used by the workflow.
+          items:
+            type: string
+          example:
+            - HubSpot
+            - OpenAI
+        platforms:
+          type: array
+          description: Supported platforms or integrations.
+          items:
+            type: string
+          example:
+            - web
+            - slack
+        useCases:
+          type: array
+          description: Common use cases for the workflow.
+          items:
+            type: string
+          example:
+            - Lead qualification
+            - Sales routing
+        builderQuestions:
+          type: array
+          description: Additional builder questions and answers.
+          items:
+            $ref: '#/components/schemas/BuilderQuestion'
+          example:
+            - question: What data does this workflow need?
+              answer: Lead source, region, and team capacity.
+        aiGenerated:
+          $ref: '#/components/schemas/AiGeneratedContent'
+        requestedAgentId:
+          type: string
+          format: uuid
+          description: Optional requested agent identifier associated with this publication.
+          example: 123e4567-e89b-12d3-a456-426614174000
+        testRunId:
+          type: string
+          description: Optional test run identifier associated with this workflow.
+          example: test-run-001
+    PublishAgentResponse:
+      type: object
+      description: Response payload after successfully publishing an agent.
+      required:
+        - agent
+        - searchDocument
+      properties:
+        agent:
+          type: object
+          description: Published agent record.
+          additionalProperties: true
+          example:
+            id: 123e4567-e89b-12d3-a456-426614174000
+            name: Smart Lead Routing Agent
+            status: published
+        searchDocument:
+          type: object
+          description: Search index document generated for the published agent.
+          additionalProperties: true
+          example:
+            objectID: 123e4567-e89b-12d3-a456-426614174000
+            title: Smart Lead Routing Agent
+    ReviewSubmissionRequest:
+      allOf:
+        - $ref: '#/components/schemas/PublishAgentRequest'
+        - type: object
+          description: Request payload for submitting an agent workflow for admin review.
+          required:
+            - source
+          properties:
+            source:
+              type: string
+              description: Origin of the review submission.
+              enum:
+                - publish
+                - bounty
+                - requested
+              example: publish
+            sourceId:
+              type: string
+              description: Optional identifier for the source record.
+              example: bounty-123
+            creditCost:
+              type: integer
+              description: Optional credit cost associated with the submission.
+              minimum: 0
+              example: 10
+            issues:
+              type: array
+              description: Optional list of submission issues or notes.
+              items:
+                type: string
+              example:
+                - Missing icon asset
+                - Needs legal review
+    ReviewSubmissionResponse:
+      type: object
+      description: Response payload for a created review submission.
+      required:
+        - id
+        - status
+        - source
+      properties:
+        id:
+          type: string
+          description: Review submission identifier.
+          example: review-submission-001
+        status:
+          type: string
+          description: Current review submission status.
+          example: pending
+        source:
+          type: string
+          description: Origin of the review submission.
+          example: publish
+    WorkflowLeaderboardEntry:
+      type: object
+      description: A single workflow entry in the public leaderboard.
+      required:
+        - workflowId
+        - workflowName
+        - builderUserId
+        - builderName
+        - avatarUrl
+        - score
+        - builderWorkflows
+      properties:
+        workflowId:
+          type: string
+          description: Workflow identifier.
+          example: workflow-001
+        workflowName:
+          type: string
+          description: Workflow display name.
+          example: Smart Lead Routing Agent
+        builderUserId:
+          type: string
+          description: Builder user identifier.
+          example: user-001
+        builderName:
+          type: string
+          description: Builder display name.
+          example: Jane Builder
+        avatarUrl:
+          type: string
+          description: Builder avatar image URL.
+          example: https://cdn.aigravity.dev/avatars/user-001.png
+        score:
+          type: number
+          description: Quality score used for ranking.
+          example: 98.4
+        builderWorkflows:
+          type: integer
+          description: Number of workflows published by the builder.
+          example: 7
+        prize:
+          type: string
+          description: Prize awarded for the ranking position, when applicable.
+          example: $500
+    LeaderboardResponse:
+      type: object
+      description: Leaderboard response payload.
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          description: Ranked workflow entries.
+          items:
+            $ref: '#/components/schemas/WorkflowLeaderboardEntry'
+        total:
+          type: integer
+          description: Total number of leaderboard entries available.
+          example: 100
+    UnauthorizedError:
+      type: object
+      description: Authentication error response.
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Human-readable authentication error message.
+          example: Unauthorized

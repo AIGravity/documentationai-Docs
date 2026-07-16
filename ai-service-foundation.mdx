@@ -1,76 +1,188 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: How the FastAPI AI service starts, manages dependencies with uv, exposes health and verification endpoints, and integrates LLM-powered category and description generation.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is now a FastAPI application with health, chat, and agent verification endpoints. It integrates LLM-based content generation through OpenRouter for category suggestion, description polishing, and workflow step generation, while the verification stack adds streaming agent verification, setup field scoring, and request alignment checks.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The current service uses LLM providers, Pydantic schemas, and a startup warmup sequence to reduce cold-start latency for verification workflows.
+
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+This service has evolved from a minimal scaffold into a feature-rich AI system with a verification router, LLM integration, and Pydantic-based request and response schemas. The verification stack is pre-warmed on startup so higher-cost checks are ready before the first verification request arrives.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+Key capabilities now include:
+
+- AI-powered category generation from a fixed taxonomy
+- Description and name generation with deterministic post-processing
+- Workflow step generation from workflow definitions
+- Fillable field detection for user-provided inputs
+- Setup field scoring for agent metadata quality
+- Request alignment judging against requested-agent or bounty specifications
+- Prewarming and cached verification results by workflow hash
+- Streaming agent verification through Server-Sent Events
 
 ## Bootstrap in main.py
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application still starts in `apps/ai-service/main.py`, but startup now does more than instantiate a single FastAPI app. The main module registers multiple routers, including a verification router mounted at `/verification` and a credits router, and it uses a lifespan handler to pre-warm the verification stack during startup.
 
 <CodeGroup tabs="main.py,Notes">
 
 ```python
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-app = FastAPI()
+from routers.verification import router as verification_router
+from routers.credits import router as credits_router
+from services.verification import prewarm_verification_stack
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await prewarm_verification_stack()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+app.include_router(verification_router, prefix="/verification")
+app.include_router(credits_router)
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "ai-service",
+        "version": "0.1.0",
+    }
 ```
 
 ```text
 Grounded bootstrap details:
 
-- app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- FastAPI app creation now includes a lifespan startup handler
+- startup prewarms the verification stack before serving requests
+- /verification routes are registered through an APIRouter
+- a credits router is also mounted on the main app
+- the main module also defines direct routes for chat, requested agents, embedding, agent indexing, and admin pricing
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+That broader bootstrap path changes what this service is responsible for at runtime. The application now coordinates router composition, verification readiness, and direct AI-facing endpoints rather than serving only a single liveness route.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The `GET /health` endpoint remains the basic process health check, but it is no longer the only custom route in the service. The response now includes additional metadata such as the service name and version alongside the status field.
 
 <CodeGroup tabs="Route,Response">
 
 ```python
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "ai-service",
+        "version": "0.1.0",
+    }
 ```
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "service": "ai-service",
+  "version": "0.1.0"
 }
 ```
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+The endpoint is still useful for basic liveness checks because it returns quickly and does not depend on the full verification flow. In the current service, though, it sits alongside chat, internal operations, and verification endpoints rather than representing the whole API surface.
+
+## Agent verification capabilities
+
+The verification router now exposes 11 endpoints under the `/verification` prefix. Together, those endpoints support classification, content generation, workflow analysis, advisory scoring, and streamed multi-phase verification.
+
+### Category generation
+
+Category generation uses an LLM with temperature `0.0` to keep classification deterministic. The model classifies agents into a fixed taxonomy of 10 marketplace categories and returns between 1 and 3 categories from this set:
+
+- Everyday
+- Customer service
+- Sales
+- Engineering
+- Finance
+- HR
+- IT
+- Legal
+- Marketing
+- Operations
+
+If category generation fails, the service fails open and returns an empty array rather than blocking the broader verification flow.
+
+### Description and name generation
+
+Description generation can create or polish an agent name, description, and problem statement. It uses different temperature settings by field, with `0.2` for names and `0.5` for descriptions, so short labels stay more stable while descriptive text has more room to improve.
+
+The service then applies deterministic post-processing before returning the result. That post-processing removes hyphenated phrasing where needed, clamps content to character limits, and enforces style constraints such as avoiding first-person pronouns and unnecessary technical jargon.
+
+### Workflow step generation and field analysis
+
+Workflow step generation converts workflow JSON into natural-language step-by-step descriptions. That output gives reviewers and downstream systems a readable summary of what the workflow actually does.
+
+The same verification stack also detects fillable fields by identifying workflow inputs that still need user-provided values. This helps separate complete automations from flows that require setup-time or run-time input.
+
+### Scoring and alignment checks
+
+Setup field scoring evaluates the name, description, and problem statement against the workflow definition. The scores are advisory only and do not reject an agent on their own.
+
+Request alignment judging evaluates whether a workflow matches a requested-agent or bounty specification. This check helps determine whether the uploaded workflow satisfies the intent of the request, not merely whether the workflow is syntactically valid.
+
+### Prewarming and streaming verification
+
+Prewarming runs behavioral checks at upload time and caches results by workflow hash. That cache reduces repeated work when the same workflow is verified multiple times.
+
+Streaming verification delivers multi-phase verification over Server-Sent Events. Clients receive per-phase status updates and issue reporting as the verification progresses, which is more useful than waiting for a single final response after every check completes.
+
+<Callout kind="info">
+
+The verification stack is pre-warmed on startup so the first verification request does not pay the full cold-start cost for model-backed checks.
+
+
+</Callout>
+
+## LLM provider integration
+
+The service uses OpenRouter as its LLM provider. Model-backed generation and verification requests flow through that provider rather than through a local model runtime.
+
+<CodeGroup tabs="Environment,Defaults">
+
+```bash
+OPENROUTER_API_KEY=or_example_9xmk7q2r
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+VERIFICATION_REQUEST_TIMEOUT_SECS=10
+```
+
+```text
+Provider behavior:
+
+- OPENROUTER_API_KEY authenticates requests to the provider
+- OPENROUTER_BASE_URL defaults to https://openrouter.ai/api/v1
+- VERIFICATION_REQUEST_TIMEOUT_SECS defaults to 10 seconds
+- workflow JSON is truncated before LLM submission to control token usage
+```
+
+</CodeGroup>
+
+Those controls keep provider integration predictable at runtime. The timeout bounds slow verification calls, and workflow truncation limits prompt size before structured workflow data is sent to the model.
 
 ## Python environment and dependency management
 
@@ -132,7 +244,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The service now also includes additional dependencies beyond that core web stack for LLM integration, HTTP client functionality, and database access. That broader dependency surface matches the service's current role as an AI runtime rather than only an application scaffold.
 
 ## Run locally
 
@@ -196,7 +308,12 @@ On `dev`, the workflow generates a development version using the base version, t
 ## Related docs
 
 <Columns cols={3}>
+
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
+
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
+
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+
+
 </Columns>

@@ -1,61 +1,348 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: DTOs, request/response schemas, database migrations, and persistence models across the NestJS API and FastAI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+AIGravity/core now includes a working data layer across both services. The NestJS API defines DTO classes with `class-validator` decorators for agent publishing, review submission, and AI-assisted previews, while the AI service defines Pydantic models for request and response validation.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+Persistence is implemented through Supabase on PostgreSQL, with schema changes tracked in SQL migrations. Inline health responses still exist, but they now sit alongside named DTOs, validated service schemas, and persisted tables for published agents, reviews, leaderboard snapshots, and bounties.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+The repository has evolved from endpoint-local response objects to a structured data layer with validated DTOs, Pydantic schemas, SQL migrations, and Supabase-backed persistence.
+
 
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
+The repository now has an application data layer rather than only service scaffolding.
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Named domain models | DTOs for agents, leaderboard, and bounties |
+| ORM or database models | Supabase PostgreSQL schema managed through SQL migrations |
+| DTO classes | `PublishAgentDto`, `ReviewSubmissionDto`, `PreviewCategoriesDto`, `VerifyAgentDto`, and related DTOs |
+| Named validation schemas | Pydantic models in the AI service such as `GenerateCategoriesRequest` and `GenerateDescriptionResponse` |
+| Migration files | SQL migrations including 027 through 033 and earlier |
+| Inline response shapes | Health endpoints remain in both services |
+| Persisted entities | `published_workflow_meta`, `pending_agent_reviews`, `rejected_agent_reviews`, `leaderboard_result`, `bounties` |
 
 ### Model-like definitions found
 
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
-- **FastAPI health response** — inline response shape: `{"status": "ok"}`
-
-<Callout kind="danger">
-
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
-
-</Callout>
+- **NestJS API DTOs** — request validation for publishing, review submission, previews, verification, leaderboard, and bounty-related flows
+- **FastAPI Pydantic models** — request and response schemas for category generation, description generation, and verification workflows
+- **Supabase persistence schema** — PostgreSQL tables managed through checked-in SQL migrations
+- **Health endpoint responses** — inline response shapes still returned by the API and AI service health checks
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The API service now uses Supabase as its primary database layer. PostgreSQL schema changes are stored as SQL migration files under `apps/api/supabase/migrations/` and applied through a TypeScript migration runner.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+The AI service also works against persisted tables for features such as bounties and manages its own database interactions where needed. The repository no longer reflects a migration-free scaffold; it includes active schema evolution, persistence-backed workflows, and stored review and leaderboard records.
 
 ### Repository-level signals
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
+- The NestJS API validates request payloads with DTO classes and `class-validator` decorators.
+- Supabase migrations define and evolve the PostgreSQL schema used by the API.
+- The AI service uses Pydantic `BaseModel` classes for request and response validation.
+- Persisted records now exist for published agents, pending reviews, rejected reviews, frozen leaderboard results, and bounties.
 
-## NestJS API response shape
+## NestJS API DTOs
 
-The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
+The NestJS API now relies on DTO classes to validate incoming request bodies before writing to persistence or calling downstream services.
+
+### PublishAgentDto
+
+`PublishAgentDto` powers `POST /api/agents/publish`. It validates the builder-supplied workflow payload and optional AI-generated baseline content before persistence.
+
+<ParamField body="workflowJson" param-type="Record<string, unknown>" required="true" show-location="false">
+
+Workflow definition payload. The DTO validates this field with `@IsObject`.
+
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true" show-location="false">
+
+Agent name. Validated with `@IsString`, `@IsNotEmpty`, and length bounds through `@MinLength` and `@MaxLength`.
+
+
+</ParamField>
+
+<ParamField body="summary" param-type="string" required="false" show-location="false">
+
+Optional summary text. Validated with `@IsOptional`, `@IsString`, and minimum and maximum length constraints.
+
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="false" show-location="false">
+
+Optional list of category strings. Validated with `@IsOptional`, `@IsArray`, and per-item string validation.
+
+
+</ParamField>
+
+<ParamField body="problemSolved" param-type="string" required="false" show-location="false">
+
+Optional description of the problem the agent solves. Length bounds apply when the field is present.
+
+
+</ParamField>
+
+<ParamField body="workflowSteps" param-type="string[]" required="false" show-location="false">
+
+Optional ordered list of workflow steps.
+
+
+</ParamField>
+
+<ParamField body="tools" param-type="string[]" required="false" show-location="false">
+
+Optional list of tools used by the workflow.
+
+
+</ParamField>
+
+<ParamField body="platforms" param-type="string[]" required="false" show-location="false">
+
+Optional list of supported or required platforms.
+
+
+</ParamField>
+
+<ParamField body="useCases" param-type="string[]" required="false" show-location="false">
+
+Optional list of use cases for the workflow.
+
+
+</ParamField>
+
+<ParamField body="builderQuestions" param-type="unknown[]" required="false" show-location="false">
+
+Optional list of builder question objects or values captured during the submission flow.
+
+
+</ParamField>
+
+<ParamField body="aiGenerated" param-type="AiGeneratedContent" required="false" show-location="false">
+
+Optional AI-generated baseline content used for edit tracking. The DTO accepts this object with `@IsOptional` and `@IsObject`.
+
+
+</ParamField>
+
+<ParamField body="requestedAgentId" param-type="string" required="false" show-location="false">
+
+Optional UUID used when the submission fulfills a requested agent flow.
+
+
+</ParamField>
+
+<ParamField body="testRunId" param-type="string" required="false" show-location="false">
+
+Optional test run identifier. The field is capped at 64 characters.
+
+
+</ParamField>
+
+### ReviewSubmissionDto
+
+`ReviewSubmissionDto` powers `POST /api/agents/review-submission`. It extends the publish payload with workflow source metadata, review context, and AI baseline forwarding for admin approval.
+
+<ParamField body="source" param-type="string" required="true" show-location="false" enum="publish,bounty,requested">
+
+Submission source. The accepted values are `publish`, `bounty`, or `requested`.
+
+
+</ParamField>
+
+<ParamField body="sourceId" param-type="string" required="false" show-location="false">
+
+Optional identifier for the originating record or workflow that produced the review submission.
+
+
+</ParamField>
+
+<ParamField body="creditCost" param-type="integer" required="false" show-location="false">
+
+Optional credit cost associated with the submission. The minimum allowed value is `0`.
+
+
+</ParamField>
+
+<ParamField body="issues" param-type="unknown[]" required="false" show-location="false">
+
+Optional list of review issues or moderation findings attached to the submission.
+
+
+</ParamField>
+
+<ParamField body="aiGenerated" param-type="AiGeneratedContent" required="false" show-location="false">
+
+Optional AI-generated baseline carried through to pending review records so approval and rejection flows preserve edit tracking.
+
+
+</ParamField>
+
+### PreviewCategoriesDto
+
+`PreviewCategoriesDto` powers `POST /api/agents/preview-categories`. It validates the lightweight payload used to ask the AI service for category suggestions before publish.
+
+<ParamField body="workflowJson" param-type="Record<string, unknown>" required="true" show-location="false">
+
+Workflow definition payload. Validated with `@IsObject`.
+
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="false" show-location="false">
+
+Optional agent name included as prompt context.
+
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="false" show-location="false">
+
+Optional agent description included as prompt context.
+
+
+</ParamField>
+
+### AiGeneratedContent
+
+`AiGeneratedContent` is an interface accepted by publish and review-submission endpoints. It captures the original AI suggestion for each editable field so the server can compute what the builder changed.
+
+<ParamField body="name" param-type="string" required="false" show-location="false">
+
+AI-generated baseline for the agent name.
+
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="false" show-location="false">
+
+AI-generated baseline for the longer descriptive field stored for edit comparison.
+
+
+</ParamField>
+
+<ParamField body="problemSolved" param-type="string" required="false" show-location="false">
+
+AI-generated baseline for the problem statement.
+
+
+</ParamField>
+
+<ParamField body="workflowSteps" param-type="string[]" required="false" show-location="false">
+
+AI-generated baseline for the ordered workflow steps array.
+
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="false" show-location="false">
+
+AI-generated baseline for the category list.
+
+
+</ParamField>
+
+## AI edit tracking
+
+AI-assisted authoring now feeds directly into the persistence layer. When a builder uses Improve with AI on the customize-agent page, the generated text becomes the baseline that later publish and review-submission requests send in the `aiGenerated` field.
+
+The server stores that baseline in dedicated database columns and computes an `ai_edited_fields` array. That array records which fields the builder changed before submitting, which makes the signal queryable without recomputing diffs at read time.
+
+### Comparison rules
+
+- **Text fields** are compared after whitespace normalization, so reflow alone does not count as an edit.
+- **Array fields** are compared in order, so reordering workflow steps counts as an edit.
+- **Missing AI baseline** means the field is never marked as edited.
+- **Stored diff output** is a list of field names such as `["description", "workflow_steps"]`.
+
+<Callout kind="info">
+
+`NULL` in an AI baseline column is meaningful. It indicates the builder never used Improve with AI for that field, not that the value was later cleared.
+
+
+</Callout>
+
+## Database migrations
+
+The migration system now tracks schema evolution for AI-assisted publishing, moderation, leaderboard freezes, and bounties.
+
+### Migration 027 — AI Generated Content
+
+Migration 027 adds five AI baseline columns to both `published_workflow_meta` and `pending_agent_reviews`. These columns preserve the original AI suggestion for each supported field.
+
+<ResponseField name="ai_generated_name" field-type="text" required="false">
+
+Nullable baseline for the AI-generated name.
+
+
+</ResponseField>
+
+<ResponseField name="ai_generated_description" field-type="text" required="false">
+
+Nullable baseline for the AI-generated description.
+
+
+</ResponseField>
+
+<ResponseField name="ai_generated_problem_solved" field-type="text" required="false">
+
+Nullable baseline for the AI-generated problem statement.
+
+
+</ResponseField>
+
+<ResponseField name="ai_generated_workflow_steps" field-type="jsonb" required="true">
+
+Stored array of AI-generated workflow steps. Defaults to an empty array.
+
+
+</ResponseField>
+
+<ResponseField name="ai_generated_categories" field-type="jsonb" required="true">
+
+Stored array of AI-generated categories. Defaults to an empty array.
+
+
+</ResponseField>
+
+### Migration 028 — AI Edited Fields
+
+Migration 028 adds `ai_edited_fields` to both `published_workflow_meta` and `pending_agent_reviews`. The column stores a precomputed JSON array of field names changed by the builder relative to the stored AI baseline.
+
+<ResponseField name="ai_edited_fields" field-type="jsonb" required="true">
+
+Array of edited field names such as `["description", "workflow_steps"]`. Defaults to an empty array.
+
+
+</ResponseField>
+
+### Migration 032 — Leaderboard Results Table
+
+Migration 032 creates the `leaderboard_result` table for frozen final standings after a competition season closes. The table stores season-level snapshots rather than recalculating rankings from mutable live data.
+
+It includes columns for season, rank, workflow ID, workflow name, builder user ID, builder name, avatar URL, score, builder workflows, and prize. A unique constraint on `(season, workflow_id)` makes the freeze operation idempotent, and row-level security is enabled.
+
+### Migration 033 — Rejected AI Generated
+
+Migration 033 extends `rejected_agent_reviews` with the same six AI baseline and diff columns already used by published and pending review records. Auto-rejected and admin-rejected submissions therefore keep the same edit tracking signal as approved or in-review submissions.
+
+### Bounties — Difficulty column
+
+The `bounties` table now includes a `difficulty` text column. The accepted values are `easy`, `medium`, or `difficult`, and the field is returned by the bounty API response.
+
+## NestJS API health response
+
+The NestJS API still returns one inline response shape from the health endpoint. That response is now one of many shapes in the system rather than the only structured object in the codebase.
 
 ### Implemented shape
 
@@ -76,10 +363,10 @@ export class HealthController {
 ### Classification
 
 - **Kind** — Inline response shape
-- **Named entity or DTO** — None found in the analyzed code
+- **Named entity or DTO** — Endpoint-local response, separate from the API DTO layer
 - **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
+- **Relationships** — None
+- **Validation rules** — None on the response object itself
 
 ### Response fields
 
@@ -87,21 +374,23 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
 
+
 </ResponseField>
 
 ### Notes
 
-This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
+This response shape is still defined inline inside the controller method. Unlike the earlier repository state, it now exists alongside validated DTO classes and persisted domain records.
 
 ## FastAPI response shape
 
-The FastAPI service currently returns one structured object from the health endpoint. This object is an inline response shape, not a named Pydantic model or persisted entity.
+The FastAPI service still returns one inline response shape from the health endpoint. That response now coexists with multiple Pydantic request and response models used by AI-facing routes.
 
 ### Implemented shape
 
@@ -118,10 +407,10 @@ def health():
 ### Classification
 
 - **Kind** — Inline response shape
-- **Named model** — None found in the analyzed code
+- **Named model** — Endpoint-local response, separate from the Pydantic schema layer
 - **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
+- **Relationships** — None
+- **Validation rules** — None on the response object itself
 
 ### Response fields
 
@@ -129,70 +418,138 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
 
-The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
+The AI service now uses named Pydantic models in other endpoints even though the health route still returns a direct inline object.
+
+## AI service Pydantic models
+
+The AI service uses Pydantic `BaseModel` classes for request and response validation. These models formalize payload shape for category generation, description generation, verification, and related AI workflows.
+
+### GenerateCategoriesRequest
+
+<ParamField body="workflow_json" param-type="dict" required="true" show-location="false">
+
+Workflow payload used as the primary source for category generation.
+
+
+</ParamField>
+
+<ParamField body="name" param-type="str" required="false" show-location="false">
+
+Optional workflow name. Defaults to an empty string.
+
+
+</ParamField>
+
+<ParamField body="description" param-type="str" required="false" show-location="false">
+
+Optional workflow description. Defaults to an empty string.
+
+
+</ParamField>
+
+### GenerateCategoriesResponse
+
+<ResponseField name="categories" field-type="list[str]" required="true">
+
+One to three canonical taxonomy strings. Returns an empty list on failure.
+
+
+</ResponseField>
+
+### GenerateDescriptionRequest
+
+<ParamField body="workflow_json" param-type="dict" required="true" show-location="false">
+
+Workflow payload used to generate the requested text field.
+
+
+</ParamField>
+
+<ParamField body="field" param-type="Literal" required="true" show-location="false">
+
+Target output field. The allowed values are `description`, `name`, `problem_solved`, or `problem_solved_bullets`. The default is `description`.
+
+
+</ParamField>
+
+<ParamField body="user_draft" param-type="str" required="false" show-location="false">
+
+Optional draft text supplied by the user. Defaults to an empty string.
+
+
+</ParamField>
+
+### GenerateDescriptionResponse
+
+<ResponseField name="description" field-type="str" required="true">
+
+Generated text for the requested field.
+
+
+</ResponseField>
 
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+Validation is now implemented in both services rather than deferred.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- DTO classes validate request payloads with `class-validator` decorators.
+- Publish, review submission, preview, verification, and related flows use named request DTOs.
+- Optional and required fields are enforced before application logic writes to Supabase.
+- The `aiGenerated` payload is validated as a structured object rather than passed through as an untyped inline shape.
 
 ### FastAPI service
 
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+- Pydantic `BaseModel` classes validate request and response payloads.
+- Category and description generation routes use named schemas.
+- Defaults and constrained literal values are encoded directly in the schema layer.
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+The repository now has two distinct validation patterns by service: DTO classes with decorators in the NestJS API and Pydantic models in the AI service.
+
 
 </Callout>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+The migration system is now part of the checked-in application architecture. SQL migrations live under `apps/api/supabase/migrations/` and are applied through a TypeScript migration runner.
+
+The API service uses those migrations to evolve the Supabase PostgreSQL schema over time. The AI service manages its own schema changes for tables and features under its control.
 
 ### Summary
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
-
-### Current implication
-
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+- SQL migrations are present and versioned in the repository.
+- Migration numbers include recent changes such as 027, 028, 032, and 033.
+- Supabase provides the primary persistence layer for the API service.
+- Persisted tables now back publishing, moderation, leaderboard snapshots, and bounties.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The current codebase now exposes a production-oriented data layer rather than only endpoint-local response objects. DTOs enforce request structure, migrations track schema evolution, and Supabase provides durable persistence for agent publishing and review workflows.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
+The `aiGenerated` baseline columns and `ai_edited_fields` diff column add a second layer of value beyond validation and storage. They make it possible to analyze how builders use AI-suggested content, which fields they keep, and where they tend to rewrite the generated baseline.
 
-<Callout kind="danger">
+<Callout kind="info">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+The repository now has a persistent contract across validation, storage, and moderation flows. AI edit-tracking columns add audit and analytics value without requiring runtime diffing on every read.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>
