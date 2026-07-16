@@ -3,11 +3,7 @@ info:
   version: 1.0.0
   title: AIGravity Core API Service
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
-
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
-
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    This specification documents the API service for the AIGravity/core monorepo. It covers health checks, agent publishing and review, workflow leaderboards, and bounty listings.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +17,12 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Agents
+    description: Agent publishing, review, and AI-assisted content generation
+  - name: Leaderboard
+    description: Workflow leaderboard rankings and seasonal results
+  - name: Bounties
+    description: Open bounty listings and details
 paths:
   /health:
     get:
@@ -41,7 +43,175 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /agents/preview-categories:
+    post:
+      tags:
+        - Agents
+      summary: Preview marketplace categories for a workflow
+      description: Sends the workflow JSON to the AI service to auto-assign 1–3 marketplace categories from a canonical taxonomy. Returns an empty array on any failure (fail-open; never returns 5xx).
+      operationId: previewCategories
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewCategoriesRequest'
+      responses:
+        '200':
+          description: Preview categories generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewCategoriesResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+  /agents/publish:
+    post:
+      tags:
+        - Agents
+      summary: Publish an agent workflow
+      description: Publishes a completed agent workflow to the marketplace. Accepts an optional aiGenerated object recording the AI-generated baseline alongside final published values. The API computes ai_edited_fields by comparing the AI baseline against final values.
+      operationId: publishAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentRequest'
+      responses:
+        '201':
+          description: Agent workflow published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishAgentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /agents/submit-for-review:
+    post:
+      tags:
+        - Agents
+      summary: Submit an agent for admin review
+      description: Submits a completed agent workflow for admin review. Accepts the same optional aiGenerated object as the publish endpoint. The AI baseline is stored on the review row and used for fan-out on admin approval.
+      operationId: submitForReview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmissionRequest'
+      responses:
+        '201':
+          description: Agent submitted for review successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewSubmissionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /leaderboard/workflows:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get live workflow leaderboard
+      description: Returns a per-workflow ranked leaderboard. Only workflows with a non-null ranker_score appear. Sorted by score descending; ties broken by builder workflow count.
+      operationId: getWorkflowLeaderboard
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of ranked workflows to return.
+          required: false
+          schema:
+            type: string
+            default: '100'
+            minLength: 1
+            maxLength: 200
+      responses:
+        '200':
+          description: Live workflow leaderboard returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+  /leaderboard/results:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get frozen seasonal leaderboard results
+      description: Returns the final frozen leaderboard for a given season. After season close, results are served from a frozen snapshot table. Before close, falls back to live standings.
+      operationId: getLeaderboardResults
+      security: []
+      parameters:
+        - name: season
+          in: query
+          description: Season identifier to retrieve.
+          required: false
+          schema:
+            type: string
+            default: season-01
+      responses:
+        '200':
+          description: Seasonal leaderboard results returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaderboardResponse'
+  /bounties:
+    get:
+      tags:
+        - Bounties
+      summary: List open bounties
+      description: Returns a list of currently open bounties. Each bounty includes an optional difficulty field.
+      operationId: getOpenBounties
+      security: []
+      responses:
+        '200':
+          description: Open bounties returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BountyListResponse'
+  /bounties/{id}:
+    get:
+      tags:
+        - Bounties
+      summary: Get bounty details
+      description: Returns details for a single bounty by ID, including the optional difficulty field.
+      operationId: getBountyById
+      security: []
+      parameters:
+        - name: id
+          in: path
+          description: Unique identifier for the bounty.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Bounty details returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BountyView'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -49,6 +219,30 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadRequestError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Validation failed
+    UnauthorizedError:
+      description: Authentication required or token invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Not found
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +260,241 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    PreviewCategoriesRequest:
+      type: object
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          description: The full workflow JSON definition (ActivePieces format).
+          additionalProperties: true
+        name:
+          type: string
+          description: Agent name for better LLM classification. Optional.
+        description:
+          type: string
+          description: Agent description for additional context. Optional.
+    PreviewCategoriesResponse:
+      type: object
+      required:
+        - categories
+      properties:
+        categories:
+          type: array
+          description: '1–3 categories from canonical taxonomy: Everyday, Customer service, Sales, Engineering, Finance, HR, IT, Legal, Marketing, Operations. Empty array on failure (fail-open).'
+          maxItems: 3
+          items:
+            type: string
+          example:
+            - Sales
+            - Operations
+    AiGeneratedContent:
+      type: object
+      description: Records the AI-generated baseline from the 'Improve with AI' feature. Used to compute which fields the builder manually edited. Null/undefined fields mean AI was never used for that field.
+      properties:
+        name:
+          type: string
+          nullable: true
+          description: AI-generated agent name. Null means AI was never used for the name.
+        description:
+          type: string
+          nullable: true
+          description: AI-generated description. Null means AI was never used.
+        problemSolved:
+          type: string
+          nullable: true
+          description: AI-generated problem statement. Null means AI was never used.
+        workflowSteps:
+          type: array
+          description: AI-suggested workflow steps. Empty array means generator failed open.
+          items:
+            type: string
+        categories:
+          type: array
+          description: AI-suggested marketplace categories. Empty array means generator failed open.
+          items:
+            type: string
+    PublishAgentRequest:
+      type: object
+      required:
+        - workflowJson
+        - name
+        - description
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+          description: Complete workflow JSON definition.
+        name:
+          type: string
+          description: Final agent name as entered by the builder.
+        description:
+          type: string
+          description: Final agent description as entered by the builder.
+        problemSolved:
+          type: string
+          description: Problem the agent solves.
+        workflowSteps:
+          type: array
+          description: Workflow steps finalized by the builder.
+          items:
+            type: string
+        categories:
+          type: array
+          description: Selected marketplace categories.
+          items:
+            type: string
+        aiGenerated:
+          allOf:
+            - $ref: '#/components/schemas/AiGeneratedContent'
+          description: Optional. AI-generated baseline. Only set if 'Improve with AI' was used. Used to compute ai_edited_fields.
+    PublishAgentResponse:
+      type: object
+      required:
+        - workflowId
+        - published
+      properties:
+        workflowId:
+          type: string
+          format: uuid
+          description: Unique identifier for the published workflow.
+        published:
+          type: boolean
+          description: Whether the workflow was successfully published.
+          example: true
+    ReviewSubmissionRequest:
+      type: object
+      required:
+        - workflowJson
+        - name
+        - description
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+          description: Complete workflow JSON definition.
+        name:
+          type: string
+          description: Final agent name as entered by the builder.
+        description:
+          type: string
+          description: Final agent description as entered by the builder.
+        problemSolved:
+          type: string
+          description: Problem the agent solves.
+        workflowSteps:
+          type: array
+          description: Workflow steps finalized by the builder.
+          items:
+            type: string
+        categories:
+          type: array
+          description: Selected marketplace categories.
+          items:
+            type: string
+        aiGenerated:
+          allOf:
+            - $ref: '#/components/schemas/AiGeneratedContent'
+          description: Optional. AI-generated baseline. Carried on the review row for fan-out on admin approval.
+    ReviewSubmissionResponse:
+      type: object
+      required:
+        - reviewId
+        - status
+      properties:
+        reviewId:
+          type: string
+          format: uuid
+          description: Unique identifier for the created review record.
+        status:
+          type: string
+          description: Current review status.
+          example: pending
+    LeaderboardWorkflow:
+      type: object
+      properties:
+        workflowId:
+          type: string
+          format: uuid
+          description: Unique identifier for the workflow.
+        workflowName:
+          type: string
+          description: Display name of the workflow.
+        builderUserId:
+          type: string
+          format: uuid
+          description: User ID of the workflow builder.
+        builderName:
+          type: string
+          description: Display name of the builder.
+        avatarUrl:
+          type: string
+          nullable: true
+          description: URL to the builder's avatar image, or null.
+        score:
+          type: number
+          format: float
+          description: The ranker score. Higher is better.
+          example: 4.51
+        builderWorkflows:
+          type: integer
+          description: Total active published workflows by this builder.
+          example: 3
+    LeaderboardResponse:
+      type: object
+      required:
+        - items
+        - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaderboardWorkflow'
+        total:
+          type: integer
+          description: Total number of ranked workflows.
+          example: 42
+    BountyView:
+      type: object
+      required:
+        - id
+        - title
+        - summary
+        - description
+        - amount
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the bounty.
+        title:
+          type: string
+          description: Bounty title.
+        summary:
+          type: string
+          description: Short summary of bounty requirements.
+        difficulty:
+          type: string
+          nullable: true
+          description: 'Bounty difficulty: ''easy'', ''medium'', or ''difficult''. Absent or null on legacy rows.'
+          enum:
+            - easy
+            - medium
+            - difficult
+        description:
+          type: string
+          description: Full bounty description.
+        amount:
+          type: number
+          description: Bounty reward amount.
+          example: 5000
+    BountyListResponse:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BountyView'
