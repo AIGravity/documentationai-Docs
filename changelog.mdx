@@ -3,66 +3,58 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
+## July 2025
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+<Update label="2025-07" description="AI agent copy generation update" tags={["feature", "improvement"]}>
 
-<Callout kind="alert">
+### New features
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+- AI now writes your agent **title**, **description**, and **what problem does it solve** fields automatically as soon as you upload a workflow.
+- Generation uses your workflow's existing name and description as source context, so the draft starts from what you already wrote.
+
+### Updates
+
+- A **Writing with AI…** indicator appears next to each field while generation is running.
+- Auto-generation runs only on **fresh uploads**.
+- When you edit a published agent, resume a draft, or return from a tool-connection redirect, existing field text stays unchanged.
+
+<Callout kind="tip">
+
+If you start typing before AI finishes, your text wins. The generated result never overwrites what you entered.
+
 
 </Callout>
 
-## Release history
+### Removed
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- Removed the per-field **Improve with AI** buttons.
+- Automatic generation now replaces the previous button-based workflow.
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+See [Features](/features) for a full overview of platform capabilities.
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom — newest entries first.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 
