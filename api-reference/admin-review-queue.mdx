@@ -1,0 +1,719 @@
+---
+title: Admin Review Queue
+description: List, inspect, and approve agent submissions in the admin review queue, including quality scores and E2E test run history from the agent-ranker.
+---
+
+## Overview
+
+Admin endpoints for managing the agent review queue. Each submission now carries an agent-ranker quality score from 0 to 100 captured at submission time, and detailed records include the full per-use-case score breakdown and pre-publish E2E test run history.
+
+<Callout kind="info">
+
+All admin endpoints require both JWT authentication and administrative privileges. Requests without a valid admin JWT return `401 Unauthorized` or `403 Forbidden`.
+
+
+</Callout>
+
+## Endpoints
+
+### GET /api/agents/admin/pending-reviews
+
+Returns a list of agent submissions in the admin review queue. Each row includes the agent-ranker quality score captured at submission time when available. Filter by status to view rejected submissions from the archive.
+
+#### Query parameters
+
+<ParamField query="status" param-type="string" required="false" enum="pending,rejected">
+
+Filter by review status. Use `pending` to return the active review queue. Use `rejected` to return rows from the rejected reviews archive.
+
+</ParamField>
+
+#### Request example
+
+<CodeGroup tabs="cURL,JavaScript">
+
+```bash
+curl --request GET \
+  --url "https://api.aigravity.com/api/agents/admin/pending-reviews?status=pending" \
+  --header "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_q7m4r2"
+```
+
+```javascript
+const response = await fetch(
+  "https://api.aigravity.com/api/agents/admin/pending-reviews?status=pending",
+  {
+    method: "GET",
+    headers: {
+      Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_q7m4r2"
+    }
+  }
+);
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+#### Response
+
+A successful response returns the matching review rows and a total count.
+
+<ResponseField name="reviews" field-type="array" required="true">
+
+List of review records.
+
+</ResponseField>
+
+<ResponseField name="reviews[].id" field-type="string" required="true">
+
+Unique review row identifier.
+
+</ResponseField>
+
+<ResponseField name="reviews[].title" field-type="string" required="true">
+
+Submitted agent title.
+
+</ResponseField>
+
+<ResponseField name="reviews[].source" field-type="string" required="true">
+
+Submission source.
+
+</ResponseField>
+
+<ResponseField name="reviews[].sourceId" field-type="string" required="true">
+
+Identifier from the source system for the submitted agent.
+
+</ResponseField>
+
+<ResponseField name="reviews[].status" field-type="string" required="true">
+
+Current review status.
+
+</ResponseField>
+
+<ResponseField name="reviews[].submittedAt" field-type="string" required="true">
+
+Timestamp when the submission entered the review queue.
+
+</ResponseField>
+
+<ResponseField name="reviews[].reviewedAt" field-type="string" required="false">
+
+Timestamp when an admin reviewed the submission. Returns `null` when the row has not been reviewed.
+
+</ResponseField>
+
+<ResponseField name="reviews[].reviewNote" field-type="string" required="false">
+
+Admin note recorded during review. Returns `null` when no note was saved.
+
+</ResponseField>
+
+<ResponseField name="reviews[].issueCount" field-type="integer" required="true">
+
+Number of issues detected or recorded for the submission.
+
+</ResponseField>
+
+<ResponseField name="reviews[].userId" field-type="string" required="true">
+
+Identifier of the submitting user.
+
+</ResponseField>
+
+<ResponseField name="reviews[].authorName" field-type="string" required="true">
+
+Display name of the submitting author.
+
+</ResponseField>
+
+<ResponseField name="reviews[].summary" field-type="string" required="false">
+
+Short submission summary. Returns `null` when no summary was provided.
+
+</ResponseField>
+
+<ResponseField name="reviews[].workflowSteps" field-type="array" required="true">
+
+Ordered list of workflow steps included in the submitted agent.
+
+</ResponseField>
+
+<ResponseField name="reviews[].rankerScore" field-type="number | null" required="false">
+
+Headline agent-ranker quality score captured at submission time. This field was added by the quality scoring update and ranges from 0 to 100 when present. Returns `null` when the ranker was unconfigured, unreachable, or the agent was ineligible for all use cases.
+
+</ResponseField>
+
+<ResponseField name="total" field-type="integer" required="true">
+
+Total number of matching reviews.
+
+</ResponseField>
+
+#### Example response
+
+<CodeGroup tabs="200 OK">
+
+```json
+{
+  "reviews": [
+    {
+      "id": "7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281",
+      "title": "Invoice Follow-up Agent",
+      "source": "marketplace_submission",
+      "sourceId": "agt_7nq3k5w9",
+      "status": "pending",
+      "submittedAt": "2026-07-15T10:42:11.000Z",
+      "reviewedAt": null,
+      "reviewNote": null,
+      "issueCount": 2,
+      "userId": "usr_93kd8m1q",
+      "authorName": "Jane Chen",
+      "summary": "Follows up on overdue invoices and drafts reminder emails.",
+      "workflowSteps": [
+        "Load unpaid invoices",
+        "Draft follow-up email",
+        "Route to CRM"
+      ],
+      "rankerScore": 84.6
+    },
+    {
+      "id": "0bbf0c79-18b0-4f7a-a12a-378ae0d54f9f",
+      "title": "Lead Qualification Router",
+      "source": "marketplace_submission",
+      "sourceId": "agt_1pt9v4xz",
+      "status": "pending",
+      "submittedAt": "2026-07-15T09:18:02.000Z",
+      "reviewedAt": null,
+      "reviewNote": null,
+      "issueCount": 0,
+      "userId": "usr_28sf4jk2",
+      "authorName": "Marco Alvarez",
+      "summary": "Scores inbound leads and assigns them to the right sales queue.",
+      "workflowSteps": [
+        "Normalize form submission",
+        "Score lead quality",
+        "Assign owner"
+      ],
+      "rankerScore": null
+    }
+  ],
+  "total": 2
+}
+```
+
+</CodeGroup>
+
+#### Error responses
+
+| Status | Meaning |
+| --- | --- |
+| `401` | Missing or invalid JWT |
+| `403` | Authenticated user lacks admin privileges |
+
+### GET /api/agents/admin/pending-reviews/{id}
+
+Returns the full detail of a single agent submission, including the quality scoring breakdown and pre-publish E2E test run history.
+
+#### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Review row UUID.
+
+</ParamField>
+
+#### Request example
+
+<CodeGroup tabs="cURL,JavaScript">
+
+```bash
+curl --request GET \
+  --url "https://api.aigravity.com/api/agents/admin/pending-reviews/7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281" \
+  --header "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_q7m4r2"
+```
+
+```javascript
+const reviewId = "7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281";
+
+const response = await fetch(
+  `https://api.aigravity.com/api/agents/admin/pending-reviews/${reviewId}`,
+  {
+    method: "GET",
+    headers: {
+      Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_q7m4r2"
+    }
+  }
+);
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+#### Response
+
+The detail response includes the submitted workflow, review metadata, marketplace performance fields, ranker explainability data, and recent E2E runs when available.
+
+##### Core fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Unique review row identifier.
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Submitted agent title.
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string" required="false">
+
+Short summary of what the agent does.
+
+</ResponseField>
+
+<ResponseField name="problemSolved" field-type="string" required="false">
+
+Description of the user problem the agent is designed to solve.
+
+</ResponseField>
+
+<ResponseField name="workflowSteps" field-type="array" required="true">
+
+Ordered workflow steps presented for review.
+
+</ResponseField>
+
+<ResponseField name="builderQuestions" field-type="array" required="true">
+
+Builder-provided answers and review prompts collected during submission.
+
+</ResponseField>
+
+<ResponseField name="categories" field-type="array" required="true">
+
+Marketplace or review categories assigned to the submission.
+
+</ResponseField>
+
+<ResponseField name="creditCost" field-type="number" required="false">
+
+Estimated credit cost for running the agent.
+
+</ResponseField>
+
+<ResponseField name="tools" field-type="array" required="true">
+
+Tools used by the workflow.
+
+</ResponseField>
+
+<ResponseField name="platforms" field-type="array" required="true">
+
+Supported target platforms for the workflow.
+
+</ResponseField>
+
+<ResponseField name="useCases" field-type="array" required="true">
+
+Use cases associated with the submission.
+
+</ResponseField>
+
+<ResponseField name="workflowJson" field-type="object" required="true">
+
+Full workflow definition captured at submission time.
+
+</ResponseField>
+
+<ResponseField name="issues" field-type="array" required="true">
+
+Review issues attached to the submission.
+
+</ResponseField>
+
+<ResponseField name="gates" field-type="array" required="true">
+
+Review gate results and publishing checks.
+
+</ResponseField>
+
+<ResponseField name="source" field-type="string" required="true">
+
+Submission source.
+
+</ResponseField>
+
+<ResponseField name="sourceId" field-type="string" required="true">
+
+Identifier from the source system for the submitted agent.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current review status.
+
+</ResponseField>
+
+<ResponseField name="userId" field-type="string" required="true">
+
+Identifier of the submitting user.
+
+</ResponseField>
+
+<ResponseField name="authorName" field-type="string" required="true">
+
+Display name of the submitting author.
+
+</ResponseField>
+
+<ResponseField name="authorEmail" field-type="string" required="false">
+
+Email address of the submitting author.
+
+</ResponseField>
+
+<ResponseField name="submittedAt" field-type="string" required="true">
+
+Timestamp when the submission entered the review queue.
+
+</ResponseField>
+
+<ResponseField name="reviewedAt" field-type="string" required="false">
+
+Timestamp when an admin reviewed the submission. Returns `null` when no review has been completed.
+
+</ResponseField>
+
+<ResponseField name="reviewNote" field-type="string" required="false">
+
+Admin note saved with the review decision.
+
+</ResponseField>
+
+<ResponseField name="totalUsers" field-type="integer" required="false">
+
+Published marketplace usage count for the agent when available.
+
+</ResponseField>
+
+<ResponseField name="totalEarnings" field-type="number" required="false">
+
+Published marketplace earnings for the agent when available.
+
+</ResponseField>
+
+##### Quality scoring fields
+
+<ResponseField name="rankerScore" field-type="number | null" required="false">
+
+Headline quality score captured at submission time. Values range from 0 to 100. Returns `null` when the ranker was unconfigured, unreachable, or the agent was ineligible for all use cases.
+
+</ResponseField>
+
+<ResponseField name="rankerScores" field-type="object | null" required="false">
+
+Per-use-case score breakdown keyed by use case ID. Each value contains explainability data such as eligibility, display score, rank, candidate count, cold start status, probability of being the best candidate, reasons, and hard failures.
+
+</ResponseField>
+
+<ResponseField name="rankerBundleVersion" field-type="string | null" required="false">
+
+Model bundle identifier used when computing `rankerScore` and `rankerScores`. Compare scores only within the same bundle version.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns" field-type="array" required="false">
+
+Recent pre-publish E2E runs for the approved and published agent, ordered newest first and limited to 10 records.
+
+</ResponseField>
+
+##### E2E run fields
+
+<ResponseField name="e2eRuns[].id" field-type="string" required="true">
+
+Unique E2E run UUID.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].apRunId" field-type="string" required="true">
+
+Flow run identifier in nanoid format.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].status" field-type="string" required="true">
+
+Run status, such as `SUCCEEDED` or `FAILED`.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].startedAt" field-type="string | null" required="false">
+
+Timestamp when the run started.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].finishedAt" field-type="string | null" required="false">
+
+Timestamp when the run finished.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].durationMs" field-type="number | null" required="false">
+
+Run duration in milliseconds.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].creditsEstimate" field-type="number | null" required="false">
+
+Estimated credits consumed by the run.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].runResult" field-type="object | null" required="false">
+
+Normalized run output. This object contains the main output and visible outputs returned by the E2E execution.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns[].createdAt" field-type="string" required="true">
+
+Timestamp when the run record was created.
+
+</ResponseField>
+
+<Callout kind="info">
+
+The `e2eRuns` field is only present when the review was approved and the agent was published. For pending rows that have not been approved yet, `e2eRuns` is undefined.
+
+The `rankerScores` object provides explainability data. Each key is a use case ID, and each value contains fields such as `eligibility`, `displayScore`, `rank`, `candidates`, `coldStart`, `probabilityBest`, `reasons`, and `hardFailures`.
+
+
+</Callout>
+
+#### Example response
+
+<CodeGroup tabs="200 OK">
+
+```json
+{
+  "id": "7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281",
+  "title": "Invoice Follow-up Agent",
+  "summary": "Follows up on overdue invoices and drafts reminder emails.",
+  "problemSolved": "Reduces manual collection work for finance teams.",
+  "workflowSteps": [
+    "Load unpaid invoices",
+    "Draft follow-up email",
+    "Route to CRM"
+  ],
+  "builderQuestions": [
+    {
+      "question": "Who should use this agent?",
+      "answer": "Finance teams that manage recurring receivables."
+    }
+  ],
+  "categories": [
+    "finance",
+    "collections"
+  ],
+  "creditCost": 2.4,
+  "tools": [
+    "crm",
+    "email"
+  ],
+  "platforms": [
+    "web"
+  ],
+  "useCases": [
+    "invoice_follow_up",
+    "payment_reminders"
+  ],
+  "workflowJson": {
+    "version": 3,
+    "nodes": [
+      {
+        "id": "node_load_invoices",
+        "type": "data-source"
+      },
+      {
+        "id": "node_draft_email",
+        "type": "llm"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "code": "MISSING_ERROR_PATH",
+      "severity": "warning",
+      "message": "Add an explicit fallback when the CRM update fails."
+    }
+  ],
+  "gates": [
+    {
+      "name": "policy_review",
+      "passed": true
+    }
+  ],
+  "source": "marketplace_submission",
+  "sourceId": "agt_7nq3k5w9",
+  "status": "approved",
+  "userId": "usr_93kd8m1q",
+  "authorName": "Jane Chen",
+  "authorEmail": "jane.chen@northstarops.com",
+  "submittedAt": "2026-07-15T10:42:11.000Z",
+  "reviewedAt": "2026-07-15T14:08:53.000Z",
+  "reviewNote": "Approved after adding clearer fallback handling.",
+  "totalUsers": 128,
+  "totalEarnings": 413.75,
+  "rankerScore": 84.6,
+  "rankerScores": {
+    "invoice_follow_up": {
+      "eligibility": true,
+      "displayScore": 84.6,
+      "rank": 3,
+      "candidates": 51,
+      "coldStart": false,
+      "probabilityBest": 0.42,
+      "reasons": [
+        "Strong task clarity",
+        "Useful business context"
+      ],
+      "hardFailures": []
+    },
+    "payment_reminders": {
+      "eligibility": true,
+      "displayScore": 80.9,
+      "rank": 5,
+      "candidates": 44,
+      "coldStart": false,
+      "probabilityBest": 0.28,
+      "reasons": [
+        "Good drafting quality"
+      ],
+      "hardFailures": []
+    }
+  },
+  "rankerBundleVersion": "ranker-bundle-2026-07-10",
+  "e2eRuns": [
+    {
+      "id": "5ee8b57e-e216-4c92-aebb-3bb4a0b07b96",
+      "apRunId": "run_8m2qk4z9",
+      "status": "SUCCEEDED",
+      "startedAt": "2026-07-15T13:51:02.000Z",
+      "finishedAt": "2026-07-15T13:51:13.000Z",
+      "durationMs": 11042,
+      "creditsEstimate": 2.3,
+      "runResult": {
+        "mainOutput": "Drafted a follow-up email for three overdue invoices.",
+        "visibleOutputs": [
+          {
+            "label": "email_draft",
+            "value": "Subject: Friendly reminder about invoice INV-1048"
+          }
+        ]
+      },
+      "createdAt": "2026-07-15T13:51:13.000Z"
+    }
+  ]
+}
+```
+
+</CodeGroup>
+
+#### Error responses
+
+| Status | Meaning |
+| --- | --- |
+| `401` | Missing or invalid JWT |
+| `403` | Authenticated user lacks admin privileges |
+| `404` | Review row was not found |
+
+### POST /api/agents/admin/pending-reviews/{id}/approve
+
+Approves a pending agent submission, publishing the agent to the marketplace. The HTTP interface is unchanged, but the approval flow now carries the review-time quality score forward to the published agent metadata.
+
+#### Path parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Review row UUID.
+
+</ParamField>
+
+#### Request example
+
+<CodeGroup tabs="cURL,JavaScript">
+
+```bash
+curl --request POST \
+  --url "https://api.aigravity.com/api/agents/admin/pending-reviews/7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281/approve" \
+  --header "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_q7m4r2" \
+  --header "Content-Type: application/json"
+```
+
+```javascript
+const reviewId = "7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281";
+
+const response = await fetch(
+  `https://api.aigravity.com/api/agents/admin/pending-reviews/${reviewId}/approve`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_q7m4r2",
+      "Content-Type": "application/json"
+    }
+  }
+);
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+#### Response
+
+A successful response confirms that the review was approved and the agent was published.
+
+<CodeGroup tabs="200 OK">
+
+```json
+{
+  "success": true,
+  "status": "approved",
+  "reviewId": "7d4a1d2c-7a34-4ee5-b4ec-f3dc20d0c281",
+  "publishedAgentId": "agt_pub_4rk8m2q1"
+}
+```
+
+</CodeGroup>
+
+<Callout kind="info">
+
+If the submission carried a ranker quality score at submission time, that score is carried forward to the published workflow metadata. This keeps the published agent score aligned with the review-time score computed with E2E run data instead of recalculating at publish time.
+
+This carry-over is best-effort. Failures are logged, but they do not fail the approval request.
+
+
+</Callout>
+
+#### Error responses
+
+| Status | Meaning |
+| --- | --- |
+| `401` | Missing or invalid JWT |
+| `403` | Authenticated user lacks admin privileges |
+| `404` | Review row was not found |

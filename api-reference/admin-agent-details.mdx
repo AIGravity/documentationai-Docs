@@ -1,0 +1,433 @@
+---
+title: Admin Agent Details
+description: Retrieve published and running agent details with quality scores, per-use-case breakdowns, and E2E test run history from the admin API.
+---
+
+## Overview
+
+Retrieve full detail records for published agents and running automations. Both endpoints return the same response shape, which now includes the agent-ranker quality score, per-use-case score breakdown, and E2E test run history.
+
+<Callout kind="info">
+
+Both endpoints require JWT authentication and admin privileges. The running-automations endpoint inherits the same response shape as the published endpoint because it calls the same internal handler and spreads the result.
+
+
+</Callout>
+
+## Endpoints
+
+### GET /api/agents/admin/published/`{id}`
+
+#### Get Published Agent Detail
+
+Returns the full detail of a published agent, including the quality score stamped at publish time, per-use-case score breakdown, and E2E test run history.
+
+#### Path Parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Published workflow UUID.
+
+</ParamField>
+
+#### Example request and response
+
+<Request tabs="cURL,JavaScript" default-tab="1">
+```bash
+curl -X GET "https://api.acme.com/api/agents/admin/published/7c6e3f9d-0a7f-4d6e-a2a8-4e4b4e6e2f91" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_token" \
+  -H "Accept: application/json"
+```
+
+```javascript
+const response = await fetch(
+  "https://api.acme.com/api/agents/admin/published/7c6e3f9d-0a7f-4d6e-a2a8-4e4b4e6e2f91",
+  {
+    method: "GET",
+    headers: {
+      Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_token",
+      Accept: "application/json"
+    }
+  }
+);
+
+const data = await response.json();
+console.log(data.rankerScore);
+```
+</Request>
+
+<Response tabs="200" default-tab="1">
+```json
+{
+  "id": "7c6e3f9d-0a7f-4d6e-a2a8-4e4b4e6e2f91",
+  "title": "Summarize customer support tickets",
+  "summary": "Classifies and summarizes inbound support issues for triage.",
+  "problemSolved": "Reduces manual triage work by grouping and summarizing recurring support requests.",
+  "workflowSteps": [
+    "Fetch new Zendesk tickets",
+    "Classify intent and urgency",
+    "Generate a summary for the support queue"
+  ],
+  "categories": ["support", "triage", "summarization"],
+  "creditCost": 3.5,
+  "tools": ["zendesk", "openai", "slack"],
+  "platforms": ["web"],
+  "useCases": ["support-triage", "ticket-summarization"],
+  "workflowJson": {
+    "version": 1,
+    "trigger": {
+      "type": "schedule",
+      "cron": "0 * * * *"
+    },
+    "steps": [
+      {
+        "name": "fetchTickets",
+        "type": "zendesk.listTickets"
+      },
+      {
+        "name": "summarize",
+        "type": "openai.chat"
+      }
+    ]
+  },
+  "source": "marketplace_submission",
+  "status": "APPROVED",
+  "userId": "f0d1b34b-9a66-49df-bdf6-ec4f1c6c62af",
+  "authorName": "Jane Chen",
+  "submittedAt": "2025-02-14T16:22:31.000Z",
+  "rankerScore": 87.4,
+  "rankerScores": {
+    "support-triage": {
+      "eligibility": "ELIGIBLE",
+      "displayScore": 92,
+      "rank": 3,
+      "reasons": [
+        "High task completion rate",
+        "Clear output formatting"
+      ],
+      "hardFailures": []
+    },
+    "ticket-summarization": {
+      "eligibility": "ELIGIBLE",
+      "displayScore": 83,
+      "rank": 8,
+      "reasons": [
+        "Consistent summaries",
+        "Moderate latency under larger payloads"
+      ],
+      "hardFailures": []
+    }
+  },
+  "e2eRuns": [
+    {
+      "id": "8b1af2d3-5d3a-4b44-8ef9-9697f2b7d0e0",
+      "apRunId": "run_6Vq2LzN8pK4rT1",
+      "status": "SUCCEEDED",
+      "startedAt": "2025-02-14T15:58:12.000Z",
+      "finishedAt": "2025-02-14T15:58:19.000Z",
+      "durationMs": 7000,
+      "creditsEstimate": 3.2,
+      "runResult": {
+        "mainOutput": "Billing issue detected. Priority set to high. Summary generated for support queue.",
+        "visibleOutputs": [
+          {
+            "stepName": "summarize",
+            "output": "Customer reports duplicate invoice for January and requests correction."
+          }
+        ]
+      },
+      "createdAt": "2025-02-14T15:58:20.000Z"
+    },
+    {
+      "id": "c7d4432e-2577-4023-9ad2-1aa1c430c1f8",
+      "apRunId": "run_4Yt9KdP2mJ7sW3",
+      "status": "FAILED",
+      "startedAt": "2025-02-14T15:42:01.000Z",
+      "finishedAt": "2025-02-14T15:42:05.000Z",
+      "durationMs": 4000,
+      "creditsEstimate": 1.1,
+      "runResult": {
+        "mainOutput": null,
+        "visibleOutputs": []
+      },
+      "createdAt": "2025-02-14T15:42:06.000Z"
+    }
+  ]
+}
+```
+</Response>
+
+#### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+Published agent UUID.
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Agent title.
+
+</ResponseField>
+
+<ResponseField name="summary" field-type="string">
+
+Short agent summary.
+
+</ResponseField>
+
+<ResponseField name="problemSolved" field-type="string">
+
+Problem the agent solves.
+
+</ResponseField>
+
+<ResponseField name="workflowSteps" field-type="array">
+
+Workflow step descriptions.
+
+</ResponseField>
+
+<ResponseField name="categories" field-type="array">
+
+Agent categories.
+
+</ResponseField>
+
+<ResponseField name="creditCost" field-type="number">
+
+Estimated credit cost.
+
+</ResponseField>
+
+<ResponseField name="tools" field-type="array">
+
+Tools used by the workflow.
+
+</ResponseField>
+
+<ResponseField name="platforms" field-type="array">
+
+Supported platforms.
+
+</ResponseField>
+
+<ResponseField name="useCases" field-type="array">
+
+Use case identifiers.
+
+</ResponseField>
+
+<ResponseField name="workflowJson" field-type="object">
+
+Full workflow definition.
+
+</ResponseField>
+
+<ResponseField name="source" field-type="string">
+
+Original submission source.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string">
+
+Lifecycle status.
+
+</ResponseField>
+
+<ResponseField name="userId" field-type="string">
+
+Builder user UUID.
+
+</ResponseField>
+
+<ResponseField name="authorName" field-type="string">
+
+Builder display name.
+
+</ResponseField>
+
+<ResponseField name="submittedAt" field-type="string">
+
+Submission timestamp.
+
+</ResponseField>
+
+<ResponseField name="rankerScore" field-type="number | null">
+
+Agent-ranker quality score stamped at publish time, from 0 to 100. This field is `null` when the ranker was unconfigured or unreachable at publish time.
+
+</ResponseField>
+
+<ResponseField name="rankerScores" field-type="object | null">
+
+Per-use-case score breakdown. Each key is a use case ID with eligibility, displayScore, rank, reasons, and hardFailures.
+
+</ResponseField>
+
+<ResponseField name="e2eRuns" field-type="array" required="true">
+
+E2E test run records for this published agent, returned newest first and limited to the 10 most recent runs.
+
+</ResponseField>
+
+<Callout kind="info">
+
+This endpoint returns `rankerScore` and `rankerScores`, but it does not return `rankerBundleVersion`.
+
+
+</Callout>
+
+#### Likely error responses
+
+<Response tabs="401,403" default-tab="1">
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+```
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden"
+}
+```
+</Response>
+
+### GET /api/agents/admin/running-automations/`{id}`
+
+#### Get Running Automation Detail
+
+Returns the full detail of a running automation agent. It inherits the same response shape as the published agent detail, including quality score and E2E test run history.
+
+#### Path Parameters
+
+<ParamField path="id" param-type="string" required="true">
+
+Running automation UUID.
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JavaScript">
+```bash
+curl -X GET "https://api.acme.com/api/agents/admin/running-automations/2f4ce52f-8d5e-4a02-912e-7d2b32e4c5b1" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_token" \
+  -H "Accept: application/json"
+```
+
+```javascript
+const response = await fetch(
+  "https://api.acme.com/api/agents/admin/running-automations/2f4ce52f-8d5e-4a02-912e-7d2b32e4c5b1",
+  {
+    method: "GET",
+    headers: {
+      Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin_example_token",
+      Accept: "application/json"
+    }
+  }
+);
+
+const data = await response.json();
+console.log(data.e2eRuns);
+```
+</CodeGroup>
+
+<Callout kind="info">
+
+This endpoint calls the same internal handler as the published agent detail endpoint and returns the same response shape. The same fields apply, including `rankerScore`, `rankerScores`, and `e2eRuns`. The quality score and E2E runs are always populated for running automations because the published workflow ID is always available.
+
+
+</Callout>
+
+#### Response
+
+The response body is identical to the published agent detail response described above. Reuse the same field definitions for `rankerScore`, `rankerScores`, `e2eRuns`, and the rest of the `AdminPublishedAgentDetail` payload.
+
+#### Likely error responses
+
+<Response tabs="401,403" default-tab="1">
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+```
+
+```json
+{
+  "statusCode": 403,
+  "message": "Forbidden"
+}
+```
+</Response>
+
+## E2E Run Record Fields
+
+Each item in `e2eRuns` follows the `AdminAgentE2eRun` shape. Use these fields to display run status, timing, estimated cost, and normalized output in admin dashboards.
+
+<ResponseField name="id" field-type="string" required="true">
+
+E2E run record UUID.
+
+</ResponseField>
+
+<ResponseField name="apRunId" field-type="string" required="true">
+
+ActivePieces flow-run ID in nanoid format.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Run status, such as `SUCCEEDED` or `FAILED`.
+
+</ResponseField>
+
+<ResponseField name="startedAt" field-type="string">
+
+ISO 8601 timestamp when the run started.
+
+</ResponseField>
+
+<ResponseField name="finishedAt" field-type="string">
+
+ISO 8601 timestamp when the run finished.
+
+</ResponseField>
+
+<ResponseField name="durationMs" field-type="integer">
+
+Run duration in milliseconds.
+
+</ResponseField>
+
+<ResponseField name="creditsEstimate" field-type="number">
+
+Estimated credit cost for this run.
+
+</ResponseField>
+
+<ResponseField name="runResult" field-type="object">
+
+Normalized run result containing the main output and visible outputs.
+
+</ResponseField>
+
+<ResponseField name="createdAt" field-type="string" required="true">
+
+ISO 8601 timestamp of record creation.
+
+</ResponseField>
+
+<Callout kind="info">
+
+The raw `output_text` and `step_outputs` values from E2E runs are stored internally but are not included in the API response. The ranker uses those internal values for scoring, not for display.
+
+
+</Callout>

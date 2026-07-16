@@ -1,0 +1,374 @@
+---
+title: Agent Submission & Publishing
+description: Submit agents for admin review with quality scoring and publish agent workflows to the marketplace using the AIGravity API.
+---
+
+## Overview
+
+Builders submit agents for admin review through the review-submission endpoint. When you include a pre-submit E2E test run ID, the agent-ranker service can score the submission from the run's actual status, latency, output, and credit cost. If the score falls below the configured quality threshold, the API auto-rejects the submission before it reaches the admin review queue.
+
+Both endpoints require JWT authentication with a Supabase-issued bearer token in the `Authorization` header.
+
+<Callout kind="info">
+
+Add the bearer token as `Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.supabase_token`.
+
+
+</Callout>
+
+## Submit an Agent for Review
+
+`POST /api/agents/review-submission` submits a builder's agent workflow for admin review. When you provide `testRunId` and the agent-ranker service is configured, the API scores the submission using the test run's actual results. If the returned score is below the configured minimum threshold, the API auto-rejects the submission before it enters the admin queue.
+
+<Callout kind="alert">
+
+A submission can return `200 OK` and still be rejected. Always check the `status` field in the response. `pending` means the submission entered the admin review queue. `rejected` means the quality threshold gate auto-rejected it. When `status` is `rejected`, the returned `id` points to the rejected reviews archive, not the pending reviews table.
+
+
+</Callout>
+
+### Endpoint
+
+`POST /api/agents/review-submission`
+
+### Request example
+
+<Request tabs="cURL,JSON" default-tab="1">
+```bash
+curl -X POST "https://api.aigravity.app/api/agents/review-submission" \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.supabase_token" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "publish",
+    "sourceId": "bounty_7k3mzq2",
+    "title": "Lead Qualification Assistant",
+    "summary": "Qualifies inbound leads and routes them to the right sales rep.",
+    "problemSolved": "Sales teams spend time triaging low-fit inbound requests before they reach the correct owner.",
+    "workflowSteps": [
+      "Accept inbound lead details",
+      "Enrich company and contact data",
+      "Score lead fit against ICP criteria",
+      "Route qualified leads to the assigned rep"
+    ],
+    "builderQuestions": [
+      {
+        "question": "Should the qualification threshold be stricter for enterprise leads?"
+      }
+    ],
+    "categories": ["sales", "lead-routing"],
+    "creditCost": 12,
+    "tools": ["hubspot", "clearbit", "slack"],
+    "platforms": ["web", "api"],
+    "useCases": ["lead-qualification", "sales-routing"],
+    "workflowJson": {
+      "version": "1.0",
+      "steps": [
+        {
+          "id": "trigger_01",
+          "type": "form_trigger",
+          "name": "Lead intake"
+        },
+        {
+          "id": "gate_01",
+          "type": "publish_gate",
+          "name": "Publish Gate"
+        }
+      ]
+    },
+    "testRunId": "run_cV9x2mQ1nL7pR4tY8kD3",
+    "issues": [
+      {
+        "severity": "low",
+        "description": "Enrichment may return partial firmographic data for small companies."
+      }
+    ]
+  }'
+```
+
+```json
+{
+  "source": "publish",
+  "sourceId": "bounty_7k3mzq2",
+  "title": "Lead Qualification Assistant",
+  "summary": "Qualifies inbound leads and routes them to the right sales rep.",
+  "problemSolved": "Sales teams spend time triaging low-fit inbound requests before they reach the correct owner.",
+  "workflowSteps": [
+    "Accept inbound lead details",
+    "Enrich company and contact data",
+    "Score lead fit against ICP criteria",
+    "Route qualified leads to the assigned rep"
+  ],
+  "builderQuestions": [
+    {
+      "question": "Should the qualification threshold be stricter for enterprise leads?"
+    }
+  ],
+  "categories": ["sales", "lead-routing"],
+  "creditCost": 12,
+  "tools": ["hubspot", "clearbit", "slack"],
+  "platforms": ["web", "api"],
+  "useCases": ["lead-qualification", "sales-routing"],
+  "workflowJson": {
+    "version": "1.0",
+    "steps": [
+      {
+        "id": "trigger_01",
+        "type": "form_trigger",
+        "name": "Lead intake"
+      },
+      {
+        "id": "gate_01",
+        "type": "publish_gate",
+        "name": "Publish Gate"
+      }
+    ]
+  },
+  "testRunId": "run_cV9x2mQ1nL7pR4tY8kD3",
+  "issues": [
+    {
+      "severity": "low",
+      "description": "Enrichment may return partial firmographic data for small companies."
+    }
+  ]
+}
+```
+</Request>
+
+### Request details
+
+#### Headers
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Supabase-issued bearer token for the authenticated builder. Use the format `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.supabase_token`.
+
+</ParamField>
+
+#### Body parameters
+
+<ParamField body="source" param-type="string" required="true" enum="publish,bounty,requested">
+
+Submission source context.
+
+</ParamField>
+
+<ParamField body="sourceId" param-type="string" required="false">
+
+Optional identifier for the source entity, such as a bounty ID.
+
+</ParamField>
+
+<ParamField body="title" param-type="string" required="true">
+
+Agent display name. Must be non-empty.
+
+</ParamField>
+
+<ParamField body="summary" param-type="string" required="false">
+
+Short agent summary.
+
+</ParamField>
+
+<ParamField body="problemSolved" param-type="string" required="false">
+
+Description of the problem the agent solves.
+
+</ParamField>
+
+<ParamField body="workflowSteps" param-type="string[]" required="false">
+
+Ordered list of workflow step descriptions.
+
+</ParamField>
+
+<ParamField body="builderQuestions" param-type="array" required="false">
+
+Questions from the builder for the reviewer.
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="false">
+
+Agent category tags.
+
+</ParamField>
+
+<ParamField body="creditCost" param-type="integer" required="false">
+
+Estimated credit cost per run. Must be greater than or equal to `0`.
+
+</ParamField>
+
+<ParamField body="tools" param-type="string[]" required="false">
+
+Tools used by the agent.
+
+</ParamField>
+
+<ParamField body="platforms" param-type="string[]" required="false">
+
+Platforms the agent supports.
+
+</ParamField>
+
+<ParamField body="useCases" param-type="string[]" required="false">
+
+Use case identifiers the agent targets.
+
+</ParamField>
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Full workflow definition JSON. The workflow must include a Publish Gate step or the request fails.
+
+</ParamField>
+
+<ParamField body="testRunId" param-type="string" required="false">
+
+Flow-run ID of the builder's pre-submit E2E test run. Maximum length is `64` characters. This value is a nanoid, not a UUID. When provided, the agent-ranker uses the run's actual results as scoring evidence. If the score falls below the configured minimum threshold, the API auto-rejects the submission.
+
+</ParamField>
+
+<ParamField body="issues" param-type="array" required="false">
+
+Known issues reported by the builder.
+
+</ParamField>
+
+### Response
+
+A successful request always returns `200 OK`. Inspect `status` to determine whether the submission was queued for review or auto-rejected.
+
+<Response tabs="Pending,Rejected" default-tab="1">
+```json
+{
+  "id": "d6f95bd3-6f5f-46a1-8fd5-ec8ea8c9fd72",
+  "status": "pending",
+  "rankerScore": 84,
+  "rejectedReason": null
+}
+```
+
+```json
+{
+  "id": "7b9a1c30-5d89-4b1b-9f87-2d53f7cb7b14",
+  "status": "rejected",
+  "rankerScore": 41,
+  "rejectedReason": "below_quality_threshold"
+}
+```
+</Response>
+
+#### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+UUID of the review row when `status` is `pending`, or the rejected-reviews archive row when `status` is `rejected`.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Submission outcome. `pending` means the agent entered the admin review queue. `rejected` means the quality threshold gate auto-rejected the submission and it never entered the queue.
+
+</ResponseField>
+
+<ResponseField name="rankerScore" field-type="number | null" required="false">
+
+Quality score from `0` to `100` computed by the agent-ranker service. The value is `null` when the ranker is unconfigured, unreachable, or the agent is ineligible for all use cases.
+
+</ResponseField>
+
+<ResponseField name="rejectedReason" field-type="string | null" required="false">
+
+Machine-readable auto-rejection reason. Present only when `status` is `rejected`. The current value is `below_quality_threshold`.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Auto-rejection only happens when all of the following are true:
+
+- `testRunId` is provided
+- the agent-ranker service is reachable
+- the ranker returns a non-null numeric score
+- `AGENT_RANKER_MIN_SCORE` is configured
+- the score is below the configured threshold
+
+If the ranker is unconfigured or unreachable, the submission proceeds to the admin queue instead of failing closed.
+
+
+</Callout>
+
+### Likely error responses
+
+#### 400 Bad Request
+
+<CodeGroup tabs="Missing title,Missing auth user,Missing Publish Gate,Supabase archive failure,Supabase review failure">
+```json
+{
+  "error": "Agent name is required"
+}
+```
+
+```json
+{
+  "error": "Authenticated userId missing"
+}
+```
+
+```json
+{
+  "error": "This workflow has no Publish Gate step. Add one before submitting for review."
+}
+```
+
+```json
+{
+  "error": "Failed to record submission. Supabase may not be configured on this environment."
+}
+```
+
+```json
+{
+  "error": "Failed to record submission for review. Supabase may not be configured on this environment."
+}
+```
+</CodeGroup>
+
+#### 409 Conflict
+
+<CodeGroup tabs="Already in review">
+```json
+{
+  "error": "This agent is already in review."
+}
+```
+</CodeGroup>
+
+## Publish an Agent Workflow
+
+`POST /api/agents/publish` publishes a builder's agent workflow to the marketplace. The HTTP request and response shapes did not change, but successful publishes now trigger additional background processing.
+
+### Endpoint
+
+`POST /api/agents/publish`
+
+<Callout kind="info">
+
+Two background behaviors now run after a successful publish:
+
+1. **Background quality scoring** — The service asynchronously calls the agent-ranker and stamps `ranker_score`, `ranker_scores`, `ranker_bundle_version`, and `ranker_scored_at` onto published workflow metadata. This work is best-effort. Failures are logged and do not change the publish response.
+2. **Subscription trigger metadata** — For workflows with `deployment_mode` set to `subscription`, the service now persists trigger display name and trigger description metadata for webhook, app, and polling piece triggers. Earlier behavior only stored trigger metadata for scheduled triggers.
+
+
+</Callout>
+
+### Request details
+
+The full request schema is defined by the `PublishAgentDto` validator in the API service. Use the same authenticated bearer token pattern as the review-submission endpoint.
+
+### What changed for clients
+
+The publish API remains backward compatible. You do not need to change your request payload or response handling to adopt these behaviors, but you can expect richer published workflow metadata after a successful publish.

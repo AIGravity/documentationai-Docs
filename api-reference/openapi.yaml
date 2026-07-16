@@ -1,13 +1,18 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
+  version: 1.1.0
   title: AIGravity Core API Service
-  description: |
+  description: >-
     This specification documents the API service for the AIGravity/core monorepo.
+    It covers service health, agent submission and publishing, admin review queue
+    management, and admin agent detail endpoints.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    Authentication for protected endpoints uses a Supabase-issued JWT bearer token
+    supplied in the Authorization header as `Bearer <token>`.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    Public health endpoints are available without authentication. Builder and admin
+    endpoints require authenticated access, and admin endpoints additionally require
+    administrative privileges.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -21,6 +26,12 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Agent Submission
+    description: Builder-facing endpoints for submitting agents for review and publishing agents
+  - name: Admin Review
+    description: Admin endpoints for managing the agent review queue
+  - name: Admin Agents
+    description: Admin endpoints for viewing published and running agent details
 paths:
   /health:
     get:
@@ -41,7 +52,430 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/agents/review-submission:
+    post:
+      tags:
+        - Agent Submission
+      summary: Submit an agent for review
+      description: Submits a builder's agent workflow for admin review. When a testRunId is provided and the agent-ranker service is configured, the submission is automatically scored. If the quality score falls below the configured minimum threshold, the submission is auto-rejected before entering the admin queue.
+      operationId: submitAgentForReview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmissionRequest'
+            example:
+              source: workflow
+              sourceId: 550e8400-e29b-41d4-a716-446655440001
+              title: Customer Support Assistant
+              summary: Helps answer common support questions for SaaS customers.
+              problemSolved: Reduces repetitive manual support work.
+              workflowSteps:
+                - Intake customer question
+                - Retrieve knowledge base content
+                - Draft response
+              builderQuestions:
+                - What support channels are covered?
+              categories:
+                - support
+              creditCost: 10
+              tools:
+                - zendesk
+              platforms:
+                - web
+              useCases:
+                - customer_support
+              workflowJson:
+                nodes: []
+                edges: []
+              testRunId: 550e8400-e29b-41d4-a716-446655440002
+              issues:
+                - Missing fallback behavior
+      responses:
+        '200':
+          description: Review submission accepted or auto-rejected based on quality threshold
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewSubmissionResponse'
+              examples:
+                pending:
+                  summary: Submission queued for admin review
+                  value:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    status: pending
+                    rankerScore: 78
+                rejected:
+                  summary: Submission auto-rejected by quality threshold
+                  value:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    status: rejected
+                    rankerScore: 43
+                    rejectedReason: below_quality_threshold
+        '400':
+          description: Invalid submission request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                missingTitle:
+                  summary: Missing agent name
+                  value:
+                    message: Agent name is required
+                noPublishGate:
+                  summary: Missing publish gate
+                  value:
+                    message: This workflow has no Publish Gate step. Add one before submitting for review.
+                supabaseNotConfigured:
+                  summary: Failed to record submission
+                  value:
+                    message: Failed to record submission. Supabase may not be configured on this environment.
+        '409':
+          description: Agent is already in review
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: This agent is already in review.
+  /api/agents/publish:
+    post:
+      tags:
+        - Agent Submission
+      summary: Publish an agent workflow
+      description: Publishes a builder's agent workflow to the marketplace. After a successful publish, the service asynchronously scores the agent with the agent-ranker and stamps the result onto the published workflow metadata. For subscription-type workflows, trigger display name and description metadata are now derived and persisted.
+      operationId: publishAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentRequest'
+            example:
+              sourceId: 550e8400-e29b-41d4-a716-446655440001
+      responses:
+        '200':
+          description: Agent workflow published successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublishAgentResponse'
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440003
+                status: published
+        '400':
+          description: Invalid publish request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Invalid publish request.
+        '500':
+          description: Unexpected server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Internal server error
+  /api/agents/admin/pending-reviews:
+    get:
+      tags:
+        - Admin Review
+      summary: List pending agent reviews
+      description: Returns a paginated list of agent submissions in the admin review queue. Each row includes the agent-ranker quality score captured at submission time, when available.
+      operationId: listPendingReviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by review status. When rejected, rows are read from the rejected reviews archive.
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - rejected
+      responses:
+        '200':
+          description: Review queue results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPendingReviewListResponse'
+              example:
+                reviews:
+                  - id: 550e8400-e29b-41d4-a716-446655440010
+                    title: Customer Support Assistant
+                    source: workflow
+                    sourceId: 550e8400-e29b-41d4-a716-446655440001
+                    status: pending
+                    submittedAt: '2025-01-15T10:30:00Z'
+                    reviewedAt: '2025-01-15T11:00:00Z'
+                    reviewNote: Awaiting manual review
+                    issueCount: 1
+                    userId: 550e8400-e29b-41d4-a716-446655440020
+                    authorName: Jane Builder
+                    summary: Helps answer common support questions for SaaS customers.
+                    workflowSteps:
+                      - Intake customer question
+                      - Retrieve knowledge base content
+                      - Draft response
+                    rankerScore: 78
+                total: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/pending-reviews/{id}:
+    get:
+      tags:
+        - Admin Review
+      summary: Get pending review detail
+      description: Returns the full detail of a single agent submission in the review queue, including quality scoring breakdown and E2E test run history.
+      operationId: getPendingReviewDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Review row UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pending review detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPendingReviewDetail'
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440010
+                title: Customer Support Assistant
+                source: workflow
+                sourceId: 550e8400-e29b-41d4-a716-446655440001
+                status: pending
+                submittedAt: '2025-01-15T10:30:00Z'
+                reviewedAt: '2025-01-15T11:00:00Z'
+                reviewNote: Awaiting manual review
+                issueCount: 1
+                userId: 550e8400-e29b-41d4-a716-446655440020
+                authorName: Jane Builder
+                summary: Helps answer common support questions for SaaS customers.
+                problemSolved: Reduces repetitive manual support work.
+                workflowSteps:
+                  - Intake customer question
+                  - Retrieve knowledge base content
+                  - Draft response
+                builderQuestions:
+                  - What support channels are covered?
+                categories:
+                  - support
+                creditCost: 10
+                tools:
+                  - zendesk
+                platforms:
+                  - web
+                useCases:
+                  - customer_support
+                workflowJson:
+                  nodes: []
+                  edges: []
+                testRunId: 550e8400-e29b-41d4-a716-446655440002
+                issues:
+                  - Missing fallback behavior
+                gates:
+                  publishGate: passed
+                rankerScore: 78
+                rankerScores:
+                  customer_support: 80
+                  lead_qualification: 76
+                rankerBundleVersion: '2025.01.15'
+                e2eRuns:
+                  - id: 550e8400-e29b-41d4-a716-446655440030
+                    apRunId: 550e8400-e29b-41d4-a716-446655440031
+                    status: passed
+                    startedAt: '2025-01-15T10:20:00Z'
+                    finishedAt: '2025-01-15T10:25:00Z'
+                    durationMs: 300000
+                    creditsEstimate: 12.5
+                    runResult: success
+                    createdAt: '2025-01-15T10:19:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/approve:
+    post:
+      tags:
+        - Admin Review
+      summary: Approve a pending review
+      description: Approves a pending agent submission, publishing the agent to the marketplace. If the submission carried a ranker quality score at submission time, that score is carried forward to the published agent's metadata.
+      operationId: approvePendingReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Review row UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pending review approved and published
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApproveReviewResponse'
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440003
+                status: published
+                reviewId: 550e8400-e29b-41d4-a716-446655440010
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/published/{id}:
+    get:
+      tags:
+        - Admin Agents
+      summary: Get published agent detail
+      description: Returns the full detail of a published agent, including quality score, per-use-case score breakdown, and E2E test run history.
+      operationId: getPublishedAgentDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Published workflow UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Published agent detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPublishedAgentDetail'
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440003
+                title: Customer Support Assistant
+                source: workflow
+                sourceId: 550e8400-e29b-41d4-a716-446655440001
+                status: published
+                submittedAt: '2025-01-15T10:30:00Z'
+                reviewedAt: '2025-01-15T11:00:00Z'
+                reviewNote: Approved for marketplace publication
+                issueCount: 1
+                userId: 550e8400-e29b-41d4-a716-446655440020
+                authorName: Jane Builder
+                summary: Helps answer common support questions for SaaS customers.
+                workflowSteps:
+                  - Intake customer question
+                  - Retrieve knowledge base content
+                  - Draft response
+                rankerScore: 78
+                rankerScores:
+                  customer_support: 80
+                  lead_qualification: 76
+                e2eRuns:
+                  - id: 550e8400-e29b-41d4-a716-446655440030
+                    apRunId: 550e8400-e29b-41d4-a716-446655440031
+                    status: passed
+                    startedAt: '2025-01-15T10:20:00Z'
+                    finishedAt: '2025-01-15T10:25:00Z'
+                    durationMs: 300000
+                    creditsEstimate: 12.5
+                    runResult: success
+                    createdAt: '2025-01-15T10:19:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/running-automations/{id}:
+    get:
+      tags:
+        - Admin Agents
+      summary: Get running automation detail
+      description: Returns the full detail of a running automation agent. Inherits the same shape as the published agent detail, including quality score and E2E test run history.
+      operationId: getRunningAutomationDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: Running automation UUID.
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Running automation detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPublishedAgentDetail'
+              example:
+                id: 550e8400-e29b-41d4-a716-446655440004
+                title: Customer Support Assistant
+                source: workflow
+                sourceId: 550e8400-e29b-41d4-a716-446655440001
+                status: running
+                submittedAt: '2025-01-15T10:30:00Z'
+                reviewedAt: '2025-01-15T11:00:00Z'
+                reviewNote: Automation currently active
+                issueCount: 1
+                userId: 550e8400-e29b-41d4-a716-446655440020
+                authorName: Jane Builder
+                summary: Helps answer common support questions for SaaS customers.
+                workflowSteps:
+                  - Intake customer question
+                  - Retrieve knowledge base content
+                  - Draft response
+                rankerScore: 78
+                rankerScores:
+                  customer_support: 80
+                  lead_qualification: 76
+                e2eRuns:
+                  - id: 550e8400-e29b-41d4-a716-446655440030
+                    apRunId: 550e8400-e29b-41d4-a716-446655440031
+                    status: passed
+                    startedAt: '2025-01-15T10:20:00Z'
+                    finishedAt: '2025-01-15T10:25:00Z'
+                    durationMs: 300000
+                    creditsEstimate: 12.5
+                    runResult: success
+                    createdAt: '2025-01-15T10:19:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT bearer token from Supabase authentication.
   responses:
     InternalServerError:
       description: Unexpected server error
@@ -49,6 +483,32 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+          example:
+            message: Internal server error
+    Unauthorized:
+      description: Unauthorized - JWT token missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Unauthorized
+    Forbidden:
+      description: Forbidden - user is not an admin.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Forbidden resource
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            message: Resource not found
   schemas:
     HealthResponse:
       type: object
@@ -66,3 +526,671 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    ReviewSubmissionRequest:
+      type: object
+      description: Builder request payload for submitting an agent workflow for review.
+      additionalProperties: true
+      properties:
+        source:
+          type: string
+          description: Source type for the submitted agent.
+          example: workflow
+        sourceId:
+          type: string
+          format: uuid
+          description: Source UUID for the submitted agent.
+          example: 550e8400-e29b-41d4-a716-446655440001
+        title:
+          type: string
+          description: Display title of the agent workflow.
+          example: Customer Support Assistant
+        summary:
+          type: string
+          description: Short summary of the agent.
+          example: Helps answer common support questions for SaaS customers.
+        problemSolved:
+          type: string
+          description: Problem the agent is intended to solve.
+          example: Reduces repetitive manual support work.
+        workflowSteps:
+          type: array
+          description: High-level workflow steps for the agent.
+          items:
+            type: string
+          example:
+            - Intake customer question
+            - Retrieve knowledge base content
+            - Draft response
+        builderQuestions:
+          type: array
+          description: Builder-provided questions or notes for reviewers.
+          items:
+            type: string
+          example:
+            - What support channels are covered?
+        categories:
+          type: array
+          description: Categories associated with the agent.
+          items:
+            type: string
+          example:
+            - support
+        creditCost:
+          type: number
+          description: Estimated credit cost for running the agent.
+          example: 10
+        tools:
+          type: array
+          description: Tools used by the workflow.
+          items:
+            type: string
+          example:
+            - zendesk
+        platforms:
+          type: array
+          description: Platforms targeted by the workflow.
+          items:
+            type: string
+          example:
+            - web
+        useCases:
+          type: array
+          description: Use cases associated with the agent.
+          items:
+            type: string
+          example:
+            - customer_support
+        workflowJson:
+          type: object
+          description: Raw workflow definition payload.
+          additionalProperties: true
+          example:
+            nodes: []
+            edges: []
+        testRunId:
+          type: string
+          format: uuid
+          description: Optional E2E test run identifier used for automatic quality scoring.
+          example: 550e8400-e29b-41d4-a716-446655440002
+        issues:
+          type: array
+          description: Known issues attached to the submission.
+          items:
+            type: string
+          example:
+            - Missing fallback behavior
+      example:
+        source: workflow
+        sourceId: 550e8400-e29b-41d4-a716-446655440001
+        title: Customer Support Assistant
+        summary: Helps answer common support questions for SaaS customers.
+        problemSolved: Reduces repetitive manual support work.
+        workflowSteps:
+          - Intake customer question
+          - Retrieve knowledge base content
+          - Draft response
+        builderQuestions:
+          - What support channels are covered?
+        categories:
+          - support
+        creditCost: 10
+        tools:
+          - zendesk
+        platforms:
+          - web
+        useCases:
+          - customer_support
+        workflowJson:
+          nodes: []
+          edges: []
+        testRunId: 550e8400-e29b-41d4-a716-446655440002
+        issues:
+          - Missing fallback behavior
+    ReviewSubmissionResponse:
+      type: object
+      description: Result of a review submission attempt.
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Review submission row UUID.
+          example: 550e8400-e29b-41d4-a716-446655440000
+        status:
+          type: string
+          description: Current submission status.
+          enum:
+            - pending
+            - rejected
+          example: pending
+        rankerScore:
+          type: number
+          description: Quality score captured from the agent-ranker, when available.
+          example: 78
+        rejectedReason:
+          type: string
+          description: Reason code when a submission is auto-rejected.
+          example: below_quality_threshold
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440000
+        status: pending
+        rankerScore: 78
+    PublishAgentRequest:
+      type: object
+      description: Request body for publishing an agent.
+      additionalProperties: true
+      example:
+        sourceId: 550e8400-e29b-41d4-a716-446655440001
+    PublishAgentResponse:
+      type: object
+      description: Response from a successful agent publish.
+      additionalProperties: true
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440003
+        status: published
+    ApproveReviewResponse:
+      type: object
+      description: Response from approving a pending review.
+      additionalProperties: true
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440003
+        status: published
+        reviewId: 550e8400-e29b-41d4-a716-446655440010
+    AdminPendingReviewListResponse:
+      type: object
+      description: List response for admin pending review queue queries.
+      required:
+        - reviews
+        - total
+      properties:
+        reviews:
+          type: array
+          description: Review queue rows matching the query filter.
+          items:
+            $ref: '#/components/schemas/AdminPendingReviewRow'
+        total:
+          type: integer
+          description: Total number of matching rows.
+          minimum: 0
+          example: 1
+      example:
+        reviews:
+          - id: 550e8400-e29b-41d4-a716-446655440010
+            title: Customer Support Assistant
+            source: workflow
+            sourceId: 550e8400-e29b-41d4-a716-446655440001
+            status: pending
+            submittedAt: '2025-01-15T10:30:00Z'
+            reviewedAt: '2025-01-15T11:00:00Z'
+            reviewNote: Awaiting manual review
+            issueCount: 1
+            userId: 550e8400-e29b-41d4-a716-446655440020
+            authorName: Jane Builder
+            summary: Helps answer common support questions for SaaS customers.
+            workflowSteps:
+              - Intake customer question
+              - Retrieve knowledge base content
+              - Draft response
+            rankerScore: 78
+        total: 1
+    AdminPendingReviewRow:
+      type: object
+      description: Summary row describing a review submission in the admin queue.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Review row UUID.
+          example: 550e8400-e29b-41d4-a716-446655440010
+        title:
+          type: string
+          description: Agent title shown to admins.
+          example: Customer Support Assistant
+        source:
+          type: string
+          description: Source type for the submitted agent.
+          example: workflow
+        sourceId:
+          type: string
+          format: uuid
+          description: Source UUID for the submitted agent.
+          example: 550e8400-e29b-41d4-a716-446655440001
+        status:
+          type: string
+          description: Review queue status for the submission.
+          enum:
+            - pending
+            - rejected
+          example: pending
+        submittedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the submission entered the review pipeline.
+          example: '2025-01-15T10:30:00Z'
+        reviewedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the submission was reviewed, when available.
+          example: '2025-01-15T11:00:00Z'
+        reviewNote:
+          type: string
+          description: Admin review note, when available.
+          example: Awaiting manual review
+        issueCount:
+          type: integer
+          description: Number of issues attached to the submission.
+          example: 1
+        userId:
+          type: string
+          format: uuid
+          description: Builder user UUID that created the submission.
+          example: 550e8400-e29b-41d4-a716-446655440020
+        authorName:
+          type: string
+          description: Builder display name.
+          example: Jane Builder
+        summary:
+          type: string
+          description: Short summary of the agent.
+          example: Helps answer common support questions for SaaS customers.
+        workflowSteps:
+          type: array
+          description: High-level workflow steps for the agent.
+          items:
+            type: string
+          example:
+            - Intake customer question
+            - Retrieve knowledge base content
+            - Draft response
+        rankerScore:
+          type: number
+          description: Quality score captured at submission time, when available.
+          example: 78
+    AdminPendingReviewDetail:
+      type: object
+      description: Full detail record for a single review submission in the admin queue.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Review row UUID.
+          example: 550e8400-e29b-41d4-a716-446655440010
+        title:
+          type: string
+          description: Agent title shown to admins.
+          example: Customer Support Assistant
+        source:
+          type: string
+          description: Source type for the submitted agent.
+          example: workflow
+        sourceId:
+          type: string
+          format: uuid
+          description: Source UUID for the submitted agent.
+          example: 550e8400-e29b-41d4-a716-446655440001
+        status:
+          type: string
+          description: Review status for the submission.
+          enum:
+            - pending
+            - rejected
+          example: pending
+        submittedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the submission entered the review pipeline.
+          example: '2025-01-15T10:30:00Z'
+        reviewedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the submission was reviewed, when available.
+          example: '2025-01-15T11:00:00Z'
+        reviewNote:
+          type: string
+          description: Admin review note, when available.
+          example: Awaiting manual review
+        issueCount:
+          type: integer
+          description: Number of issues attached to the submission.
+          example: 1
+        userId:
+          type: string
+          format: uuid
+          description: Builder user UUID that created the submission.
+          example: 550e8400-e29b-41d4-a716-446655440020
+        authorName:
+          type: string
+          description: Builder display name.
+          example: Jane Builder
+        summary:
+          type: string
+          description: Short summary of the agent.
+          example: Helps answer common support questions for SaaS customers.
+        problemSolved:
+          type: string
+          description: Problem the agent is intended to solve.
+          example: Reduces repetitive manual support work.
+        workflowSteps:
+          type: array
+          description: High-level workflow steps for the agent.
+          items:
+            type: string
+          example:
+            - Intake customer question
+            - Retrieve knowledge base content
+            - Draft response
+        builderQuestions:
+          type: array
+          description: Builder-provided questions or notes for reviewers.
+          items:
+            type: string
+          example:
+            - What support channels are covered?
+        categories:
+          type: array
+          description: Categories associated with the agent.
+          items:
+            type: string
+          example:
+            - support
+        creditCost:
+          type: number
+          description: Estimated credit cost for running the agent.
+          example: 10
+        tools:
+          type: array
+          description: Tools used by the workflow.
+          items:
+            type: string
+          example:
+            - zendesk
+        platforms:
+          type: array
+          description: Platforms targeted by the workflow.
+          items:
+            type: string
+          example:
+            - web
+        useCases:
+          type: array
+          description: Use cases associated with the agent.
+          items:
+            type: string
+          example:
+            - customer_support
+        workflowJson:
+          type: object
+          description: Raw workflow definition payload.
+          additionalProperties: true
+          example:
+            nodes: []
+            edges: []
+        testRunId:
+          type: string
+          format: uuid
+          description: Optional E2E test run identifier used for automatic quality scoring.
+          example: 550e8400-e29b-41d4-a716-446655440002
+        issues:
+          type: array
+          description: Known issues attached to the submission.
+          items:
+            type: string
+          example:
+            - Missing fallback behavior
+        gates:
+          type: object
+          description: Gate evaluation data captured for the submission.
+          additionalProperties: true
+          example:
+            publishGate: passed
+        rankerScore:
+          type: number
+          description: Aggregate quality score captured at submission time.
+          example: 78
+        rankerScores:
+          type: object
+          description: Per-use-case quality score breakdown from the agent-ranker.
+          additionalProperties:
+            type: number
+          example:
+            customer_support: 80
+            lead_qualification: 76
+        rankerBundleVersion:
+          type: string
+          description: Agent-ranker bundle version used to produce the score.
+          example: '2025.01.15'
+        e2eRuns:
+          type: array
+          description: E2E test runs associated with the submission.
+          items:
+            $ref: '#/components/schemas/AdminAgentE2eRun'
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440010
+        title: Customer Support Assistant
+        source: workflow
+        sourceId: 550e8400-e29b-41d4-a716-446655440001
+        status: pending
+        submittedAt: '2025-01-15T10:30:00Z'
+        reviewedAt: '2025-01-15T11:00:00Z'
+        reviewNote: Awaiting manual review
+        issueCount: 1
+        userId: 550e8400-e29b-41d4-a716-446655440020
+        authorName: Jane Builder
+        summary: Helps answer common support questions for SaaS customers.
+        problemSolved: Reduces repetitive manual support work.
+        workflowSteps:
+          - Intake customer question
+          - Retrieve knowledge base content
+          - Draft response
+        builderQuestions:
+          - What support channels are covered?
+        categories:
+          - support
+        creditCost: 10
+        tools:
+          - zendesk
+        platforms:
+          - web
+        useCases:
+          - customer_support
+        workflowJson:
+          nodes: []
+          edges: []
+        testRunId: 550e8400-e29b-41d4-a716-446655440002
+        issues:
+          - Missing fallback behavior
+        gates:
+          publishGate: passed
+        rankerScore: 78
+        rankerScores:
+          customer_support: 80
+          lead_qualification: 76
+        rankerBundleVersion: '2025.01.15'
+        e2eRuns:
+          - id: 550e8400-e29b-41d4-a716-446655440030
+            apRunId: 550e8400-e29b-41d4-a716-446655440031
+            status: passed
+            startedAt: '2025-01-15T10:20:00Z'
+            finishedAt: '2025-01-15T10:25:00Z'
+            durationMs: 300000
+            creditsEstimate: 12.5
+            runResult: success
+            createdAt: '2025-01-15T10:19:00Z'
+    AdminPublishedAgentDetail:
+      type: object
+      description: Full detail record for a published or running automation agent.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Published or running agent UUID.
+          example: 550e8400-e29b-41d4-a716-446655440003
+        title:
+          type: string
+          description: Agent title.
+          example: Customer Support Assistant
+        source:
+          type: string
+          description: Source type for the submitted agent.
+          example: workflow
+        sourceId:
+          type: string
+          format: uuid
+          description: Source UUID for the submitted agent.
+          example: 550e8400-e29b-41d4-a716-446655440001
+        status:
+          type: string
+          description: Current lifecycle status.
+          enum:
+            - published
+            - running
+          example: published
+        submittedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the submission entered the review pipeline.
+          example: '2025-01-15T10:30:00Z'
+        reviewedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the submission was reviewed, when available.
+          example: '2025-01-15T11:00:00Z'
+        reviewNote:
+          type: string
+          description: Admin review note, when available.
+          example: Approved for marketplace publication
+        issueCount:
+          type: integer
+          description: Number of issues attached to the submission.
+          example: 1
+        userId:
+          type: string
+          format: uuid
+          description: Builder user UUID that created the submission.
+          example: 550e8400-e29b-41d4-a716-446655440020
+        authorName:
+          type: string
+          description: Builder display name.
+          example: Jane Builder
+        summary:
+          type: string
+          description: Short summary of the agent.
+          example: Helps answer common support questions for SaaS customers.
+        workflowSteps:
+          type: array
+          description: High-level workflow steps for the agent.
+          items:
+            type: string
+          example:
+            - Intake customer question
+            - Retrieve knowledge base content
+            - Draft response
+        rankerScore:
+          type: number
+          description: Aggregate quality score for the agent.
+          example: 78
+        rankerScores:
+          type: object
+          description: Per-use-case quality score breakdown for the agent.
+          additionalProperties:
+            type: number
+          example:
+            customer_support: 80
+            lead_qualification: 76
+        e2eRuns:
+          type: array
+          description: E2E test run history attached to the agent.
+          items:
+            $ref: '#/components/schemas/AdminAgentE2eRun'
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440003
+        title: Customer Support Assistant
+        source: workflow
+        sourceId: 550e8400-e29b-41d4-a716-446655440001
+        status: published
+        submittedAt: '2025-01-15T10:30:00Z'
+        reviewedAt: '2025-01-15T11:00:00Z'
+        reviewNote: Approved for marketplace publication
+        issueCount: 1
+        userId: 550e8400-e29b-41d4-a716-446655440020
+        authorName: Jane Builder
+        summary: Helps answer common support questions for SaaS customers.
+        workflowSteps:
+          - Intake customer question
+          - Retrieve knowledge base content
+          - Draft response
+        rankerScore: 78
+        rankerScores:
+          customer_support: 80
+          lead_qualification: 76
+        e2eRuns:
+          - id: 550e8400-e29b-41d4-a716-446655440030
+            apRunId: 550e8400-e29b-41d4-a716-446655440031
+            status: passed
+            startedAt: '2025-01-15T10:20:00Z'
+            finishedAt: '2025-01-15T10:25:00Z'
+            durationMs: 300000
+            creditsEstimate: 12.5
+            runResult: success
+            createdAt: '2025-01-15T10:19:00Z'
+    AdminAgentE2eRun:
+      type: object
+      description: Summary of an E2E test run associated with an agent review or published agent.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: E2E test run UUID.
+          example: 550e8400-e29b-41d4-a716-446655440030
+        apRunId:
+          type: string
+          format: uuid
+          description: Automation platform run UUID.
+          example: 550e8400-e29b-41d4-a716-446655440031
+        status:
+          type: string
+          description: Final or current status of the E2E test run.
+          enum:
+            - pending
+            - running
+            - passed
+            - failed
+          example: passed
+        startedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the E2E run started.
+          example: '2025-01-15T10:20:00Z'
+        finishedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the E2E run finished, when available.
+          example: '2025-01-15T10:25:00Z'
+        durationMs:
+          type: integer
+          format: int64
+          description: Run duration in milliseconds.
+          example: 300000
+        creditsEstimate:
+          type: number
+          description: Estimated credits consumed by the run.
+          example: 12.5
+        runResult:
+          type: string
+          description: Result payload summary for the run.
+          example: success
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the E2E run record was created.
+          example: '2025-01-15T10:19:00Z'
+      example:
+        id: 550e8400-e29b-41d4-a716-446655440030
+        apRunId: 550e8400-e29b-41d4-a716-446655440031
+        status: passed
+        startedAt: '2025-01-15T10:20:00Z'
+        finishedAt: '2025-01-15T10:25:00Z'
+        durationMs: 300000
+        creditsEstimate: 12.5
+        runResult: success
+        createdAt: '2025-01-15T10:19:00Z'
