@@ -1,68 +1,77 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: What shipped in Gravity — new features, improvements, and bug fixes for each release.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable product updates and changes shipped to Gravity.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update date="2026-07-16">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New Features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **AI-powered category suggestions** — When you upload a workflow, suggested marketplace categories are auto-filled for you to confirm or adjust. See [Features](/features).
+- **Leaderboard redesign** — Rankings now track individual workflows with phase-aware views (locked, live, ended) and frozen final results. Prize tiers and an incentives section have been updated.
+- **Bounty difficulty levels** — Bounties are now tagged Easy, Medium, or Difficult. Filter by difficulty and spot them at a glance with colour-coded indicators.
+- **Expanded bounty marketplace** — 34 new automation tasks have been added across popular tools.
+
+### Updates
+
+- **Sharper AI-generated text** — Agent names and descriptions are now plainer, more outcome-focused, and free of stray dashes. See [Features](/features).
+- **Builder-aware sign-in** — Sign-in prompts on builder surfaces open directly to the Builder tab, and builders land on the builder dashboard after logout.
+- **Sidebar visible without sign-in** — Builder-facing pages now show the sidebar to unauthenticated visitors instead of a blank screen.
+- **Shuffled bounty grid** — Bounties are randomized on each page load for fairer visibility.
+- **Corrected integration labels** — Tool display names now use proper brand casing (e.g., Fireflies.ai, TickTick, PostHog). See [Integrations](/integrations).
+- **AI-assist reminder** — Fields filled by "Improve with AI" now display a note prompting you to verify the content.
+- **Finer quality scores** — Agent quality scores now show two decimal places.
+
+### Bug Fixes
+
+- **Cleaner rejection messages** — Raw quality scores are no longer exposed in builder-facing rejection notices, replaced with a clear, generic explanation.
+- **Removed non-functional button** — A dead "More actions" button in the admin review panel has been removed.
+
+
+
+
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom when you want the newest information first. Entries are grouped into New Features, Updates, and Bug Fixes so you can quickly find what matters to you.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+
+Explore the platform's current capabilities and supported workflows.
+
+
+
+</Card>
+
+<Card title="Integrations" href="/integrations" icon="plug">
+
+Browse the tools and services available for building agents.
+
+
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+
+Get up and running with Gravity in minutes.
+
+
+
 </Card>
+
+
 
 </Columns>
 
