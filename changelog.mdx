@@ -5,65 +5,57 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+This changelog tracks notable product changes to the Gravity platform. Entries are organized newest-first, with new features, updates, and bug fixes grouped under each release.
 
-<Callout kind="alert">
+<Update label="2026-07" description="July 2026" tags={["feature", "improvement", "bugfix"]}>
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### New Features
 
-</Callout>
+- **Agent quality scoring** — Every agent now receives a quality score from `0` to `100` when you submit it for review and again after publishing. Scores reflect output quality, reliability, speed, and cost across multiple use cases.
+- **Quality-based auto-rejection** — Agents that fall below the minimum quality standard are automatically rejected with guidance to refine the workflow and resubmit.
+- **Trigger confirmation prompt** — Before you activate a recurring agent that runs on app events, Gravity now shows a prompt explaining exactly when the agent will fire.
+- **Leaderboard redesign** — The leaderboard now includes a prize podium for top entries, a countdown clock to the July 30 deadline, and a new **Highest Score** column that replaces **Total Runs** and **Users Reached**.
 
-## Release history
+### Updates
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- **All publish paths now go through admin review** — The **Publish your agent** button is now **Submit for review** across all submission types, including bounty and requested-agent submissions.
+- **Admin review cards** now display quality scores and detailed test run results.
+- **Builder dashboard review status** is now simplified to **In review** without issue counts.
+- **How it works guide link** is now available from the empty dashboard state and the publish page.
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### Bug Fixes
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Long-running test runs** no longer falsely report as failures when they take longer than 20 seconds to complete.
+- **Session handling** now correctly refreshes dashboard queries so they do not use an outdated session.
+
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom for the newest changes. Each release is organized into New Features, Updates, and Bug Fixes so you can quickly find what matters to you.
 
 ## Related resources
 
-<Columns cols={2}>
+<Columns cols={3}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+
+Review the platform's core capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
 
-</Columns>
+<Card title="Help Center" href="/help-center" icon="help-circle">
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+Find troubleshooting articles and step-by-step guides.
+
+</Card>
+
+
+</Columns>
