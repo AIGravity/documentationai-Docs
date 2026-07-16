@@ -5,7 +5,7 @@ info:
   description: |
     This specification documents the API service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    Currently, it covers the NestJS API service health endpoint exposed at `GET /health` and the agent review submission endpoint at `POST /agents/submit-for-review`.
 
     The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
   license:
@@ -21,6 +21,8 @@ servers:
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Agents
+    description: Agent review submission and quality scoring operations
 paths:
   /health:
     get:
@@ -39,6 +41,41 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /agents/submit-for-review:
+    post:
+      tags:
+        - Agents
+      summary: Submit agent for review
+      description: Builders call this endpoint to submit their agent for admin review. The server scores the agent using an automated quality ranker when a test run ID is provided, and either accepts the submission into the admin review queue or auto-rejects it if the quality score falls below the configured threshold.
+      operationId: submitForReview
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmissionRequest'
+      responses:
+        '200':
+          description: Review submission processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewSubmissionResponse'
+              examples:
+                Accepted:
+                  value:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    status: pending
+                    rankerScore: 87
+                Rejected:
+                  value:
+                    id: 550e8400-e29b-41d4-a716-446655440000
+                    status: rejected
+                    rankerScore: 42
+                    rejectedReason: below_quality_threshold
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -66,3 +103,51 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    ReviewSubmissionRequest:
+      type: object
+      required:
+        - source
+        - title
+      properties:
+        source:
+          type: string
+          description: The agent workflow source definition.
+        title:
+          type: string
+          description: The agent display title.
+        testRunId:
+          type: string
+          maxLength: 64
+          description: The ID of the pre-submit end-to-end test run. When provided, the server scores the agent against its test run output using the quality ranker. When omitted, quality scoring is skipped and the submission enters the admin review queue directly.
+        issues:
+          type: array
+          description: Verification issues flagged during the pre-submit gate checks.
+          items:
+            type: string
+    ReviewSubmissionResponse:
+      type: object
+      required:
+        - id
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The review submission record ID. When status is pending, this is the pending review row ID. When status is rejected, this is the rejected review row ID.
+        status:
+          type: string
+          enum:
+            - pending
+            - rejected
+          description: pending when the submission was accepted into the admin review queue, or rejected when the agent was auto-rejected for falling below the configured quality threshold.
+        rankerScore:
+          type: number
+          nullable: true
+          minimum: 0
+          maximum: 100
+          description: The quality score (0-100) assigned by the automated ranker. Present when scoring was performed. null when the ranker was unavailable or the agent was ineligible for scoring.
+        rejectedReason:
+          type: string
+          enum:
+            - below_quality_threshold
+          description: Present only when status is rejected. The current value is below_quality_threshold.

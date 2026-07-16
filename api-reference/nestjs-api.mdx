@@ -1,21 +1,25 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: >-
+  API reference for the NestJS backend health and agent review submission
+  endpoints implemented in the AIGravity core repository.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The code analysis found two public endpoints: `GET /health` and `POST /agents/submit-for-review`.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+
 
 </Callout>
 
 <Callout kind="alert">
 
 The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+
 
 </Callout>
 
@@ -29,11 +33,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +47,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +67,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +75,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +85,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +93,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,11 +128,13 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -139,3 +153,172 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 ## Notes
 
 The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+
+## Endpoint
+
+### POST `/agents/submit-for-review`
+
+Builders call this endpoint to submit their agent for admin review. The server scores the agent using an automated quality ranker when a test run ID is provided, and either accepts the submission into the admin review queue or auto-rejects it if the quality score falls below the configured threshold.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/agents/submit-for-review`
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="true" show-location="false">
+
+No authentication requirements were found in the analyzed code.
+
+
+</ParamField>
+
+## Request details
+
+This endpoint accepts a JSON request body describing the agent submission and any pre-submit verification results.
+
+### Path parameters
+
+<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+
+None. The route is fixed at `POST /agents/submit-for-review`.
+
+
+</ParamField>
+
+### Query parameters
+
+<ParamField body="query parameters" param-type="none" required="false" show-location="false">
+
+None. The handler does not define or consume query string values.
+
+
+</ParamField>
+
+### Headers
+
+<ParamField body="Content-Type" param-type="string" required="true" show-location="false">
+
+Set `Content-Type` to `application/json`.
+
+
+</ParamField>
+
+### Request body
+
+<ParamField body="source" param-type="string" required="true" show-location="false">
+
+The agent workflow source definition.
+
+
+</ParamField>
+
+<ParamField body="title" param-type="string" required="true" show-location="false">
+
+The agent display title.
+
+
+</ParamField>
+
+<ParamField body="testRunId" param-type="string" required="false" show-location="false">
+
+The ID of the pre-submit end-to-end test run. When provided, the server scores the agent against its test run output using the quality ranker. When omitted, quality scoring is skipped and the submission enters the admin review queue directly. Maximum length: `64` characters.
+
+
+</ParamField>
+
+<ParamField body="issues" param-type="array" required="false" show-location="false">
+
+Verification issues flagged during the pre-submit gate checks.
+
+
+</ParamField>
+
+### Example request
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/agents/submit-for-review \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "...",
+    "title": "My Agent",
+    "testRunId": "run-abc123",
+    "issues": []
+  }'
+```
+
+</CodeGroup>
+
+## Response
+
+A successful request returns a review submission record with its queue status and any available quality score.
+
+<CodeGroup tabs="Accepted,Rejected">
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "rankerScore": 87
+}
+```
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "rejected",
+  "rankerScore": 42,
+  "rejectedReason": "below_quality_threshold"
+}
+```
+
+</CodeGroup>
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+The review submission record ID. When `status` is `pending`, this is the pending review row ID. When `status` is `rejected`, this is the rejected review row ID.
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+`pending` when the submission was accepted into the admin review queue, or `rejected` when the agent was auto-rejected for falling below the configured quality threshold.
+
+
+</ResponseField>
+
+<ResponseField name="rankerScore" field-type="number" required="false">
+
+The quality score from `0` to `100` assigned by the automated ranker. Present when scoring was performed. `null` when the ranker was unavailable or the agent was ineligible for scoring.
+
+
+</ResponseField>
+
+<ResponseField name="rejectedReason" field-type="string" required="false">
+
+Present only when `status` is `rejected`. The current value is `below_quality_threshold`.
+
+
+</ResponseField>
+
+## Notes
+
+<Callout kind="info">
+
+Auto-rejection only occurs when all four conditions are met: a test run ID was provided, the ranker service is reachable, the agent is eligible for scoring, and `AGENT_RANKER_MIN_SCORE` is configured with a value above the agent's score. If any condition is unmet, the submission always enters the admin review queue. For environment variable details, see the Configuration Reference page.
+
+
+</Callout>

@@ -1,61 +1,79 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: >-
+  Inventory of the repository’s current model-like definitions, response
+  schemas, and migration status across the API and AI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
-
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+The AIGravity/core repository defines data models for agent review submission, quality scoring, and end-to-end test runs. The NestJS API service uses request DTOs with validation decorators for the submit-for-review endpoint, and SQL migrations manage database schema changes for agent review and scoring tables.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+This reference inventories the data model entities, response shapes, and migration status present in the checked-in repository. It focuses on user-facing data contracts that builders and API consumers interact with.
+
+
+
 
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
-
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Agent review submission request | DTO with validation decorators for source, title, testRunId, and issues fields |
+| Agent review submission response | Structured response with id, status, rankerScore, and rejectedReason fields |
+| Quality score model | Four ranker scoring columns on published workflow metadata, pending reviews, and rejected reviews tables |
+| E2E test run model | Dedicated table storing pre-submit test run results for scoring and admin review |
+| Per-use-case score breakdown | Structured object with eligibility, display score, rank, and failure reasons per use case |
+| Admin review detail | Extended with ranker score fields and E2E run history |
+| Migration files | Present — schema migrations manage ranker scoring columns and the E2E test runs table |
+| Health endpoint response shapes | 2 inline response shapes (NestJS API and FastAI service) |
 
 ### Model-like definitions found
 
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
+- **Agent review submission request** — DTO with validated fields: `source` (string, required), `title` (string, required), `testRunId` (string, optional, max 64 chars), `issues` (array, optional)
+- **Agent review submission response** — Structured response: `id` (UUID), `status` (`pending` or `rejected`), `rankerScore` (number or null, 0-100), `rejectedReason` (`below_quality_threshold`)
+- **Quality score fields** — `ranker_score` (numeric, 0-100), `ranker_scores` (JSON, per-use-case breakdown), `ranker_bundle_version` (text, model version), `ranker_scored_at` (timestamp)
+- **E2E test run entity** — Stores test run ID, status, duration, credits estimate, and run output for scoring
+- **Per-use-case score breakdown** — Object with `eligible` (boolean), `displayScore` (number), `rank` (number), `candidates` (number), `coldStart` (boolean), `reasons` (string array), `hardFailures` (string array)
+- **NestJS API health response** — inline response shape: `{ status: "ok", service: "api" }`
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
-
-<Callout kind="danger">
-
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
-
-</Callout>
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The repository implements a SQL-based persistence layer with migrations managing schema changes for agent review, quality scoring, and E2E test run tables. Migrations add ranker scoring columns to existing review tables and create a dedicated table for storing pre-submit test run results.
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+### Agent review and scoring tables
 
-### Repository-level signals
+Three tables participate in the agent review lifecycle, each now carrying quality score columns:
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
+- **Published workflow metadata** — Stores the headline ranker score, per-use-case breakdown, model bundle version, and scoring timestamp for published agents.
+- **Pending agent reviews** — Stores the same ranker score fields at review-submission time so admins see the quality score immediately on pending submissions.
+- **Rejected agent reviews** — Stores the same ranker score fields for auto-rejected and admin-rejected agents.
+
+### E2E test runs table
+
+A dedicated table stores pre-submit end-to-end test run results. Each record captures:
+
+- The test run ID from the automation platform
+- Run status (succeeded or failed)
+- Start and finish timestamps
+- Duration in milliseconds
+- Credits cost estimate
+- Run output text and structured step outputs used for quality scoring
+
+### Migration scope
+
+Recent migrations cover:
+
+- Adding `ranker_score`, `ranker_scores`, `ranker_bundle_version`, and `ranker_scored_at` columns to the published workflow metadata, pending agent reviews, and rejected agent reviews tables
+- Creating the E2E test runs table with an index on workflow ID and creation timestamp
 
 ## NestJS API response shape
 
-The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
+The NestJS API returns structured responses from the health endpoint and the agent review submission endpoint.
 
 ### Implemented shape
 
@@ -87,17 +105,92 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
 
+
+
+
 </ResponseField>
 
 ### Notes
 
 This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
+
+### Agent review submission response
+
+The submit-for-review endpoint returns a structured response indicating whether the agent was accepted into the admin review queue or auto-rejected for quality.
+
+### Implemented shape
+
+<CodeGroup tabs="TypeScript">
+
+```ts
+interface ReviewSubmissionResult {
+  id: string;
+  status: "pending" | "rejected";
+  rankerScore?: number | null;
+  rejectedReason?: "below_quality_threshold";
+}
+```
+
+</CodeGroup>
+
+### Classification
+
+- **Kind** — Structured response shape
+- **Named entity or DTO** — Backed by a request DTO with validation decorators
+- **Persistence-backed** — Yes. The response id references a row in the pending or rejected agent reviews table.
+- **Relationships** — Links to the agent's E2E test run and quality score records
+- **Validation rules** — Request fields validated: source (required string), title (required string), testRunId (optional string, max 64 chars), issues (optional array)
+
+### Response fields
+
+<ResponseField name="id" field-type="string" required="true">
+
+The review submission record ID. When status is `pending`, this is the pending review row ID. When status is `rejected`, this is the rejected review row ID.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+`pending` when the submission was accepted into the admin review queue, or `rejected` when the agent was auto-rejected for falling below the configured quality threshold.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="rankerScore" field-type="number" required="false">
+
+The quality score, from `0` to `100`, assigned by the automated ranker. Present when scoring was performed. `null` when the ranker was unavailable or the agent was ineligible for scoring.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="rejectedReason" field-type="string" required="false">
+
+Present only when status is `rejected`. The current value is `below_quality_threshold`.
+
+
+
+
+</ResponseField>
+
+### Notes
+
+When the ranker service is unreachable, no test run ID is provided, or the quality threshold is not configured, the submission always returns status `pending` and enters the admin review queue. See the Configuration Reference for threshold configuration details.
 
 ## FastAPI response shape
 
@@ -129,6 +222,9 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
+
+
 </ResponseField>
 
 ### Notes
@@ -137,62 +233,67 @@ The service declares `pydantic` as a dependency, but this endpoint does not use 
 
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+The NestJS API service implements request validation for the agent review submission endpoint. The FastAPI service health endpoint does not use request validation.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- Request DTO with validation decorators for the submit-for-review endpoint
+- Validated fields: `source` (required string), `title` (required string), `testRunId` (optional string, max 64 chars), `issues` (optional array)
+- The health endpoint does not use a request DTO
 
 ### FastAPI service
 
-- No Pydantic `BaseModel` classes found
+- No Pydantic BaseModel classes found for the health endpoint
 - No request model annotations found
-- No response model annotations found
+- The health endpoint returns an inline response object
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+The `pydantic` dependency is installed in the Python service, but the health endpoint does not use it for request or response validation. The NestJS API uses `class-validator` decorators on the review submission request DTO.
+
 
 </Callout>
 
 ## Migration status
 
-No migration system is present in the analyzed code.
+The repository implements a SQL migration system for managing database schema changes.
 
 ### Summary
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+- SQL migration files are present in the repository
+- Recent migrations manage ranker scoring columns and the E2E test runs table
+- Migrations add `ranker_score`, `ranker_scores`, `ranker_bundle_version`, and `ranker_scored_at` columns to existing review tables
+- A dedicated migration creates the E2E test runs table with an index on workflow ID and creation timestamp
 
 ### Current implication
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+The migration system tracks schema changes for the agent review and quality scoring pipeline. Future schema changes to review, scoring, or test run tables should follow the established migration pattern.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The codebase defines data models for agent review, quality scoring, and E2E test runs, but several areas remain worth noting when reading the repository as a backend reference.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
+- **Quality scoring is optional** — When `AGENT_RANKER_API_URL` or `AGENT_RANKER_MIN_SCORE` are not configured, quality scoring is skipped and all submissions enter the admin review queue. See the Configuration Reference for details.
+- **Per-use-case score comparability** — Scores are only comparable within the same model bundle version. The `ranker_bundle_version` field identifies which scoring model produced a given score.
+- **Admin review detail scope** — The admin review detail includes ranker scores and E2E run history, but the builder-facing dashboard shows only a simplified `In review` status without score details.
+- **FastAPI service models** — The AI service health endpoint does not use Pydantic models for request or response validation. If the AI service gains endpoints requiring validation, Pydantic models should be introduced.
 
-<Callout kind="danger">
+<Callout kind="info">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+The agent review submission response and quality score fields are stable data contracts backed by migrations. Treat them as durable schema entities, not endpoint-local shapes.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
+
+
 </Columns>

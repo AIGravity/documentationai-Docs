@@ -1,69 +1,123 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track notable changes to the AIGravity platform, including new features, API updates, and configuration changes.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+Track notable user-facing changes to the AIGravity platform here. Entries focus on changes that affect how you publish agents, integrate with the API, or configure the platform.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="2026-07-16" description="PR #195" tags={["breaking", "feature", "improvement"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+## Agent quality scoring and review-gated publishing
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+PR #195 introduces automated quality scoring for agent submissions and makes admin review mandatory for all publishing paths.
+
+### Review-gated publishing
+
+All agent publishing paths now follow the same review flow. Regular publish, bounty, and requested-agent submissions all go to an admin review queue and require human approval before they go live.
+
+The builder call to action changed from `Publish your agent` to `Submit for review`. The builder dashboard also now shows a simplified `In review` status for all pending submissions.
+
+<Callout kind="alert">
+
+This changes the publishing flow for every submission path. If your team expected agents to become live immediately after submission, update internal workflows to account for the required review step.
+
+
+</Callout>
+
+### Automatic quality scoring
+
+A new agent-ranker scoring service evaluates each agent when you submit it for review. The service produces a `0` to `100` quality score based on output quality, reliability, speed, and cost.
+
+If `AGENT_RANKER_MIN_SCORE` is configured, the platform automatically rejects agents that score below the threshold and never sends them to the admin queue. If the ranker service is unreachable or the threshold is not configured, the platform sends all submissions to the admin review queue.
+
+### API changes for POST /agents/submit-for-review
+
+`POST /agents/submit-for-review` now accepts additional scoring context and can return either a pending or rejected outcome.
+
+<ParamField body="testRunId" param-type="string" required="false" show-location="false">
+
+Pre-submit end-to-end test run ID used for quality scoring. Maximum length: `64` characters.
+
+
+</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Submission status. Now returns `pending` or `rejected`. Previously returned `pending` only.
+
+
+</ResponseField>
+
+<ResponseField name="rankerScore" field-type="number | null" required="true">
+
+Quality score from `0` to `100`. Returns `null` when scoring does not run or does not complete.
+
+
+</ResponseField>
+
+<ResponseField name="rejectedReason" field-type="string" required="false">
+
+Present only when the platform auto-rejects the submission for scoring reasons. Current value: `below_quality_threshold`.
+
+
+</ResponseField>
+
+### New configuration variables
+
+<ParamField body="AGENT_RANKER_MIN_SCORE" param-type="number" required="false" show-location="false">
+
+Minimum quality score required for a submission to enter the admin review queue. When set, the platform auto-rejects submissions below this threshold.
+
+
+</ParamField>
+
+<ParamField body="AGENT_RANKER_API_URL" param-type="string" required="false" show-location="false">
+
+Base URL of the ranker scoring service.
+
+
+</ParamField>
+
+### Data model changes
+
+This release adds new scoring metadata to review and publishing records so admins can inspect submission quality and test evidence during review.
+
+- New ranker score columns: `ranker_score`, `ranker_scores`, `ranker_bundle_version`, and `ranker_scored_at`
+- Columns were added to published workflow metadata, pending agent reviews, and rejected agent reviews tables
+- New E2E test runs table stores pre-submit test run results for scoring and admin review
+
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Read from top to bottom to see the newest changes first. Each entry summarizes what changed and highlights flow changes, API updates, configuration changes, and data model updates that may require action from your team.
 
 ## Related resources
 
-<Columns cols={2}>
+<Columns cols={3}>
 
-<Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+<Card title="Configuration reference" href="/configuration-reference" icon="settings">
+
+Review environment variables and platform settings related to agent scoring and review.
+
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="API reference" href="/api-reference/nestjs-api" icon="code">
+
+Check endpoint behavior and response shapes for submission and review workflows.
+
 </Card>
+
+<Card title="Data models reference" href="/data-models-reference" icon="database">
+
+Inspect schema updates for review queues, published workflows, and test run records.
+
+</Card>
+
 
 </Columns>
-
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).

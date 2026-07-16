@@ -15,7 +15,9 @@ Gravity is a polyglot monorepo with three apps:
 - `apps/ai-service` — FastAPI service managed with `uv`
 
 <Callout kind="info" collapsed="false">
+
   This page reflects the current repository state. A few repo files are inconsistent with each other, so the commands below use the paths and runtime behavior that actually exist in the codebase.
+
 </Callout>
 
 ## Prerequisites
@@ -23,6 +25,7 @@ Gravity is a polyglot monorepo with three apps:
 Before you install anything, make sure these tools are available locally.
 
 <Callout kind="info" collapsed="false">
+
   Required by the repository:
 
   - Node.js 18+
@@ -34,6 +37,7 @@ Before you install anything, make sure these tools are available locally.
   - `uv`
 
   - Python 3.14+
+
 </Callout>
 
 Use these commands to verify your local toolchain:
@@ -53,14 +57,18 @@ Use these commands to verify your local toolchain:
 The repository includes a bootstrap script that installs dependencies for all three runtimes.
 
 <Steps>
+
   <Step title="Clone the repository" icon="git-branch" title-type="p">
+
     ```bash
     git clone <your-repo-url>
     cd core
     ```
+
   </Step>
 
   <Step title="Run the bootstrap script" icon="play-circle" title-type="p">
+
     ```bash
     ./scripts/bootstrap.sh
     ```
@@ -72,39 +80,51 @@ The repository includes a bootstrap script that installs dependencies for all th
     cd apps/api && bun install
     cd apps/ai-service && uv sync
     ```
+
   </Step>
 </Steps>
 
 <Callout kind="tip" collapsed="false">
+
   The root `README.md` mentions `pnpm setup`, but that script does not exist in the current root `package.json`. Use `./scripts/bootstrap.sh` instead.
+
 </Callout>
 
 ## Environment variables
 
-There are currently no repository-provided environment example files for local development.
+The API service includes an `.env.example` file with optional variables for agent quality scoring and review-gating. These variables are not required for basic local setup.
 
-- No `.env.example` file is present
-
+- Copy `apps/api/.env.example` to `apps/api/.env` to configure quality scoring locally
+- `AGENT_RANKER_MIN_SCORE` — optional, sets the minimum quality score (0-100) threshold for auto-rejection at review time
+- `AGENT_RANKER_API_URL` — optional, the base URL of the agent-ranker scoring service
 - No `docker-compose.yml`, `compose.yml`, or `compose.yaml` file is present
 
-- No repo-defined environment variables appear required for the current minimal local setup
+You can start the project without creating an `.env` file. Quality scoring and auto-rejection remain disabled until both variables are set.
 
-That means you can start the project without creating an `.env` file.
+<Callout kind="info" collapsed="false">
+
+  For full configuration details, see the Configuration Reference page.
+
+</Callout>
 
 ## Run the project locally
 
 You can start everything together from the repository root.
 
 <Steps>
+
   <Step title="Run all services" icon="rocket" title-type="p">
+
     ```bash
     pnpm dev
     ```
 
     This runs `turbo run dev --parallel` from the root `package.json`.
+
   </Step>
 
   <Step title="Run a single service when needed" icon="terminal" title-type="p">
+
     Use the app-level dev commands below if you want to work on one service at a time.
 
     <CodeGroup show-lines="true" tabs={[]}>
@@ -121,6 +141,7 @@ You can start everything together from the repository root.
       uv run uvicorn main:app --reload --port 8001
       ```
     </CodeGroup>
+
   </Step>
 </Steps>
 
@@ -135,6 +156,7 @@ The current repository points to these local services:
 - AI service: `http://localhost:8001`
 
 <Callout kind="alert" collapsed="false">
+
   The repo currently contains a few port and naming mismatches:
 
   - The root `README.md` and API CORS config expect the frontend on `http://localhost:3000`
@@ -146,6 +168,7 @@ The current repository points to these local services:
   - The root script `dev:py` points to `apps/py-service`, but the actual directory is `apps/ai-service`
 
   Because of this, the safest way to confirm the web URL is to use the address printed in the `apps/web` dev server output.
+
 </Callout>
 
 ## Verify everything is working
@@ -153,7 +176,9 @@ The current repository points to these local services:
 After the services start, verify each backend service directly.
 
 <Steps>
+
   <Step title="Check the API health endpoint" icon="heart-pulse" title-type="p">
+
     ```bash
     curl http://localhost:3001/health
     ```
@@ -163,9 +188,11 @@ After the services start, verify each backend service directly.
     ```json
     {"status":"ok","service":"api"}
     ```
+
   </Step>
 
   <Step title="Check the AI service health endpoint" icon="cpu" title-type="p">
+
     ```bash
     curl http://localhost:8001/health
     ```
@@ -175,10 +202,13 @@ After the services start, verify each backend service directly.
     ```json
     {"status":"ok"}
     ```
+
   </Step>
 
   <Step title="Open the web app" icon="globe" title-type="p">
+
     Open the local URL printed by the Remix dev server and confirm the starter UI loads.
+
   </Step>
 </Steps>
 
@@ -199,16 +229,24 @@ The current codebase is still scaffold-level, so a few repo details are worth ca
 Once the stack is running locally, continue with the rest of the docs:
 
 <Columns cols="2">
+
   <Card title="Introduction" href="/introduction" icon="book" horizontal="false">
+
     Read the high-level overview of the repository and its current product scope.
+
   </Card>
 
   <Card title="Features" href="/features" icon="zap" horizontal="false">
+
     Review the currently implemented capabilities across the web, API, and AI service.
+
   </Card>
 
   <Card title="Integrations" href="/integrations" icon="cloud" horizontal="false">
+
     Explore how the services, tooling, and deployment pieces connect.
+
   </Card>
+
 </Columns>
 
