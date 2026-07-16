@@ -1,19 +1,22 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
 
-The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+The current frontend is a Remix application shell with three implemented routes: two starter-style welcome screens and an agent customization workflow. The shell establishes the document structure, asset pipeline, and runtime boundaries for the web app, and includes a product-specific agent customization screen with AI-assisted content generation and backend API integration.
 
 ## App purpose and current scope
 
-Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+Today, the frontend serves as a scaffold with one product-specific route. The two welcome routes render the same shared `Welcome` component, while the agent customization route provides a multi-step workflow with AI-assisted content generation and backend API integration.
 
 <Callout kind="info">
 
-This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. The agent customization route adds app-specific screens, API calls, and workflow UI on top of the base shell.
+
 
 </Callout>
 
@@ -23,6 +26,7 @@ The implemented files that define the shell are:
 - `apps/web/app/app.css`
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
+- `apps/web/app/routes/customize-agent.tsx`
 - `apps/web/app/welcome/welcome.tsx`
 - `apps/web/vite.config.ts`
 - `apps/web/package.json`
@@ -31,7 +35,7 @@ The implemented files that define the shell are:
 
 ## Route map
 
-Two routes are currently implemented, and both render the same shared component.
+Three routes are currently implemented: two render the same shared welcome component, and one provides a product-specific agent customization workflow.
 
 ### `/`
 
@@ -83,7 +87,17 @@ export function meta() {
 
 </CodeGroup>
 
-Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+### `/customize-agent`
+
+The `/customize-agent` route is defined in `apps/web/app/routes/customize-agent.tsx`. It is the first product-specific screen in the frontend and provides a multi-step agent customization workflow.
+
+The first step collects three agent detail fields: title, description, and problem solved. When a builder uploads a workflow and lands on this step, the form automatically generates AI-written content for all three fields in parallel, using the uploaded workflow's metadata as input. Each field displays a "Writing with AI…" indicator while generation is in progress. Once the AI results arrive, the fields populate automatically. If the builder starts typing in a field before the AI result for that field arrives, the builder's input is preserved and the AI result is discarded.
+
+The automatic generation only runs for new agent creation sessions. It is skipped when editing an existing agent, resuming a saved session, or re-entering from a bounty flow. In those cases, the builder's previously saved content is used instead.
+
+The route calls the API service's preview-description endpoint to generate the AI content, making it the frontend's first integration with a backend API.
+
+Because both welcome routes render the same component, there is no functional distinction between `/` and `/home`. The `/customize-agent` route is the first product-specific screen and the first route with backend API integration.
 
 ## Root layout
 
@@ -342,6 +356,7 @@ The two external links in the resources list open in a new tab, and the screen r
 
 Run these commands from `apps/web` so `package.json` and the local build output resolve as expected.
 
+
 </Callout>
 
 <CodeGroup tabs="package.json scripts,Command usage">
@@ -422,16 +437,22 @@ A few implementation details matter:
 
 <Callout kind="alert">
 
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
+The frontend shell does not yet include authentication or shared app chrome such as navigation bars and global providers. The two welcome routes remain starter-style placeholder screens. The `/customize-agent` route is the only route with business workflow UI and backend API integration; all other routes are scaffold-level only.
+
 
 </Callout>
 
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+Those constraints are important when planning the next layer of frontend work. Authentication, shared app chrome, and additional product-specific routes still need to be introduced on top of the existing shell and customize-agent workflow.
 
 ## Related foundation docs
 
 <Columns cols={3}>
+
   <Card title="API service foundation" href="/api-service-foundation" icon="database" />
+
   <Card title="Health checks" href="/health-checks" icon="shield" />
+
   <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+
+
 </Columns>
