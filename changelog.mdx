@@ -5,26 +5,16 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable product changes, enhancements, and fixes. Entries are verified against source control before publication.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
+1. **Unreleased — Ranker Score Enrichment**
+   - **Enhancements**
+     - Agent quality scores now retain the complete scoring breakdown, including per-dimension scores (quality, reliability, speed, cost), posterior estimates, and failure indicators. Previously, only a trimmed subset was stored.
+     - Agent review submissions now incorporate verification history — including gate decisions, verification attempt count, and AI review outcomes — as scoring inputs, producing more accurate initial quality scores for newly submitted agents.
    - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+     - Cost-based quality scoring is now active for all agent submissions. Previously, submissions without an explicit credit cost (such as E2E test submissions) were scored without the cost dimension, which could lower overall score accuracy.
 
 2. **Latest**
    - **Docs**
@@ -57,12 +47,20 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
+
 </Card>
+
+
 
 </Columns>
 
