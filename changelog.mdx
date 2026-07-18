@@ -1,69 +1,51 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track new features, updates, and bug fixes shipped to the platform.
 ---
 
-## Overview
+## July 18, 2026
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+### New Features
 
-<Callout kind="alert">
+- **In-app documentation center** — A new `/docs` page is available in the product with multi-page guides covering the workflow engine, supported integrations, AI capabilities, publishing, and more. "How it works" links throughout the product now point here instead of an external page.
+- **AI-generated agent metadata** — When you upload a workflow, AI automatically writes the title, description, and problem-solved fields for your agent. No manual button press needed — fields are filled in instantly and ready to edit. See [Features](/features) for an overview of agent capabilities.
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### Updates
 
-</Callout>
+- **Smarter chat conversations** — The chat assistant is more context-aware and conversational. It no longer forces you to name a specific platform before proceeding, has a friendlier tone, and shows tappable option chips more consistently.
+- **Better help during tool selection** — If you ask "what does that mean?" while picking tools, the chat now explains what tools are and keeps the picker open so you can continue.
+- **Improved "no agent found" messaging** — When no matching agent is found, the chat now suggests requesting a custom agent through the bounty flow.
+- **Tighter agent search results** — Agent matching is now stricter, reducing irrelevant results in chat conversations.
+- **Publish Gate temporarily lifted** — Due to an upstream package installation issue, the Publish Gate requirement is temporarily disabled so builders can submit agents without it. The in-app docs provide an alternative install script as a workaround.
 
-## Release history
+### Bug Fixes
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
-
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Empty results carousel** — Fixed an issue where the chat could display an empty "Top matches" carousel when all search results pointed to unpublished agents.
+- **Agent builder edit tracking** — Edits made to AI-generated fields are now properly captured when publishing or submitting for review.
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Entries are organized newest first. Each release is split into **New Features**, **Updates**, and **Bug Fixes** so you can scan for what matters to you.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+
+Explore supported workflows and platform capabilities.
+
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+
+Get started with the platform in minutes.
+
+
 </Card>
+
 
 </Columns>
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+For troubleshooting or guidance, visit the [Help Center](/help-center).
