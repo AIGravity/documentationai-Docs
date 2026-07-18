@@ -1,23 +1,26 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: >-
+  How the FastAPI-based AI service currently starts, manages dependencies with
+  uv, exposes health status, and packages for container deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application with a health check endpoint, a chat interaction endpoint powered by a dual-LLM architecture, uv-based dependency management, and a container build path. The service implements a guide-and-responder interaction pipeline that processes chat turns, derives structured specs, searches for matching agents, and returns routing state to the client.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The AI service implements a dual-LLM interaction architecture: a guide LLM that analyzes the conversation and picks an operating mode, and a responder LLM that writes the user-facing reply. The service also integrates with Redis for conversation history, Typesense for agent search, and Supabase for workflow metadata. See the AI Service API reference for endpoint details.
+
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The service combines a FastAPI foundation with a production chat interaction pipeline. The codebase includes a direct app bootstrap, health and chat endpoints, a guide-and-responder LLM orchestration layer, agent search integration, and automation for linting, versioning, tagging, and container publishing.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service provides both operational scaffolding and application logic. The health endpoint serves as a liveness check, while the chat endpoint drives the full interaction flow including spec extraction, agent matching, and client routing.
 
 ## Bootstrap in main.py
 
@@ -52,7 +55,7 @@ The startup path is easy to understand because very little happens during initia
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The health endpoint is one of the service's custom routes. It returns a plain JSON object with one field. The service also exposes `POST /chat` for processing chat turns through the dual-LLM interaction pipeline — see the AI Service API reference for full endpoint documentation.
 
 <CodeGroup tabs="Route,Response">
 
@@ -132,7 +135,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The runtime dependencies listed in `pyproject.toml` cover the FastAPI framework layer. The service additionally integrates with external systems at runtime — including LLM providers, Redis, Typesense, and Supabase — through environment-configured connections. See the Configuration Reference for the environment variables that control LLM behavior and search thresholds.
 
 ## Run locally
 
@@ -196,7 +199,12 @@ On `dev`, the workflow generates a development version using the base version, t
 ## Related docs
 
 <Columns cols={3}>
+
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
+
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
+
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+
+
 </Columns>

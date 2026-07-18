@@ -1,17 +1,21 @@
 ---
 title: Architecture overview
-description: Evaluate the Gravity monorepo structure, service boundaries, tooling, and current implementation gaps across web, API, and AI services.
+description: >-
+  Evaluate the Gravity monorepo structure, service boundaries, tooling, and
+  current implementation gaps across web, API, and AI services.
 ---
 
 ## Overview
 
-Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, but the application layer is still intentionally thin.
+Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, and the application layer includes a chat interaction pipeline that connects the NestJS API to the AI service.
 
-The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, no persistence layer, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
+The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently. There are no shared packages and no authentication system, but the API service calls the AI service for chat processing, and the AI service integrates with Redis, Typesense, and Supabase for conversation history, agent search, and workflow metadata.
 
 <Callout kind="info">
 
 `pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
+
+
 
 </Callout>
 
@@ -54,6 +58,8 @@ The root `package.json` defines workspace-level commands such as `dev:web`, `dev
 
 The root script `dev:py` points to `apps/py-service`, but the actual Python service lives at `apps/ai-service`. That script is stale relative to the repository tree.
 
+
+
 </Callout>
 
 ## Service architecture
@@ -69,7 +75,7 @@ Current route files are minimal:
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
 
-Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, no data fetching helpers, and no API client layer in the current frontend tree.
+Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, and no API client layer in the current frontend tree.
 
 `apps/web/vite.config.ts` shows the active frontend stack:
 
@@ -86,23 +92,25 @@ The relationship to the rest of the repo is mostly implicit. The API service ena
 
 The service boots from `apps/api/src/main.ts`. That file creates the Nest application, enables CORS for `http://localhost:3000`, and listens on port `3001`.
 
-The root module lives at `apps/api/src/app.module.ts`. Its composition is currently minimal: one root module and one controller, with no providers, feature modules, guards, pipes, interceptors, or middleware classes registered.
+The root module lives at `apps/api/src/app.module.ts`. Its composition includes a health controller for liveness checks and a chat module that handles message processing. The chat module includes a controller, service layer, and DTOs for request validation. There are no guards, pipes, interceptors, or middleware classes registered beyond the chat module's own validation.
 
-The only implemented controller is `apps/api/src/health/health.controller.ts`. It exposes `GET /health` and returns a static payload indicating the API is healthy. There is no service layer, DTO layer, repository layer, or domain module structure behind that endpoint.
+The health controller at `apps/api/src/health/health.controller.ts` exposes `GET /health` and returns a static payload. The chat controller exposes `POST /api/chat/message` and delegates to a chat service that calls the downstream AI service, transforms the response, and enriches agent results with published workflow metadata.
 
-That makes `apps/api` a real runnable service, but architecturally it is still a shell. The service boundary exists at the application level, not yet at the module or domain level.
+The service now includes a real cross-service flow: the chat module calls the AI service to process messages and returns enriched results to the client. The service boundary extends from the application level into the domain level through the chat module.
 
 ### `apps/ai-service`: FastAPI Python service
 
-`apps/ai-service` is the Python service intended to host AI-related functionality. In its current state, it is a very small FastAPI application with one route and no internal substructure.
+`apps/ai-service` is the Python service intended to host AI-related functionality. The service exposes a health endpoint and a chat endpoint that processes turns through a dual-LLM guide-and-responder architecture.
 
-The entry point is `apps/ai-service/main.py`. That file creates a `FastAPI` app and defines `GET /health`, which returns a static status object. There are no routers, service classes, Pydantic models beyond what FastAPI would support, middleware, persistence adapters, or model-inference integrations implemented yet.
+The entry point is `apps/ai-service/main.py`. That file creates a FastAPI app with `GET /health` for liveness checks and `POST /chat` for chat processing. The chat endpoint uses Pydantic models for request and response validation, and delegates to service classes including a guide service (LLM1), responder service (LLM2), and agent search service. The service integrates with Redis for conversation history, Typesense for agent search, and Supabase for workflow metadata.
 
-The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development. The tooling is ready for a larger service, but the runtime surface area is currently limited to health checking.
+The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development. The tooling is ready for a larger service, and the runtime surface area now includes the chat interaction pipeline introduced in PR `#200`.
 
 <Callout kind="info">
 
-Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
+The AI service integrates with LLM providers through an OpenRouter-compatible client, Typesense for vector-based agent search, Redis for conversation history, and Supabase for published workflow metadata. LLM behavior is configured through environment variables (`GUIDE_TEMP`, `RESPONDER_TEMP`, `GUIDE_MAX_TOKENS`, `SEARCH_VECTOR_DIST_THRESHOLD`).
+
+
 
 </Callout>
 
@@ -123,13 +131,14 @@ Both route modules render the same welcome component. There are no loaders, acti
 
 ### API routes
 
-The API entry point is `apps/api/src/main.ts`, and the only route controller is `apps/api/src/health/health.controller.ts`.
+The API entry point is `apps/api/src/main.ts`. The service exposes two route controllers: the health controller and the chat controller.
 
 Implemented route behavior today:
 
-- `GET http://localhost:3001/health`
+- `GET http://localhost:3001/health` — liveness check
+- `POST http://localhost:3001/api/chat/message` — chat message processing
 
-The repository README reportedly references `/api/health`, but `apps/api/src/main.ts` does not set a global prefix. Based on the code, the implemented route is `/health`, not `/api/health`.
+The repository README reportedly references `/api/health`, but `apps/api/src/main.ts` does not set a global prefix. The health controller path resolves to `/health`, not `/api/health`. The chat controller path resolves to `/api/chat/message` through its own route prefix.
 
 ### AI service routes
 
@@ -137,9 +146,8 @@ The AI service entry point is `apps/ai-service/main.py`.
 
 Implemented route behavior today:
 
-- `GET /health`
-
-There are no additional routers or path groupings.
+- `GET /health` for liveness checks
+- `POST /chat` for chat turn processing through the dual-LLM interaction pipeline
 
 ## Module relationships and service boundaries
 
@@ -149,29 +157,25 @@ The repository has strong top-level separation and very thin internal layering. 
 - `apps/api` for the TypeScript backend
 - `apps/ai-service` for the Python backend
 
-Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
+Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern outside the chat module. The FastAPI app does not yet split all routes into broader router groupings beyond the current chat flow. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
 
-That means the current architecture is macro-separated but not yet layered. The repo signals where responsibilities will likely live, but those responsibilities are not implemented in code yet.
+That means the current architecture is macro-separated but not yet fully layered. The repo signals where responsibilities will likely continue to grow, and some of those responsibilities are now implemented through the chat pipeline.
 
 ### Current cross-service wiring
 
-Expected relationships are visible in naming and configuration, not in running integrations.
+Expected relationships are visible in naming and configuration, not only in planning.
 
 - `apps/api/src/main.ts` allows CORS from `http://localhost:3000`, implying browser calls from the web app.
 - The repository README describes a future shared-contract pattern through planned packages.
 - The presence of both `apps/api` and `apps/ai-service` implies a future backend-to-backend relationship.
 
-No direct wiring exists today:
+Direct wiring now exists between the API and AI services: the NestJS chat service calls the AI service `POST /chat` endpoint to process messages, then enriches and transforms the response before returning it to the client. No frontend fetches to the API are implemented in `apps/web` yet, and no shared packages or contract definitions exist.
 
-- no frontend fetches to the API in `apps/web`
-- no API client or SDK package
-- no API calls from `apps/api` to `apps/ai-service`
-- no shared `packages/` code
-- no shared schema or contract definitions
+<Callout kind="info">
 
-<Callout kind="alert">
+The API and AI services are now integrated through the chat flow. The web frontend does not yet call the API directly, so the full end-to-end flow from browser to AI service is not yet implemented in the frontend layer.
 
-Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
+
 
 </Callout>
 
@@ -179,18 +183,7 @@ Treat the current topology as three isolated services managed in one monorepo, n
 
 ### Database and persistence
 
-No database or persistence layer is implemented in the current repository. There are no ORM configurations, migration files, schema directories, repository classes, entity models, or connection settings that would indicate active persistence.
-
-Notably absent from the tree:
-
-- `prisma/`
-- `db/` or `database/`
-- ORM setup for TypeORM, Prisma, Drizzle, MikroORM, Mongoose, or Sequelize
-- SQL migration files
-- Redis or cache clients
-- `.env.example` with database connection variables
-
-The practical result is a stateless system. The frontend renders starter UI, the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
+The AI service uses Redis for conversation history, Typesense for agent search, and Supabase for published workflow metadata. The NestJS API does not implement its own persistence layer.
 
 ### Middleware
 
@@ -226,12 +219,13 @@ Present today:
 - browser-to-API CORS allowance for `http://localhost:3000` in `apps/api/src/main.ts`
 - Google Fonts references in `apps/web/app/root.tsx`
 - GitHub Container Registry publishing in `.github/workflows/web.yml`, `.github/workflows/api.yml`, and `.github/workflows/ai-service.yml`
+- LLM provider integration in the AI service (OpenRouter-compatible)
+- Redis for conversation history in the AI service
+- Typesense for vector-based agent search
+- Supabase for published workflow metadata
 
 Not present today:
 
-- model provider APIs
-- databases
-- caches
 - queues
 - cloud object storage
 - email or SMS providers
@@ -302,7 +296,9 @@ The Python service declares `pytest`, and the workflows reference verification s
 
 <Callout kind="info">
 
-The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
+The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is frontend integration and auth: the web app does not yet call the API, and no authentication system is implemented.
+
+
 
 </Callout>
 
@@ -310,19 +306,24 @@ The strongest part of the current architecture is operational structure: app bou
 
 Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. That gives the repository a stable foundation for future feature work.
 
-What it has not answered yet are the application-level questions: where domain logic lives, how contracts are shared, how state is stored, how users authenticate, and how the API and AI service collaborate. Until those layers exist, the repo should be evaluated as a well-structured platform skeleton rather than as an implemented distributed system.
+The chat interaction pipeline now answers several application-level questions: domain logic lives in the AI service's guide and responder services, state is stored in Redis and Typesense, and the API and AI service collaborate through the chat flow. What remains unanswered is how users authenticate, how contracts are shared between services, and how the web frontend integrates with the API.
 
 ## Related pages
 
 <Columns cols={2}>
+
   <Card title="Introduction" href="/introduction" icon="book-open">
 
     Get the high-level orientation for the documentation set and how the project is presented.
+
+
 
   </Card>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
     Follow the shortest path to running the project and validating the local setup.
+
+
 
   </Card>
 
@@ -330,10 +331,16 @@ What it has not answered yet are the application-level questions: where domain l
 
     Review the documented capabilities and compare them with the current implementation state.
 
+
+
   </Card>
   <Card title="Help center" href="/help-center/help-center" icon="help-circle">
 
     Find troubleshooting and support-oriented guidance for common setup and usage issues.
 
+
+
   </Card>
+
+
 </Columns>

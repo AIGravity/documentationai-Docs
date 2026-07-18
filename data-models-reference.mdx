@@ -1,17 +1,20 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: >-
+  Inventory of the repository’s current model-like definitions, response
+  schemas, and migration status across the API and AI services.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+AIGravity/core defines a model layer for the chat interaction pipeline. The NestJS API includes DTO classes for request validation, and the AI service includes Pydantic models for request and response serialization. No ORM or database models or migration files exist in either service.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+The health endpoints still return inline response shapes, but the chat interaction pipeline now defines structured models: `SendMessageDto` in the NestJS API for request validation, and `ChatRequest`, `InteractionResponse`, and `InfoJson` in the AI service for request and response serialization. These models are API contract definitions, not persisted entities.
 
 <Callout kind="info">
 
 This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+
 
 </Callout>
 
@@ -21,28 +24,33 @@ The repository is closer to a service scaffold than an application with domain e
 
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
+| Named domain models | Chat interaction models (`SendMessageDto`, `ChatRequest`, `InteractionResponse`, `InfoJson`) |
 | ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
+| DTO classes | `SendMessageDto` in the NestJS API |
+| Named validation schemas | Pydantic models in the AI service (`ChatRequest`, `InteractionResponse`, `InfoJson`) |
 | Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
+| Inline response shapes | 2 (health endpoints) |
 | Persisted entities | None found in the analyzed code |
 
 ### Model-like definitions found
 
 - **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
 - **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **NestJS API SendMessageDto** — DTO class for chat request validation with fields: `userId` (UUID, optional), `sessionId` (UUID, optional), `message` (string, required, max 4000), `selectedTools` (`string[]`, optional), `userPrompt` (string, optional), `submitTools` (boolean, optional)
+- **AI service ChatRequest** — Pydantic `BaseModel` for chat turn requests with fields: `user_id` (UUID, required), `session_id` (UUID, required), `message` (string, required, max 4000), `selected_tools` (`list[str]`, default `[]`), `submit_tools` (bool, default `false`), `agent_id` (`str | None`, optional)
+- **AI service InteractionResponse** — Pydantic `BaseModel` for chat turn responses with fields: `session_id` (str), `reply` (str), `info_json` (`InfoJson`), `ready_to_query` (bool), `search_query` (str), `memories` (`list[str]`), `guardrail_log` (str), `redis_history` (`list[dict]`), `typesense_payload` (dict), `top_agents` (`list[dict]`), `suggested_tools` (`list[str]`), `show_tool_selection` (bool), `llm_calls` (int), `execution_id` (`str | None`)
+- **AI service InfoJson** — Pydantic `BaseModel` for structured extraction with fields: `agent_type` (`list[str]`), `platforms` (`list[str]`), `tools` (`list[str]`), `selected_tools` (`list[str]`), `use_case` (`list[str]`), `constraints` (`list[str]`), `preferences` (`list[str]`), `search_query` (str), `handoff` (bool), `awaiting_tools` (bool, written as extra key via `model_config extra=allow`)
 
 <Callout kind="danger">
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+The chat models are API contract definitions, not persisted entities. The AI service uses Redis, Typesense, and Supabase for runtime data, but no ORM models or migrations are defined in the codebase.
+
 
 </Callout>
 
 ## Persistence and migration status
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+No ORM-based persistence layer is implemented in the analyzed codebase. The AI service uses external systems at runtime — Redis for conversation history, Typesense for agent search, and Supabase for workflow metadata — but these integrations are not modeled through ORM entities or migrations. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
 
 Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
 
@@ -50,7 +58,7 @@ Migration infrastructure is also absent. No `migrations` directory, ORM-managed 
 
 - The NestJS API exposes a single health controller with an inline object response.
 - The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
+- `pydantic` is present and `BaseModel` classes are defined for `ChatRequest`, `InteractionResponse`, and `InfoJson`.
 - The repository README describes shared schemas and database work as planned rather than implemented.
 
 ## NestJS API response shape
@@ -87,11 +95,13 @@ export class HealthController {
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
+
 
 </ResponseField>
 
@@ -129,6 +139,7 @@ def health():
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 ### Notes
@@ -141,20 +152,21 @@ No named validation layer is implemented in the analyzed repository.
 
 ### NestJS API
 
-- No DTO classes found
+- DTO classes: `SendMessageDto` for chat request validation
 - No `class-validator` usage found
 - No `ValidationPipe` setup found
-- No request body schemas found
+- Request body schemas: `SendMessageDto` validates chat message requests
 
 ### FastAPI service
 
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+- Pydantic `BaseModel` classes: `ChatRequest`, `InteractionResponse`, `InfoJson`
+- Request model annotations: `ChatRequest` validates `POST /chat` requests
+- Response model annotations: `InteractionResponse` serializes `POST /chat` responses
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+The Pydantic models (`ChatRequest`, `InteractionResponse`, `InfoJson`) define the API contract for the chat interaction pipeline. `InfoJson` uses `model_config extra=allow`, enabling additional keys like `awaiting_tools` to be written and round-tripped without schema errors.
+
 
 </Callout>
 
@@ -178,21 +190,26 @@ The repository has no implemented database schema to evolve. Migration status is
 
 The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
+- **No canonical persisted entities** — The chat models are API contracts, not database entities.
+- **Validation contracts exist for the chat pipeline** — `SendMessageDto` and `ChatRequest` formalize request validation for the interaction flow, but other potential endpoints remain unspecified.
 - **No persistence contract** — No model maps to a database table, collection, or record.
 - **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
 - **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
 
 <Callout kind="danger">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+The chat models (`SendMessageDto`, `ChatRequest`, `InteractionResponse`, `InfoJson`) are API contract definitions for the interaction pipeline. They are not persisted entities or database models. The health endpoint shapes remain inline response objects.
+
 
 </Callout>
 
 ## Related docs
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+
 </Columns>

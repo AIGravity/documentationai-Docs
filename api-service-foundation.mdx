@@ -1,15 +1,18 @@
 ---
 title: API Service Foundation
-description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+description: >-
+  How the NestJS API service boots, wires modules, enables CORS, exposes health
+  checks, and builds for local and containerized execution.
 ---
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, and the service includes a chat module with DTOs and a service layer that processes chat messages, but does not yet include auth, persistence, OpenAPI, or environment-based configuration.
 
 <Callout kind="info">
 
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+The service exposes two endpoints: `GET /health` for liveness checks and `POST /api/chat/message` for chat interactions. The chat module includes DTOs for request validation and a service layer that orchestrates calls to the downstream AI service.
+
 
 </Callout>
 
@@ -63,11 +66,12 @@ The service binds to port `3001` with `app.listen(3001)`. There is no `process.e
 
 The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
 
+
 </Callout>
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
+`AppModule` is the application root. The module graph includes the health controller for liveness checks and the chat module for chat interactions. The chat module provides a service that handles message processing, AI service communication, and response transformation.
 
 <CodeGroup tabs="app.module.ts,Current application graph">
 
@@ -80,7 +84,11 @@ export class AppModule {}
 
 ```text
 AppModule
-└── HealthController
+├── HealthController
+└── ChatModule
+    ├── ChatController
+    ├── ChatService
+    └── DTOs
 ```
 
 </CodeGroup>
@@ -89,33 +97,31 @@ AppModule
 
 The module graph is intentionally small:
 
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
+- `AppModule` declares the health controller for the `/health` endpoint
+- The chat module handles `POST /api/chat/message` with its own controller, service, and DTOs
+- The chat service orchestrates calls to the downstream AI service and enriches results with published workflow metadata
 
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+That means the service now includes a clear separation between HTTP handling and chat-processing logic. The health route remains controller-only, while chat interactions flow through DTOs and a dedicated service layer.
 
 ### What is not wired yet
 
 Several common Nest application concerns are absent from the inspected files:
 
 - auth modules, guards, JWT, or session handling
-- DTO classes and validation pipes
 - database configuration, repositories, entities, or migrations
-- domain-specific modules and services
 - `ConfigModule` or other environment-driven configuration
 - OpenAPI or Swagger setup
 
 <Callout kind="info">
 
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
+The module graph includes a service layer for chat processing that abstracts AI service communication and response transformation away from the controller.
+
 
 </Callout>
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+The health endpoint is one of the service's implemented routes. It returns a plain inline object and does not use a DTO, schema, or health-check integration package. The service also exposes `POST /api/chat/message` for chat interactions. See the NestJS API reference for full endpoint documentation.
 
 <CodeGroup tabs="health.controller.ts,Response example">
 
@@ -149,11 +155,15 @@ Because there is no API versioning or prefix configuration in the bootstrap file
 The response is a small JSON object with two fields.
 
 <ResponseField name="status" field-type="string" required="true">
+
 Returns `ok` in the current implementation.
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
+
 Returns `api` in the current implementation.
+
 </ResponseField>
 
 ### What the endpoint does not include
@@ -206,6 +216,7 @@ The package metadata and runtime scripts point to different built entrypoints. `
 <Callout kind="alert">
 
 The compiled output path is likely inconsistent with the `start` script. With `rootDir` set to `./` and the source entrypoint at `src/main.ts`, emitted files likely land under `dist/src/`, which makes `bun dist/main.js` a probable mismatch.
+
 
 </Callout>
 
@@ -374,6 +385,7 @@ The deploy job exists, but it does not perform a real deployment yet. The inspec
 
 The CI pipeline includes release and deployment scaffolding, but deployment is not implemented. The deploy job is placeholder-only in the current workflow.
 
+
 </Callout>
 
 ## Current limitations
@@ -382,14 +394,13 @@ The CI pipeline includes release and deployment scaffolding, but deployment is n
 
 The inspected API service is a foundation app, not a feature-complete backend. It currently has:
 
-- no DTOs
 - no auth
 - no persistence or database integration
-- no domain modules or services
 - no environment-based configuration
 - no OpenAPI or Swagger setup
 - no active test step in CI
 - no lint step, even though the workflow job is labeled Build and Lint
+
 
 </Callout>
 

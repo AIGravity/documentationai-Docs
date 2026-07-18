@@ -1,15 +1,18 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Send chat messages to the AI service and verify service health through the FastAPI endpoints exposed in the AIGravity core repository.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+This page documents the FastAPI AI service routes currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes two endpoints today: `GET /health` and `POST /chat`.
 
 <Callout kind="info">
 
 Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+
+
+
 
 </Callout>
 
@@ -23,11 +26,17 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 `GET`
 
+
+
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
+
+
 
 </ParamField>
 
@@ -35,12 +44,15 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 No authentication requirement was found in the FastAPI route implementation.
 
+
+
+
 </ParamField>
 
 <CodeGroup tabs="cURL,JSON response">
 
 ```bash
-curl -X GET http://localhost:8000/health
+curl -X GET http://localhost:8001/health
 ```
 
 ```json
@@ -59,11 +71,17 @@ This endpoint does not accept any request inputs beyond the request method and p
 
 None. The route path is static and does not define any path parameters.
 
+
+
+
 </ParamField>
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. No query parameters are defined in the route handler.
+
+
+
 
 </ParamField>
 
@@ -71,11 +89,17 @@ None. No query parameters are defined in the route handler.
 
 None. Send the request without a body.
 
+
+
+
 </ParamField>
 
 <Callout kind="info">
 
 No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+
+
+
 
 </Callout>
 
@@ -86,6 +110,9 @@ A successful request returns a JSON object with a single status field.
 <ResponseField name="status" field-type="string" required="true">
 
 Service health status. The current implementation returns `ok`.
+
+
+
 
 </ResponseField>
 
@@ -99,16 +126,453 @@ Service health status. The current implementation returns `ok`.
 
 </Response>
 
+## POST /chat
+
+Send a chat turn to the AI service and receive a structured interaction result. The endpoint accepts conversation context, optional tool selections, and a user message, then returns both the user-facing reply and the internal matching state used by the handoff flow.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+
+
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/chat`
+
+
+
+
+</ParamField>
+
+<ParamField body="content-type" param-type="string" required="true" show-location="false">
+
+Send the request body as `application/json`.
+
+
+
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+No authentication requirement was found in the FastAPI route implementation.
+
+
+
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:8001/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "7d2f4b9d-91d2-4f88-9d5b-7a4e2b83d501",
+    "session_id": "0c9e5f77-5c4d-4c27-8e32-4b6a7a2f4d91",
+    "message": "We need an agent that can triage inbound support tickets and route them into Jira and Slack.",
+    "selected_tools": [],
+    "submit_tools": false,
+    "agent_id": null
+  }'
+```
+
+```json
+{
+  "session_id": "0c9e5f77-5c4d-4c27-8e32-4b6a7a2f4d91",
+  "reply": "Now, tell us what tools you already use for the best agent experience.",
+  "info_json": {
+    "agent_type": ["support triage"],
+    "platforms": [],
+    "tools": ["Jira", "Slack"],
+    "selected_tools": [],
+    "use_case": ["triage inbound support tickets and route them to internal systems"],
+    "constraints": [],
+    "preferences": [],
+    "search_query": "support triage Jira Slack ticket routing",
+    "handoff": true,
+    "awaiting_tools": true
+  },
+  "ready_to_query": false,
+  "search_query": "support triage Jira Slack ticket routing",
+  "memories": [
+    "User previously asked about support automation workflows"
+  ],
+  "guardrail_log": "allow",
+  "redis_history": [
+    {
+      "role": "user",
+      "content": "We need an agent that can triage inbound support tickets and route them into Jira and Slack."
+    }
+  ],
+  "typesense_payload": {
+    "found": 3,
+    "out_of": 3,
+    "search_time_ms": 18
+  },
+  "top_agents": [
+    {
+      "agent_id": "agt_support_router_01",
+      "name": "Support Router",
+      "score": 0.91
+    }
+  ],
+  "suggested_tools": ["Jira", "Slack", "Zendesk"],
+  "show_tool_selection": true,
+  "llm_calls": 1,
+  "execution_id": "exec_01j7zv7g8n3example"
+}
+```
+
+</CodeGroup>
+
+### Request body
+
+Send a JSON object that matches the `ChatRequest` schema.
+
+<ParamField body="user_id" param-type="UUID" required="true">
+
+User identifier.
+
+
+
+
+</ParamField>
+
+<ParamField body="session_id" param-type="UUID" required="true">
+
+Session identifier.
+
+
+
+
+</ParamField>
+
+<ParamField body="message" param-type="string" required="true">
+
+User's chat message. Maximum length is 4000 characters. An empty string is allowed for the tool-submit flow.
+
+
+
+
+</ParamField>
+
+<ParamField body="selected_tools" param-type="string[]" required="false">
+
+Array of selected tool names. Defaults to an empty array.
+
+
+
+
+</ParamField>
+
+<ParamField body="submit_tools" param-type="boolean" required="false">
+
+Set to `true` to submit tool selections and trigger agent search. Defaults to `false`.
+
+
+
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="string | null" required="false">
+
+Specific agent identifier.
+
+
+
+
+</ParamField>
+
+<Callout kind="info">
+
+`message` can be empty only when you are submitting tool selections. For a normal conversational turn, send the user's message text.
+
+
+
+
+</Callout>
+
+### Response fields
+
+A successful request returns an `InteractionResponse` object with the user-facing reply and the internal state used for search, routing, and follow-up turns.
+
+<ResponseField name="session_id" field-type="string" required="true">
+
+Session identifier echoed back in the response.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="reply" field-type="string" required="true">
+
+User-facing chat reply. The service uses deterministic handoff phrases for key transitions. When agents are found and the system is waiting for tool selection, the reply is `Now, tell us what tools you already use for the best agent experience.` When no matching agents are found, the reply is `We don't have a ready-made agent for that exact ask yet, but our builders can create one for you.`
+
+
+
+
+</ResponseField>
+
+<ResponseField name="info_json" field-type="object" required="true">
+
+Structured extraction result for the current turn.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="ready_to_query" field-type="boolean" required="true">
+
+Returns `true` when no matching agents were found and the flow should route to the bounty or request-an-agent path.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="search_query" field-type="string" required="true">
+
+Typesense search query used for agent matching.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="memories" field-type="string[]" required="true">
+
+Retrieved memory strings used as context for the current turn.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="guardrail_log" field-type="string" required="true">
+
+Guardrail check result.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="redis_history" field-type="object[]" required="true">
+
+Full conversation history loaded from Redis.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="typesense_payload" field-type="object" required="true">
+
+Raw Typesense search response.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="top_agents" field-type="object[]" required="true">
+
+Matched agent cards. This array may be empty when no matches are found or when all matches are stale.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="suggested_tools" field-type="string[]" required="true">
+
+Suggested tools for the user's use case.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="show_tool_selection" field-type="boolean" required="true">
+
+Returns `true` when the user should pick tools before agent search continues.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="llm_calls" field-type="integer" required="true">
+
+Number of LLM calls made for the current turn. Normal turns use `2` calls for the guide and responder. Handoff turns use `1` call for the guide only. Tool-submit turns use `0`.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="execution_id" field-type="string | null" required="true">
+
+Billing execution identifier. Set on the success path.
+
+
+
+
+</ResponseField>
+
+### info_json fields
+
+The `info_json` object contains the structured guide output for the current turn.
+
+<ResponseField name="agent_type" field-type="string[]" required="true">
+
+Extracted agent type values.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="platforms" field-type="string[]" required="true">
+
+Extracted platform values.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="tools" field-type="string[]" required="true">
+
+Extracted tool values from the conversation.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="selected_tools" field-type="string[]" required="true">
+
+Tool selections currently associated with the session.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="use_case" field-type="string[]" required="true">
+
+Extracted use case values.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="constraints" field-type="string[]" required="true">
+
+Extracted constraint values.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="preferences" field-type="string[]" required="true">
+
+Extracted preference values.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="search_query" field-type="string" required="true">
+
+Search query derived by the guide model for agent matching.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="handoff" field-type="boolean" required="true">
+
+Returns `true` when the conversation should transition into the agent-search flow.
+
+
+
+
+</ResponseField>
+
+<ResponseField name="awaiting_tools" field-type="boolean" required="true">
+
+Written each turn to indicate whether the system is currently waiting for the user's tool selection.
+
+
+
+
+</ResponseField>
+
+### Dual-LLM interaction architecture
+
+The chat endpoint uses a guide-and-responder architecture. The guide LLM, or LLM1, analyzes the conversation, chooses an operating mode, and derives the structured spec for the turn. The responder LLM, or LLM2, writes the user-facing reply from that state.
+
+The guide runs at temperature `0.0` to produce deterministic JSON output. The responder runs at temperature `0.3` to keep replies natural while still following the guide's state and constraints.
+
+The guide supports six modes:
+
+- `clarify`
+- `about_gravity`
+- `general_help`
+- `list_agents`
+- `off_topic`
+- `handoff`
+
+On `handoff`, the service performs an agent search. If agents are found, the service returns the tools-selection prompt, sets `show_tool_selection` to `true`, and writes `awaiting_tools` in `info_json` for the next turn. If no agents are found, the service sets `ready_to_query` to `true` and returns the no-agent handoff phrase.
+
+The guide re-derives the spec on every turn. That spec is authoritative for the turn, so previously collected fields can be dropped if the new guide output no longer includes them. The service does not union-merge old and new extracted fields.
+
+<Callout kind="info">
+
+Platform selection is no longer required for handoff. A single concrete use case is sufficient to move the conversation into agent search.
+
+
+
+
+</Callout>
+
+### Vector search threshold
+
+Agent matching now uses a stricter default vector distance threshold. The default changed from `0.30` to `0.22`, which reduces weaker matches and favors fewer, higher-quality results.
+
+<Callout kind="info">
+
+Configure the threshold with the `SEARCH_VECTOR_DIST_THRESHOLD` environment variable.
+
+
+
+
+</Callout>
+
 ## Implementation notes
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
-
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` and `POST /chat` handlers directly. No response model is defined for the health route, and chat behavior is driven by the dual-LLM interaction flow and supporting search, memory, and guardrail logic in the service layer.
 
 ## Likely error responses
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+The current implementation combines framework-default errors with application-level degraded and blocked responses.
 
 - **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+- **`404 Not Found`** — Returned when you use a path or method combination that does not match an implemented route.
+- **`503 Service Unavailable`** — Returned by the chat flow when no LLM API key is configured.
+- **`500 Internal Server Error`** — Returned when the service encounters an unhandled exception.
+- **`200 OK` with guardrail block** — Returned when the guardrail rejects the message. The response includes `reply` set to `I cannot process this request. Reason: reason`, `ready_to_query` set to `false`, `show_tool_selection` set to `false`, `top_agents` set to an empty array, `suggested_tools` set to an empty array, and `llm_calls` set to `0`.
+- **`200 OK` with degraded response** — Returned when part of the chat pipeline fails but the service still produces a response. If the guide LLM fails, mode falls back to `clarify`, `llm_calls` is `0`, and the responder still produces a reply. If the responder fails, the service returns a fallback message.

@@ -1,21 +1,23 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Send chat messages through the NestJS API and verify backend service health through the endpoints implemented in the AIGravity core repository.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+This page documents the NestJS backend service routes currently implemented in the AIGravity core repository. The code analysis found two public endpoints: `GET /health` and `POST /api/chat/message`.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and related route and DTO files in the AIGravity core repository, rather than direct file reads through the docs repository tool.
+
 
 </Callout>
 
 <Callout kind="alert">
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active for the health route.
+
 
 </Callout>
 
@@ -29,11 +31,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 `GET`
 
+
 </ParamField>
 
 <ParamField body="path" param-type="string" required="true" show-location="false">
 
 `/health`
+
 
 </ParamField>
 
@@ -41,11 +45,13 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 No authentication requirements were found in the analyzed code.
 
+
 </ParamField>
 
 <Callout kind="info">
 
 No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
+
 
 </Callout>
 
@@ -59,6 +65,7 @@ This endpoint does not accept request-specific inputs beyond a standard `GET` re
 
 None. The route is fixed at `GET /health`.
 
+
 </ParamField>
 
 ### Query parameters
@@ -66,6 +73,7 @@ None. The route is fixed at `GET /health`.
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
 None. The handler does not define or consume query string values.
+
 
 </ParamField>
 
@@ -75,6 +83,7 @@ None. The handler does not define or consume query string values.
 
 None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
 
+
 </ParamField>
 
 ### Request body
@@ -82,6 +91,7 @@ None. No custom request headers were found in the analyzed code beyond standard 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
 None. `GET /health` does not accept a request body.
+
 
 </ParamField>
 
@@ -116,17 +126,286 @@ A successful request returns a JSON object that identifies the service and repor
 
 Health state returned by the endpoint. The implemented handler returns `ok`.
 
+
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
 Service identifier returned by the endpoint. The implemented handler returns `api`.
 
+
 </ResponseField>
+
+## POST `/api/chat/message`
+
+Send a chat turn to the backend and receive the AI reply, parsed intent data, tool-selection hints, and the next client routing step.
+
+### Request body
+
+Send a JSON body that matches the `SendMessageDto` shape.
+
+<ParamField body="userId" param-type="string" required="false" show-location="false">
+
+User identifier as a UUID string.
+
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="false" show-location="false">
+
+Session identifier as a UUID string.
+
+
+</ParamField>
+
+<ParamField body="message" param-type="string" required="true" show-location="false">
+
+User's chat message. Maximum length is 4000 characters. An empty string is allowed for the tool-submit path.
+
+
+</ParamField>
+
+<ParamField body="selectedTools" param-type="string[]" required="false" show-location="false">
+
+Array of selected tool name strings.
+
+
+</ParamField>
+
+<ParamField body="userPrompt" param-type="string" required="false" show-location="false">
+
+Original IDLE-screen prompt text.
+
+
+</ParamField>
+
+<ParamField body="submitTools" param-type="boolean" required="false" show-location="false">
+
+Explicit tool-submit flag. Set to `true` to submit tool selections.
+
+
+</ParamField>
+
+### Response
+
+A successful request returns the AI reply, extracted structured intent data, agent search results, and a routing directive for the next UI state.
+
+<ResponseField name="userId" field-type="string" required="true">
+
+User identifier.
+
+
+</ResponseField>
+
+<ResponseField name="sessionId" field-type="string" required="true">
+
+Session identifier.
+
+
+</ResponseField>
+
+<ResponseField name="reply" field-type="string" required="true">
+
+User-facing chat reply from the AI service.
+
+
+</ResponseField>
+
+<ResponseField name="question" field-type="string" required="true">
+
+Parsed from `reply` as the text portion before any chip options.
+
+
+</ResponseField>
+
+<ResponseField name="options" field-type="string[]" required="true">
+
+Parsed chip options extracted from the reply.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson" field-type="object" required="true">
+
+Structured extraction result returned by the chat flow.
+
+
+</ResponseField>
+
+<ResponseField name="readyToQuery" field-type="boolean" required="true">
+
+`true` when the flow should route to the bounty or request-an-agent path.
+
+
+</ResponseField>
+
+<ResponseField name="searchQuery" field-type="string" required="true">
+
+Search query used for agent matching.
+
+
+</ResponseField>
+
+<ResponseField name="topAgents" field-type="object[]" required="true">
+
+Enriched agent cards from Typesense results. This array may be empty if all matches are stale and no matching active published workflows exist.
+
+
+</ResponseField>
+
+<ResponseField name="suggestedTools" field-type="string[]" required="true">
+
+Suggested tools for the user's use case.
+
+
+</ResponseField>
+
+<ResponseField name="showToolSelection" field-type="boolean" required="true">
+
+`true` when the user should pick tools before agent search.
+
+
+</ResponseField>
+
+<ResponseField name="memories" field-type="string[]" required="true">
+
+Retrieved memory strings used as context for the response.
+
+
+</ResponseField>
+
+<ResponseField name="nextStep" field-type="string" required="true">
+
+Flow routing directive. One of `intent`, `tools`, `agents`, or `no_agents`.
+
+
+</ResponseField>
+
+### infoJson fields
+
+<ResponseField name="infoJson.agentType" field-type="string[]" required="true">
+
+Extracted agent type values.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson.platforms" field-type="string[]" required="true">
+
+Extracted platform values.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson.useCase" field-type="string[]" required="true">
+
+Extracted use-case values.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson.tools" field-type="string[]" required="true">
+
+Extracted tool values.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson.constraints" field-type="string[]" required="true">
+
+Extracted constraint values.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson.preferences" field-type="string[]" required="true">
+
+Extracted preference values.
+
+
+</ResponseField>
+
+<ResponseField name="infoJson.searchQuery" field-type="string" required="true">
+
+Structured search query derived from the conversation.
+
+
+</ResponseField>
+
+### nextStep routing
+
+The `nextStep` field tells the client which screen or flow to transition to after each chat turn.
+
+- **`intent`** — Continue the clarifying conversation to gather more details.
+- **`tools`** — Show the tool selection screen so the user can pick which tools they use.
+- **`agents`** — Show the agent carousel with matched agents from the search results.
+- **`no_agents`** — Route to the bounty or request-an-agent path when no matching agents are found.
+
+<Callout kind="info">
+
+When the AI service returns `nextStep: "agents"` but all enriched agent results are stale and no matching active published workflows exist in the database, the API now re-routes `nextStep` to `no_agents` instead of showing an empty agent carousel. This prevents the client from rendering an empty results screen and sends the user directly to the request-an-agent flow.
+
+
+</Callout>
+
+### Example request and response
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "8a7d2c4b-1f9e-4b84-a4b3-5b5f7b2c9d11",
+    "sessionId": "f0bc4d65-7a4f-4f8e-a7cd-4d54d9278e42",
+    "message": "I need an AI agent to qualify inbound leads from my website and sync them to HubSpot",
+    "selectedTools": [
+      "HubSpot",
+      "Slack"
+    ],
+    "userPrompt": "Help me find the right AI agent for my workflow",
+    "submitTools": true
+  }'
+```
+
+```json
+{
+  "userId": "8a7d2c4b-1f9e-4b84-a4b3-5b5f7b2c9d11",
+  "sessionId": "f0bc4d65-7a4f-4f8e-a7cd-4d54d9278e42",
+  "reply": "I understand your lead qualification workflow and tool stack. I could not find a matching active published agent right now.",
+  "question": "I understand your lead qualification workflow and tool stack.",
+  "options": [],
+  "infoJson": {
+    "agentType": ["sales assistant"],
+    "platforms": ["website", "HubSpot"],
+    "useCase": ["lead qualification", "CRM sync"],
+    "tools": ["HubSpot", "Slack"],
+    "constraints": ["active published agent required"],
+    "preferences": ["automation-first"],
+    "searchQuery": "sales assistant for website lead qualification and HubSpot sync"
+  },
+  "readyToQuery": true,
+  "searchQuery": "sales assistant for website lead qualification and HubSpot sync",
+  "topAgents": [],
+  "suggestedTools": ["HubSpot", "Slack"],
+  "showToolSelection": false,
+  "memories": [
+    "User wants inbound website leads qualified automatically",
+    "User uses HubSpot and Slack"
+  ],
+  "nextStep": "no_agents"
+}
+```
+
+</CodeGroup>
 
 ## Likely error responses
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+The analyzed code does not define custom error handling for the health route. The chat endpoint can also return validation and downstream-service failures.
+
+### 400 bad request
+
+A `400` response is returned when the request body fails validation. One likely example is a `message` value longer than 4000 characters.
 
 ### 404 not found
 
@@ -134,7 +413,11 @@ A `404` response is likely when you request the wrong path or use the wrong HTTP
 
 ### 500 internal server error
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+A `500` response is returned when the AI service call fails or an unexpected error occurs during chat processing. The health route would only return `500` if the NestJS framework or runtime fails while serving the request.
+
+### 503 service unavailable
+
+A `503` response is returned when the downstream AI service is unreachable.
 
 ## Notes
 

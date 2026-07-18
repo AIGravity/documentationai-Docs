@@ -1,13 +1,17 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
+  version: 1.1.0
   title: AIGravity Core API Service
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    This specification documents the API services for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    It covers:
+    - The NestJS API service health endpoint exposed at `GET /health`
+    - The NestJS API chat endpoint exposed at `POST /api/chat/message`
+    - The FastAPI AI service health endpoint exposed at `GET /health`
+    - The FastAPI AI service chat endpoint exposed at `POST /chat`
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    Use the server list to select the appropriate local development service when testing endpoints.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -16,11 +20,17 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
-    description: API service local development server
+  - url: http://localhost:3001
+    description: NestJS API service local development server
+  - url: http://localhost:8001
+    description: AI service local development server
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Chat (API)
+    description: Chat interaction endpoints for the NestJS API service
+  - name: Chat (AI Service)
+    description: Chat interaction endpoints for the FastAPI AI service
 paths:
   /health:
     get:
@@ -41,8 +51,195 @@ paths:
                 status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/chat/message:
+    post:
+      tags:
+        - Chat (API)
+      summary: Send a chat message through the NestJS API service
+      description: Accepts a user chat message and returns the API service orchestration response, including routing context, suggested tools, and next-step guidance.
+      operationId: sendChatMessage
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageDto'
+            example:
+              userId: 1a2b3c4d-5e6f-47a8-9b0c-1d2e3f4a5b6c
+              sessionId: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+              message: Find an AI agent that can summarize product feedback from Zendesk and Slack.
+              selectedTools:
+                - zendesk
+                - slack
+              userPrompt: Prefer tools that work well for customer support analytics.
+              submitTools: false
+      responses:
+        '200':
+          description: Chat message processed successfully by the API service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              example:
+                userId: 1a2b3c4d-5e6f-47a8-9b0c-1d2e3f4a5b6c
+                sessionId: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+                reply: I found several agents that can analyze customer feedback across Zendesk and Slack. You can refine the tool selection or continue with the current options.
+                question: Do you want agents optimized for support analytics or general feedback summarization?
+                options:
+                  - Support analytics
+                  - General summarization
+                  - Both
+                infoJson:
+                  agent_type:
+                    - summarization
+                    - analytics
+                  platforms:
+                    - zendesk
+                    - slack
+                  tools:
+                    - zendesk
+                    - slack
+                  selected_tools:
+                    - zendesk
+                    - slack
+                  use_case:
+                    - customer feedback analysis
+                  constraints:
+                    - prioritize recent conversations
+                  preferences:
+                    - support-focused results
+                  search_query: AI agents for summarizing product feedback from Zendesk and Slack
+                  handoff: false
+                  awaiting_tools: false
+                readyToQuery: true
+                searchQuery: AI agents for summarizing product feedback from Zendesk and Slack
+                topAgents:
+                  - id: agent-cx-insights
+                    name: CX Insights Agent
+                    score: 0.94
+                  - id: agent-feedback-summarizer
+                    name: Feedback Summarizer
+                    score: 0.89
+                suggestedTools:
+                  - zendesk
+                  - slack
+                  - google-drive
+                showToolSelection: true
+                memories:
+                  - User wants customer support analytics.
+                  - Selected Slack and Zendesk as preferred tools.
+                nextStep: agents
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: AI service or dependent systems are unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Chat service is temporarily unavailable
+  /chat:
+    post:
+      tags:
+        - Chat (AI Service)
+      summary: Process a chat turn through the FastAPI AI service
+      description: Processes a single AI service chat turn and returns the enriched interaction state, including routing data, memory, tool suggestions, and execution metadata.
+      operationId: processChatTurn
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            example:
+              user_id: 1a2b3c4d-5e6f-47a8-9b0c-1d2e3f4a5b6c
+              session_id: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+              message: Suggest agents that can analyze customer feedback from Slack and Zendesk.
+              selected_tools:
+                - slack
+                - zendesk
+              submit_tools: false
+              agent_id: null
+      responses:
+        '200':
+          description: Chat turn processed successfully by the AI service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InteractionResponse'
+              example:
+                session_id: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+                reply: I identified candidate agents for customer feedback analysis and prepared a search query based on your selected tools.
+                info_json:
+                  agent_type:
+                    - analytics
+                  platforms:
+                    - slack
+                    - zendesk
+                  tools:
+                    - slack
+                    - zendesk
+                  selected_tools:
+                    - slack
+                    - zendesk
+                  use_case:
+                    - customer feedback analysis
+                  constraints:
+                    - focus on support channels
+                  preferences:
+                    - concise recommendations
+                  search_query: AI agents for customer feedback analysis using Slack and Zendesk
+                  handoff: false
+                  awaiting_tools: false
+                ready_to_query: true
+                search_query: AI agents for customer feedback analysis using Slack and Zendesk
+                memories:
+                  - User is interested in support-related customer feedback.
+                guardrail_log: No guardrail issues detected.
+                redis_history:
+                  - role: user
+                    content: Suggest agents that can analyze customer feedback from Slack and Zendesk.
+                  - role: assistant
+                    content: I identified candidate agents for customer feedback analysis and prepared a search query.
+                typesense_payload:
+                  query_by: name,description,capabilities
+                  per_page: 5
+                top_agents:
+                  - id: agent-cx-insights
+                    name: CX Insights Agent
+                    score: 0.94
+                  - id: agent-voice-of-customer
+                    name: Voice of Customer Agent
+                    score: 0.91
+                suggested_tools:
+                  - slack
+                  - zendesk
+                show_tool_selection: false
+                llm_calls: 2
+                execution_id: exec_01J7ZP3K7A8B9C0D1E2F3G4H5J
+        '503':
+          description: AI service is temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: AI service is temporarily unavailable
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 components:
   responses:
+    BadRequest:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalServerError:
       description: Unexpected server error
       content:
@@ -66,3 +263,349 @@ components:
           type: string
           description: Human-readable error message.
           example: Internal server error
+    SendMessageDto:
+      type: object
+      description: Request payload for sending a chat message through the NestJS API service.
+      required:
+        - message
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: Optional user identifier.
+          example: 1a2b3c4d-5e6f-47a8-9b0c-1d2e3f4a5b6c
+        sessionId:
+          type: string
+          format: uuid
+          description: Optional session identifier used to continue an existing conversation.
+          example: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+        message:
+          type: string
+          maxLength: 4000
+          description: User message to process.
+          example: Find an AI agent that can summarize product feedback from Zendesk and Slack.
+        selectedTools:
+          type: array
+          description: Optional list of user-selected tools to constrain the search or routing behavior.
+          items:
+            type: string
+          example:
+            - zendesk
+            - slack
+        userPrompt:
+          type: string
+          description: Optional supplemental prompt or preference text supplied by the user.
+          example: Prefer tools that work well for customer support analytics.
+        submitTools:
+          type: boolean
+          description: Indicates whether the user is submitting a final tool selection.
+          example: false
+    ChatResponse:
+      type: object
+      description: Chat response returned by the NestJS API service.
+      required:
+        - userId
+        - sessionId
+        - reply
+        - question
+        - options
+        - infoJson
+        - readyToQuery
+        - searchQuery
+        - topAgents
+        - suggestedTools
+        - showToolSelection
+        - memories
+        - nextStep
+      properties:
+        userId:
+          type: string
+          format: uuid
+          description: User identifier associated with the conversation.
+          example: 1a2b3c4d-5e6f-47a8-9b0c-1d2e3f4a5b6c
+        sessionId:
+          type: string
+          format: uuid
+          description: Session identifier for the conversation.
+          example: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+        reply:
+          type: string
+          description: Natural-language assistant reply.
+          example: I found several agents that can analyze customer feedback across Zendesk and Slack.
+        question:
+          type: string
+          description: Follow-up question presented to the user, when applicable.
+          example: Do you want agents optimized for support analytics or general feedback summarization?
+        options:
+          type: array
+          description: Suggested answer options for the follow-up question.
+          items:
+            type: string
+          example:
+            - Support analytics
+            - General summarization
+            - Both
+        infoJson:
+          $ref: '#/components/schemas/InfoJson'
+        readyToQuery:
+          type: boolean
+          description: Indicates whether the system has enough information to perform an agent query.
+          example: true
+        searchQuery:
+          type: string
+          description: Search query generated from the current interaction state.
+          example: AI agents for summarizing product feedback from Zendesk and Slack
+        topAgents:
+          type: array
+          description: Top candidate agents identified for the request.
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - id: agent-cx-insights
+              name: CX Insights Agent
+              score: 0.94
+            - id: agent-feedback-summarizer
+              name: Feedback Summarizer
+              score: 0.89
+        suggestedTools:
+          type: array
+          description: Suggested tools derived from the conversation context.
+          items:
+            type: string
+          example:
+            - zendesk
+            - slack
+            - google-drive
+        showToolSelection:
+          type: boolean
+          description: Whether the client should prompt the user to select tools.
+          example: true
+        memories:
+          type: array
+          description: Conversation memories retained for future turns.
+          items:
+            type: string
+          example:
+            - User wants customer support analytics.
+            - Selected Slack and Zendesk as preferred tools.
+        nextStep:
+          type: string
+          description: Indicates the next orchestration step. Results may be re-routed from `agents` to `no_agents` when enriched results are stale.
+          enum:
+            - intent
+            - tools
+            - agents
+            - no_agents
+          example: agents
+    ChatRequest:
+      type: object
+      description: Request payload for processing a chat turn through the FastAPI AI service.
+      required:
+        - user_id
+        - session_id
+        - message
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: User identifier for the interaction.
+          example: 1a2b3c4d-5e6f-47a8-9b0c-1d2e3f4a5b6c
+        session_id:
+          type: string
+          format: uuid
+          description: Session identifier for the interaction.
+          example: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+        message:
+          type: string
+          maxLength: 4000
+          description: User message to process.
+          example: Suggest agents that can analyze customer feedback from Slack and Zendesk.
+        selected_tools:
+          type: array
+          description: Optional list of selected tools.
+          default: []
+          items:
+            type: string
+          example:
+            - slack
+            - zendesk
+        submit_tools:
+          type: boolean
+          description: Indicates whether the current request is submitting a final tool selection.
+          default: false
+          example: false
+        agent_id:
+          type: string
+          nullable: true
+          description: Optional agent identifier to target directly.
+          example: null
+    InteractionResponse:
+      type: object
+      description: Response payload returned by the FastAPI AI service after processing a chat turn.
+      required:
+        - session_id
+        - reply
+        - info_json
+        - ready_to_query
+        - search_query
+        - memories
+        - guardrail_log
+        - redis_history
+        - typesense_payload
+        - top_agents
+        - suggested_tools
+        - show_tool_selection
+        - llm_calls
+        - execution_id
+      properties:
+        session_id:
+          type: string
+          description: Session identifier for the interaction.
+          example: 2b3c4d5e-6f7a-48b9-8c0d-2e3f4a5b6c7d
+        reply:
+          type: string
+          description: Natural-language assistant reply.
+          example: I identified candidate agents for customer feedback analysis and prepared a search query based on your selected tools.
+        info_json:
+          $ref: '#/components/schemas/InfoJson'
+        ready_to_query:
+          type: boolean
+          description: Indicates whether the interaction has enough context to execute an agent search.
+          example: true
+        search_query:
+          type: string
+          description: Search query generated from the interaction state.
+          example: AI agents for customer feedback analysis using Slack and Zendesk
+        memories:
+          type: array
+          description: Memory strings retained across turns.
+          items:
+            type: string
+          example:
+            - User is interested in support-related customer feedback.
+        guardrail_log:
+          type: string
+          description: Guardrail evaluation output for the turn.
+          example: No guardrail issues detected.
+        redis_history:
+          type: array
+          description: Conversation history persisted for the session.
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - role: user
+              content: Suggest agents that can analyze customer feedback from Slack and Zendesk.
+            - role: assistant
+              content: I identified candidate agents for customer feedback analysis and prepared a search query.
+        typesense_payload:
+          type: object
+          description: Search engine payload prepared for downstream querying.
+          additionalProperties: true
+          example:
+            query_by: name,description,capabilities
+            per_page: 5
+        top_agents:
+          type: array
+          description: Top ranked agents identified by the AI service.
+          items:
+            type: object
+            additionalProperties: true
+          example:
+            - id: agent-cx-insights
+              name: CX Insights Agent
+              score: 0.94
+            - id: agent-voice-of-customer
+              name: Voice of Customer Agent
+              score: 0.91
+        suggested_tools:
+          type: array
+          description: Tool suggestions inferred from the user request.
+          items:
+            type: string
+          example:
+            - slack
+            - zendesk
+        show_tool_selection:
+          type: boolean
+          description: Whether the client should display a tool selection step.
+          example: false
+        llm_calls:
+          type: integer
+          description: Number of LLM calls used for the turn, typically 2 for normal processing, 1 for a handoff, and 0 for tool-submit flows.
+          example: 2
+        execution_id:
+          type: string
+          nullable: true
+          description: Optional execution identifier for tracing the interaction.
+          example: exec_01J7ZP3K7A8B9C0D1E2F3G4H5J
+    InfoJson:
+      type: object
+      description: Structured interaction metadata accumulated and written on each turn.
+      additionalProperties: true
+      properties:
+        agent_type:
+          type: array
+          description: Agent types inferred from the request.
+          items:
+            type: string
+          example:
+            - analytics
+        platforms:
+          type: array
+          description: Platforms identified in the request context.
+          items:
+            type: string
+          example:
+            - slack
+            - zendesk
+        tools:
+          type: array
+          description: Tools inferred from the conversation.
+          items:
+            type: string
+          example:
+            - slack
+            - zendesk
+        selected_tools:
+          type: array
+          description: Tools explicitly selected by the user.
+          items:
+            type: string
+          example:
+            - slack
+            - zendesk
+        use_case:
+          type: array
+          description: Use cases extracted from the interaction.
+          items:
+            type: string
+          example:
+            - customer feedback analysis
+        constraints:
+          type: array
+          description: Constraints provided or inferred for the request.
+          items:
+            type: string
+          example:
+            - focus on support channels
+        preferences:
+          type: array
+          description: User preferences influencing recommendations.
+          items:
+            type: string
+          example:
+            - concise recommendations
+        search_query:
+          type: string
+          description: The currently derived search query.
+          example: AI agents for customer feedback analysis using Slack and Zendesk
+        handoff:
+          type: boolean
+          description: Indicates whether the interaction has been handed off to another flow.
+          example: false
+        awaiting_tools:
+          type: boolean
+          description: Indicates whether the system is awaiting tool selection input; this field may be written on each turn.
+          example: false
