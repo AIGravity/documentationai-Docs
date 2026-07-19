@@ -1,19 +1,22 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: >-
+  How the Remix frontend is scaffolded today, including root layout, routes,
+  styling, error handling, and packaging.
 ---
 
 ## Overview
 
-The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+The current frontend is a Remix application shell with a starter-style welcome screen and a competitive leaderboard page, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, and now includes a leaderboard route with auth-aware navigation and data-driven competitive rankings.
 
 ## App purpose and current scope
 
-Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+The frontend serves as a scaffold for most routes, with a competitive leaderboard page as the first product-specific screen. The index and home routes render the same shared `Welcome` component as placeholders, while the leaderboard route provides a full competitive rankings experience.
 
 <Callout kind="info">
 
-This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. The leaderboard route adds the first app-specific screen with auth-aware navigation and data-driven rankings, while the index and home routes remain scaffold-level placeholders.
+
 
 </Callout>
 
@@ -23,6 +26,7 @@ The implemented files that define the shell are:
 - `apps/web/app/app.css`
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
+- `apps/web/app/routes/leaderboard.tsx`
 - `apps/web/app/welcome/welcome.tsx`
 - `apps/web/vite.config.ts`
 - `apps/web/package.json`
@@ -31,7 +35,7 @@ The implemented files that define the shell are:
 
 ## Route map
 
-Two routes are currently implemented, and both render the same shared component.
+Three routes are currently implemented. The index and home routes render the same shared welcome component, while the leaderboard route provides a standalone competitive rankings page.
 
 ### `/`
 
@@ -83,7 +87,17 @@ export function meta() {
 
 </CodeGroup>
 
-Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+Because the index and home routes render the same component, there is no functional distinction between `/` and `/home`.
+
+### `/leaderboard`
+
+The leaderboard route is defined in `apps/web/app/routes/leaderboard.tsx`. It is the first product-specific route on the frontend and displays competitive rankings across three phases:
+
+- **Locked** — Before the leaderboard opens, users see a full-screen teaser with prize highlights (LinkedIn recommendation, recurring earnings, job offer) and a countdown clock to the opening time.
+- **Live** — Once open, the leaderboard shows a top-three podium with prize amounts and a scrollable rankings table starting at rank 4. Scores are displayed to two decimal places.
+- **Results** — After the competition ends, the final standings are shown in a frozen view.
+
+The navigation bar includes a call-to-action button that routes logged-in users to their dashboard and new users to the onboarding flow. A footer at the bottom of the page links to the project website and social profile.
 
 ## Root layout
 
@@ -324,15 +338,15 @@ The component renders a centered layout, a logo that switches by color scheme, a
 
 ### What the current UI does not do
 
-At this stage, the welcome screen is not connected to any application behavior. The current implementation has:
+At this stage, the welcome screen used by the index and home routes is not connected to any application behavior. The current implementation has:
 
-- no API integration
-- no backend data fetches
-- no auth or session UI
-- no domain-specific navigation
-- no business workflow screens
+- no API integration on the welcome screen
+- no backend data fetches on the welcome screen
+- no auth or session UI on the welcome screen
+- no domain-specific navigation on the welcome screen
+- no business workflow screens on the welcome screen
 
-The two external links in the resources list open in a new tab, and the screen remains a starter-style landing page rather than an application homepage.
+The two external links in the resources list open in a new tab, and the welcome screen remains a starter-style landing page rather than an application homepage. The leaderboard route, by contrast, provides auth-aware navigation and data-driven competitive rankings.
 
 ## Local run and build
 
@@ -341,6 +355,7 @@ The two external links in the resources list open in a new tab, and the screen r
 <Callout kind="tip">
 
 Run these commands from `apps/web` so `package.json` and the local build output resolve as expected.
+
 
 </Callout>
 
@@ -422,16 +437,22 @@ A few implementation details matter:
 
 <Callout kind="alert">
 
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
+The frontend shell provides routing, layout, styling, error handling, and packaging. The leaderboard route adds auth-aware navigation and data-driven rankings, but most other routes remain scaffold-level placeholders without product-specific UI.
+
 
 </Callout>
 
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+That constraint is important when planning the next layer of frontend work. The leaderboard route is the first product-specific addition; additional pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
 
 ## Related foundation docs
 
 <Columns cols={3}>
+
   <Card title="API service foundation" href="/api-service-foundation" icon="database" />
+
   <Card title="Health checks" href="/health-checks" icon="shield" />
+
   <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+
+
 </Columns>

@@ -1,6 +1,8 @@
 ---
 title: Architecture overview
-description: Evaluate the Gravity monorepo structure, service boundaries, tooling, and current implementation gaps across web, API, and AI services.
+description: >-
+  Evaluate the Gravity monorepo structure, service boundaries, tooling, and
+  current implementation gaps across web, API, and AI services.
 ---
 
 ## Overview
@@ -12,6 +14,7 @@ The practical architecture today is best understood as a deployment-ready founda
 <Callout kind="info">
 
 `pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
+
 
 </Callout>
 
@@ -54,22 +57,24 @@ The root `package.json` defines workspace-level commands such as `dev:web`, `dev
 
 The root script `dev:py` points to `apps/py-service`, but the actual Python service lives at `apps/ai-service`. That script is stale relative to the repository tree.
 
+
 </Callout>
 
 ## Service architecture
 
 ### `apps/web`: Remix frontend
 
-`apps/web` is the user-facing frontend. It uses Remix with Vite and React, and the current code remains close to a starter application rather than an integrated product UI.
+`apps/web` is the user-facing frontend. It uses Remix with Vite and React, and the current code is evolving beyond a starter application with the addition of a competitive leaderboard page.
 
 The main entry file is `apps/web/app/root.tsx`. That file defines the document shell, global styles, font links, an `ErrorBoundary`, and the route outlet. The exported app component returns an `Outlet`, so request handling follows standard Remix nested routing.
 
-Current route files are minimal:
+Current route files:
 
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
+- `apps/web/app/routes/leaderboard.tsx`
 
-Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, no data fetching helpers, and no API client layer in the current frontend tree.
+The index and home routes render the same component from `apps/web/app/welcome/welcome.tsx`. The leaderboard route is a product-specific page that uses auth state for navigation and fetches ranking data client-side. It is the first route to move beyond the starter scaffold.
 
 `apps/web/vite.config.ts` shows the active frontend stack:
 
@@ -78,7 +83,7 @@ Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. T
 - Tailwind CSS
 - TypeScript path support
 
-The relationship to the rest of the repo is mostly implicit. The API service enables CORS for `http://localhost:3000`, which indicates the frontend is expected to call the API, but no such calls are implemented in the frontend code today.
+The relationship to the rest of the repo is mostly implicit. The API service enables CORS for `http://localhost:3000`, which indicates the frontend is expected to call the API. The leaderboard route fetches ranking data, though the specific backend target is not documented in the current repository.
 
 ### `apps/api`: NestJS API on Bun
 
@@ -104,6 +109,7 @@ The Python project configuration lives in `apps/ai-service/pyproject.toml`. Depe
 
 Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
 
+
 </Callout>
 
 ## Entry points and request handling
@@ -118,8 +124,9 @@ Current route behavior:
 
 - `/` is defined by `apps/web/app/routes/_index.tsx`
 - `/home` is defined by `apps/web/app/routes/home.tsx`
+- `/leaderboard` is defined by `apps/web/app/routes/leaderboard.tsx`
 
-Both route modules render the same welcome component. There are no loaders, actions, or backend requests in those routes.
+The index and home route modules render the same welcome component. The leaderboard route is a product-specific page that displays competitive rankings with auth-aware navigation and client-side data fetching.
 
 ### API routes
 
@@ -163,7 +170,7 @@ Expected relationships are visible in naming and configuration, not in running i
 
 No direct wiring exists today:
 
-- no frontend fetches to the API in `apps/web`
+- no confirmed frontend fetches to `apps/api` in `apps/web` (the leaderboard route fetches ranking data, but the backend target is not documented)
 - no API client or SDK package
 - no API calls from `apps/api` to `apps/ai-service`
 - no shared `packages/` code
@@ -172,6 +179,7 @@ No direct wiring exists today:
 <Callout kind="alert">
 
 Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
+
 
 </Callout>
 
@@ -215,7 +223,7 @@ There are no signs of:
 - user identity models
 - authorization guards or policy enforcement
 
-The absence is consistent across all three applications. Any future protected routes, user-specific state, or service-to-service trust model will need to be added from scratch.
+The absence is consistent across all three applications. The leaderboard route does use auth state to customize its call-to-action navigation — routing logged-in users to their dashboard and new users to onboarding — but the broader auth system backing that state is not fully documented in the current repository. Any future protected routes, user-specific state, or service-to-service trust model will need to be added from scratch.
 
 ### External services and integrations
 
@@ -304,6 +312,7 @@ The Python service declares `pytest`, and the workflows reference verification s
 
 The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
 
+
 </Callout>
 
 ## What this architecture means today
@@ -315,14 +324,17 @@ What it has not answered yet are the application-level questions: where domain l
 ## Related pages
 
 <Columns cols={2}>
+
   <Card title="Introduction" href="/introduction" icon="book-open">
 
     Get the high-level orientation for the documentation set and how the project is presented.
+
 
   </Card>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
     Follow the shortest path to running the project and validating the local setup.
+
 
   </Card>
 
@@ -330,10 +342,13 @@ What it has not answered yet are the application-level questions: where domain l
 
     Review the documented capabilities and compare them with the current implementation state.
 
+
   </Card>
   <Card title="Help center" href="/help-center/help-center" icon="help-circle">
 
     Find troubleshooting and support-oriented guidance for common setup and usage issues.
 
+
   </Card>
+
 </Columns>
