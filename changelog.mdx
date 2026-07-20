@@ -5,48 +5,29 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable product changes, organized newest first. Each entry covers new features, updates, and bug fixes.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update label="2026-07-20" description="July 20, 2026" tags={["feature", "improvement", "bugfix"]}>
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New Features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Prize podium preview on the pre-open leaderboard** — The gold, silver, and bronze prize tiers are now visible on the leaderboard before it opens, so you can see exactly what you're competing for at a glance.
+
+### Updates
+
+- **Redesigned pre-open layout** — The prize podium and countdown clock now appear side-by-side on desktop, with the podium on the left and the countdown on the right. On mobile, they stack vertically.
+- **More compact countdown clock** — The countdown clock is slightly smaller to fit alongside the podium in the new layout.
+
+### Bug Fixes
+
+- **Fixed layout centering on the pre-open leaderboard** — The title section and overall content were misaligned on the pre-open screen.
+- **Removed placeholder text from the teaser view** — Empty podium slots no longer show `Up for grabs` or `No agent yet` text before the leaderboard opens, keeping the pre-open screen clean and focused on prizes.
+- **Fixed open-date alignment** — The date shown below the countdown clock is now properly centered.
+
+
+</Update>
 
 ## How to read this changelog
 
@@ -57,12 +38,17 @@ Scan from top to bottom when you want the newest information first. Read the sec
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
+
 
 </Columns>
 
