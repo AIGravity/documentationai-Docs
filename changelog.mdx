@@ -3,54 +3,23 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
+## v0.1.0 — March 7, 2026
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Initial release of all platform services.
 
-<Callout kind="alert">
+### New Features
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+- **Service versioning** — All services now track their own version numbers, starting at v0.1.0. Versions bump automatically based on commit type. See [Service Versioning](/service-versioning).
+- **Automated CI/CD pipelines** — Each service now builds, versions, and deploys automatically through CI pipelines. See [CI/CD Pipelines](/ci-cd-pipelines).
 
-</Callout>
+### Updates
 
-## Release history
+- **Web app migrated to Remix v2** — The frontend now runs on Remix v2, replacing the previous routing framework. This brings improved routing and faster page loads.
+- **Tailwind CSS upgraded to v4** — The web app's styling system is now powered by Tailwind CSS v4, with the latest design utilities and improved build performance.
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+### Bug Fixes
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
-
-## How to read this changelog
-
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Fixed container build failure** — Resolved an issue where the web application's container builds failed due to a missing shared configuration file.
 
 ## Related resources
 
