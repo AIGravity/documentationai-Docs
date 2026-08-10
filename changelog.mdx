@@ -5,63 +5,43 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Track notable product changes to Gravity, including new features, updates, and bug fixes. The most recent entries appear at the top.
 
-<Callout kind="alert">
+## v0.1.0 — March 2026
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+<Update label="2026-03-07" description="v0.1.0">
 
-</Callout>
+### New Features
 
-## Release history
+- **Per-service semantic versioning** — Each service now carries its own version number that automatically increments based on commit messages, producing versioned Git tags, Docker images, and GitHub Releases. [Learn more →](/service-versioning)
+- **Automated CI/CD pipelines** — All services build, test, version, and publish Docker images to GitHub Container Registry automatically on every push. GitHub Releases are created on merge to main. [Learn more →](/ci-cd-pipelines)
+- **Health check endpoints** — The API and AI service each expose a `/health` endpoint to verify service status at runtime. [Learn more →](/health-checks)
+- **One-command local setup** — A bootstrap script initializes the entire project for local development in a single step. [Learn more →](/quickstart)
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+### Updates
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+- **Web frontend rebuilt on Remix v2** — The web application now runs on Remix v2, improving routing and build performance.
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+### Bug Fixes
+
+- **Docker build failure for web service** — Resolved an issue that prevented the web service Docker image from building correctly in CI.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Entries are listed newest first. Each release is grouped into **New Features**, **Updates**, and **Bug Fixes** so you can quickly find what matters to you.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+Review the current product capabilities and supported workflows.
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+Set up the project and confirm the basic workflow.
 </Card>
 
 </Columns>
