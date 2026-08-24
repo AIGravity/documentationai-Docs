@@ -1,56 +1,29 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track Gravity platform releases, including versioning, deployment pipeline, frontend, and Docker changes that affect developers and operators.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+Track reader-facing Gravity platform changes in one place, with the newest release first. Each entry highlights what changed and what it means for developers and operators running the platform.
 
-<Callout kind="alert">
+<Update label="2026-03" description="v0.1.0" tags={["feature", "improvement", "bugfix"]}>
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### New features
 
-</Callout>
+- **Per-service semantic versioning** — Web, API, and AI service now version independently, so each service can ship on its own cadence. Commit markers such as `[major]`, `[minor]`, and `feat:` trigger the correct bump automatically, and development builds receive pre-release tags such as `0.1.0-dev.20260307.a1b2c3d`. See [Service Versioning](/service-versioning).
+- **CI/CD pipelines for all services** — Every service now runs build, lint, versioning, Docker image publishing, and GitHub Release creation on pushes to `main` and `dev`. Operators get consistent container images in GitHub Container Registry with versioned tags for deployment and rollback. See [CI/CD Pipelines](/ci-cd-pipelines) and [Docker Images and Packaging](/docker-images-and-packaging).
 
-## Release history
+### Updates
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- **Web app migrated to Remix v2** — The frontend moved from React Router v7 to Remix v2 and upgraded from Tailwind CSS v3 to v4. This changes the application shell to Remix's routing and rendering model and aligns future frontend work to that stack. See [Frontend Application Shell](/frontend-application-shell).
+- **Simplified Docker builds** — The web service Dockerfile now uses a two-stage build and `npm` instead of `pnpm`. This reduces build complexity and makes container packaging easier to maintain. See [Docker Images and Packaging](/docker-images-and-packaging).
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### Bug fixes
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Fixed Docker build for shared TypeScript config** — Web image builds no longer fail when `tsconfig.base.json` lives outside the Docker build context. The pipeline now copies the shared config into the build context before building the image.
 
-## How to read this changelog
-
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+</Update>
 
 ## Related resources
 
