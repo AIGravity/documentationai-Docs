@@ -7,6 +7,8 @@ description: How the repository’s GitHub Actions workflows build, check, versi
 
 The repository defines three GitHub Actions pipelines, one for each deployable service: web, API, and AI service. Each workflow follows the same high-level sequence: build, compute a version, publish a Docker image to GitHub Container Registry, create a GitHub release on `main`, and write a deployment summary. The workflows are intentionally isolated by path filters so changes in one service do not trigger all pipelines.
 
+A separate deployment workflow provides on-demand deployment to AWS ECS for any of the three services. This workflow is manually triggered and supports multiple environments, building and pushing images to Amazon ECR and rolling out new task definitions on an ECS cluster.
+
 ## Workflow inventory
 
 These workflows are the complete CI/CD surface described in the repository today:
@@ -14,8 +16,9 @@ These workflows are the complete CI/CD surface described in the repository today
 - **`.github/workflows/web.yml`** — `Web CI/CD`
 - **`.github/workflows/api.yml`** — `API CI/CD`
 - **`.github/workflows/ai-service.yml`** — `AI Service CI/CD`
+- **`.github/workflows/deploy-new-account.yml`** — `New-Account Deployment`
 
-All three define the same job chain:
+The first three define the same job chain:
 
 ```mermaid
 graph LR
@@ -324,6 +327,86 @@ Git tags follow a service-prefixed naming convention:
 - **API** — `api-v<version>`
 - **AI service** — `ai-service-v<version>`
 
+## New-account deployment workflow
+
+The `New-Account Deployment` workflow runs only when you start it manually with `workflow_dispatch`. Pushes and pull requests do not trigger this workflow.
+
+### Inputs select the deployment target
+
+The workflow requires an environment and service. You can optionally choose the Git ref, image tag, and Redis endpoint.
+
+```yml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        type: choice
+        options: [nonprod, prod, dev]
+      service:
+        required: true
+        type: choice
+        options: [api, web, ai-service]
+      ref:
+        required: false
+      image_tag:
+        required: false
+      redis_host:
+        required: false
+```
+
+When `ref` is omitted, the workflow selects the `nonprod` branch for `nonprod` and `prod`, and the `dev` branch for `dev`. When `image_tag` is omitted, it uses the short commit SHA. `redis_host` overrides the Redis endpoint for `ai-service` deployments.
+
+### Environment mapping controls branches and secrets
+
+The workflow maps each input environment to a branch and GitHub Actions environment:
+
+| Input environment | Branch | GitHub environment |
+| --- | --- | --- |
+| `nonprod` | `nonprod` | `nonprod` |
+| `prod` | `nonprod` | `nonprod` |
+| `dev` | `dev` | `development` |
+
+The `prod` option therefore uses the `nonprod` branch and `nonprod` environment for its deployment secrets.
+
+### Build and push service images
+
+The workflow builds the selected service from its existing Dockerfile, then pushes the image to Amazon ECR with the selected tag.
+
+```yml
+docker build \\
+  --file apps/${SERVICE}/Dockerfile \\
+  --tag ${ECR_REGISTRY}/gravity-${SERVICE}:${IMAGE_TAG} \\
+  .
+docker push ${ECR_REGISTRY}/gravity-${SERVICE}:${IMAGE_TAG}
+```
+
+For web builds, the workflow copies `tsconfig.base.json` into the Docker build context and passes the `VITE_*` build arguments. It also passes `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` as Sentry build arguments.
+
+### Update the ECS service
+
+After pushing the image, the workflow registers a new ECS task definition from the template for the selected environment. It then forces the ECS service to start a deployment with the new task definition.
+
+```yml
+aws ecs update-service \\
+  --cluster gravity-${ENVIRONMENT} \\
+  --service gravity-${SERVICE} \\
+  --task-definition ${TASK_DEFINITION} \\
+  --force-new-deployment
+```
+
+The deployment role supplies AWS credentials, and the cluster and service names follow the `gravity-{environment}` and `gravity-{service}` conventions.
+
+### Concurrency preserves in-progress deployments
+
+Runs use the concurrency group `deploy-new-${environment}-${service}`. A new run for the same environment and service does not cancel an in-progress deployment.
+
+<Callout kind="info">
+
+The web Dockerfile does not currently declare Sentry `ARG` instructions. The workflow passes the Sentry build arguments, but the Dockerfile does not consume them.
+
+</Callout>
+
 ## Limitations
 
 Several parts of the pipelines are placeholders or only partially implemented in the current workflow files.
@@ -336,7 +419,7 @@ Missing or incomplete checks are explicit in the YAML:
 - The API workflow includes a commented test step and no active lint command, despite the `Build & Lint` job name.
 - The AI service workflow includes a commented test step.
 - Pull requests run the build stage, but the version job is gated to push events.
-- Deploy jobs do not execute a real deployment command.
+- Deploy jobs in the three service workflows do not execute a real deployment command. Use the separate [new-account deployment workflow](#new-account-deployment-workflow) for on-demand ECS deployment.
 
 </Callout>
 

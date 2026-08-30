@@ -223,6 +223,47 @@ Each workflow also builds from the service directory as its Docker context:
 
 All three workflows use GitHub Actions cache during the Docker build and push the resulting image directly to GitHub Container Registry.
 
+### Amazon ECR publishing through the deployment workflow
+
+The new-account deployment workflow provides a second publishing path. It builds the same service Dockerfiles with each service directory as the Docker build context, then pushes the resulting images to Amazon ECR instead of GitHub Container Registry.
+
+ECR image names follow the `gravity-{service}:{tag}` pattern within the configured ECR registry. The workflow selects the service image name and tag when it builds and pushes each image:
+
+```yml
+- name: Build and push image
+  uses: docker/build-push-action@v6
+  with:
+    context: ./apps/${{ matrix.service }}
+    file: ./apps/${{ matrix.service }}/Dockerfile
+    push: true
+    tags: ${{ env.ECR_REGISTRY }}/gravity-${{ matrix.service }}:${{ needs.version.outputs.version }}
+```
+
+For web builds, the deployment workflow also passes Vite and Sentry values as Docker build arguments. These values are available during the image build alongside the service-specific context:
+
+```yml
+- name: Build and push web image
+  uses: docker/build-push-action@v6
+  with:
+    context: ./apps/web
+    file: ./apps/web/Dockerfile
+    push: true
+    build-args: |
+      VITE_API_URL=${{ vars.VITE_API_URL }}
+      VITE_APP_ENV=${{ vars.VITE_APP_ENV }}
+      SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG=${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+```
+
+<Callout kind="info">
+
+The web Dockerfile does not currently declare `ARG` instructions for the Sentry values. The deployment workflow passes `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT`, but the Dockerfile does not consume them.
+
+</Callout>
+
+See the [CI/CD Pipelines](/ci-cd) page for the complete deployment workflow, authentication, and environment configuration details.
+
 ## Tags and version inputs
 
 The Docker tag set comes directly from `needs.version.outputs.version`, plus branch-specific rolling tags and a SHA tag. That makes the version job the source of truth for the main image tag in every workflow.
