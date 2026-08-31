@@ -3,54 +3,26 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
+## August 2026
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+### New Features
 
-<Callout kind="alert">
+- **Web application launched:** The initial web interface is now live with a responsive layout, light/dark branding, and basic navigation. See the [Frontend Application Shell](/frontend-application-shell) page for details.
+- **API health endpoint:** The API service now exposes a health check at `GET /health` returning status and service identity. Useful for uptime monitoring and deployment verification. See [Health Checks](/health-checks).
+- **AI service health endpoint:** The AI service now exposes a health check at `GET /health` returning a status payload. See [Health Checks](/health-checks).
+- **Per-service versioning:** Each service (web, API, AI) now tracks its own semantic version independently, with automated version bumps driven by commit messages and GitHub Releases generated on the main branch. See [Service Versioning](/service-versioning).
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+### Updates
 
-</Callout>
+- **Web framework migrated to Remix Vite:** The frontend build tooling moved to Remix with Vite, bringing faster builds and modern dev server support.
+- **Styling upgraded to Tailwind CSS v4:** The web application now uses Tailwind CSS v4 with its Vite integration for streamlined styling.
+- **Docker packaging for all services:** Each service now has a Dockerfile for containerized builds and deployments. See [Docker Images and Packaging](/docker-images-and-packaging).
+- **CI/CD pipelines for all services:** Dedicated build, version, Docker publish, and release pipelines are now active for web, API, and AI services. See [CI/CD Pipelines](/ci-cd-pipelines).
 
-## Release history
+### Bug Fixes
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
-
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
-
-## How to read this changelog
-
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Fixed web Docker builds:** Resolved a missing TypeScript configuration issue that prevented the web service Docker image from building successfully.
+- **Fixed production deployment secret resolution:** Corrected environment-scoped secret selection so production deployments receive the right configuration values instead of empty placeholders.
 
 ## Related resources
 
