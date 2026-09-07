@@ -5,72 +5,86 @@ description: How the FastAPI-based AI service currently starts, manages dependen
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application with chat interaction, content guardrails, agent verification, agent review analysis, text embeddings, and requested-agent management. It uses uv-based dependency management and a container build path.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The service handles chat interactions, guardrail checks, agent verification workflows, review analysis, embeddings, and requested-agent operations. Sentry middleware is used for observability, and internal routes rely on network-level trust rather than application-level authentication.
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
-
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service provides a broad AI interaction layer rather than a minimal foundation. The FastAPI app is titled "Gravity Interaction Layer" and includes routers for `/verification` and `/agent-review`, along with routes for chat, guardrails, embeddings, and requested-agent management.
 
 ## Bootstrap in main.py
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application starts directly in `apps/ai-service/main.py`. The FastAPI app is created at module import time with the title "Gravity Interaction Layer". Route registration uses a combination of inline decorators and APIRouter-based routers for `/verification` and `/agent-review`.
 
-<CodeGroup tabs="main.py,Notes">
+<CodeGroup tabs="App structure,Notes">
 
-```python
-from fastapi import FastAPI
-
-app = FastAPI()
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+```text
+- FastAPI app titled "Gravity Interaction Layer"
+- Sentry middleware for request observability
+- Routers for /verification and /agent-review
+- Routes for /chat, /internal/*, and /admin/*
 ```
 
 ```text
 Grounded bootstrap details:
 
 - app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- Sentry middleware adds method, path, and request ID tags
+- /verification router is registered
+- /agent-review router is registered
+- /health, /chat, /internal/*, and /admin/* routes are defined
+- the app listens on port 8001
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path configures Sentry middleware for observability, registers routers for verification and agent review, and exposes routes for chat, guardrails, embeddings, and requested-agent management.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The `GET /health` endpoint returns service status, version, and chat availability.
 
-<CodeGroup tabs="Route,Response">
-
-```python
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
+<CodeGroup tabs="Response">
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+<ResponseField name="status" field-type="string" required="true">
+
+Returns `healthy` when the service is running.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Returns `Gravity AI Interaction Layer`.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+Returns the current service version.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Indicates whether the chat and LLM backend is available.
+
+</ResponseField>
 
 ## Python environment and dependency management
 
@@ -130,9 +144,7 @@ version = "0.41.0"
 
 </CodeGroup>
 
-The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
-
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The service integrates with external AI providers for chat and embeddings and uses Sentry for observability. Traditional database and migration packages are not present in the core dependencies.
 
 ## Run locally
 
@@ -153,7 +165,7 @@ uv run ruff check .
 
 </CodeGroup>
 
-If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "healthy", "service": "Gravity AI Interaction Layer", "version": "1.0.0", "chat_available": true}`.
 
 Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
 

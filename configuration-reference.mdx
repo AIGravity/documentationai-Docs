@@ -230,12 +230,15 @@ await app.listen(3001);
 
 The AI service runtime surface is small and mostly script- and Docker-defined.
 
-<CodeGroup tabs="main.py,package script">
+<CodeGroup tabs="Health response,package script">
 
-```python
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+```json
+{
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
+}
 ```
 
 ```json

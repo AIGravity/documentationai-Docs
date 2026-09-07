@@ -1,13 +1,15 @@
 openapi: '3.0.0'
 info:
   version: 1.0.0
-  title: AIGravity Core API Service
+  title: AIGravity Core API
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    This specification documents both services in the AIGravity/core monorepo:
+    the NestJS API service and the FastAPI AI service.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
-
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    The NestJS API service is available on port 3000. The FastAPI AI service is
+    available on port 8001. Public authentication endpoints do not require
+    authentication. Protected NestJS endpoints use a Supabase JWT Bearer token
+    in the Authorization header.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -18,51 +20,996 @@ info:
 servers:
   - url: http://localhost:3000
     description: API service local development server
+  - url: http://localhost:8001
+    description: AI service local development server
 tags:
   - name: Health
-    description: Service health and readiness operations for the API service
+    description: Service health and readiness endpoints
+  - name: Chat
+    description: AI chat interaction endpoints
+  - name: Guardrails
+    description: Content safety and guardrail endpoints
+  - name: Agent Review
+    description: Automated agent review and analysis endpoints
+  - name: Verification
+    description: Agent verification and validation endpoints
+  - name: Embeddings
+    description: Text embedding and indexing endpoints
+  - name: Requested Agents
+    description: Requested-agent management endpoints
+  - name: Auth
+    description: Authentication and session management endpoints
 paths:
+  /:
+    get:
+      tags:
+        - Health
+      summary: Get root service status
+      description: Returns the root status of the NestJS API service.
+      operationId: getRootHealth
+      security: []
+      responses:
+        '200':
+          description: API service status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RootHealthResponse'
+              example:
+                status: ok
+                service: api
   /health:
     get:
       tags:
         - Health
-      summary: Get API service health
-      description: Returns a simple health response for the AIGravity/core API service.
+      summary: Get service health
+      description: |
+        Returns a health response. The response shape depends on which server
+        you call:
+        - **NestJS API (port 3000)** returns status, service, and a timestamp.
+        - **AI service (port 8001)** returns status, service name, version, and
+          chat availability.
       operationId: getHealth
       security: []
       responses:
         '200':
-          description: API service is reachable and healthy
+          description: Service is reachable and healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: ok
+                oneOf:
+                  - $ref: '#/components/schemas/HealthResponse'
+                  - $ref: '#/components/schemas/AiHealthResponse'
+              examples:
+                nestjs:
+                  summary: NestJS API health
+                  value:
+                    status: ok
+                    service: api
+                    timestamp: '2024-01-01T00:00:00Z'
+                aiService:
+                  summary: AI service health
+                  value:
+                    status: healthy
+                    service: Gravity AI Interaction Layer
+                    version: 1.0.0
+                    chat_available: true
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login with email and password
+      description: Authenticates a user and creates a user session.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: User session with access and refresh tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid email or password
+  /api/auth/signup:
+    post:
+      tags:
+        - Auth
+      summary: Create a new account
+      description: Creates a new user account.
+      operationId: signup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+      responses:
+        '201':
+          description: User session with access and refresh tokens
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error
+        '409':
+          description: Email already registered
+  /api/auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh access token
+      description: Creates a new authenticated session from a refresh token.
+      operationId: refreshAccessToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Refreshed access token session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid or expired refresh token
+  /api/auth/otp/send:
+    post:
+      tags:
+        - Auth
+      summary: Send a one-time password
+      description: Sends a one-time password to the specified email address.
+      operationId: sendOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpSendRequest'
+      responses:
+        '200':
+          description: One-time password delivery result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpSendResponse'
+              example:
+                message: OTP sent
+                isNewUser: true
+  /api/auth/otp/verify:
+    post:
+      tags:
+        - Auth
+      summary: Verify a one-time password
+      description: Verifies a one-time password and creates a user session.
+      operationId: verifyOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerifyRequest'
+      responses:
+        '200':
+          description: User session with isNewUser flag
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid or expired code
+  /api/auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current user profile
+      description: Returns the profile for the authenticated user.
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current authenticated user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          description: Missing or invalid token
+  /chat:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Chat
+      summary: Send a chat message and receive an AI interaction response
+      description: Sends a message to the AI interaction layer and returns its response.
+      operationId: sendChatMessage
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: AI interaction response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InteractionResponse'
+        '422':
+          description: Pydantic validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '503':
+          description: Chat service unavailable — no LLM API key configured
+  /internal/guardrail/check:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Guardrails
+      summary: Check content against guardrails
+      description: Evaluates content against configured content safety guardrails.
+      operationId: checkGuardrails
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailRequest'
+      responses:
+        '200':
+          description: Guardrail evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailResponse'
+        '422':
+          description: Pydantic validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /agent-review/analyze:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Agent Review
+      summary: Analyze an agent submission and return review findings
+      description: Analyzes an agent submission using its evidence graph and workflow data.
+      operationId: analyzeAgentSubmission
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewWorkflowRequest'
+      responses:
+        '200':
+          description: Agent review findings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewWorkflowResponse'
+        '422':
+          description: Graph is not an evidence graph with a nodes array, or graph construction failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+  /verification/generate-description:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Verification
+      summary: Generate a polished description for a workflow
+      description: Generates polished workflow text for the requested field.
+      operationId: generateWorkflowDescription
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDescriptionRequest'
+      responses:
+        '200':
+          description: Generated description
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - description
+                properties:
+                  description:
+                    type: string
+              example:
+                description: A polished workflow description.
+        '502':
+          description: Description generation failed
+  /verification/check-setup-fields:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Verification
+      summary: Validate workflow setup fields
+      description: Validates the name, description, and problem solved fields of a workflow.
+      operationId: checkWorkflowSetupFields
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckSetupFieldsRequest'
+      responses:
+        '200':
+          description: Workflow setup field validation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          enum:
+                            - name
+                            - description
+                            - problem_solved
+                        ok:
+                          type: boolean
+                        score:
+                          type: number
+                        reason:
+                          type: string
+  /internal/embed:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Embeddings
+      summary: Generate a text embedding
+      description: Generates an embedding vector for the supplied text.
+      operationId: generateEmbedding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedRequest'
+      responses:
+        '200':
+          description: Generated text embedding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbedResponse'
+        '502':
+          description: Embedding failed or dimension mismatch
+        '503':
+          description: GEMINI_API_KEY not configured
+  /internal/agents/index:
+    post:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Embeddings
+      summary: Index an agent for search
+      description: Indexes an agent template for search.
+      operationId: indexAgent
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndexAgentRequest'
+      responses:
+        '200':
+          description: Agent indexing result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  indexed:
+                    type: boolean
+                  error:
+                    type: string
+                    nullable: true
+  /internal/agents/{agent_id}:
+    delete:
+      servers:
+        - url: http://localhost:8001
+          description: AI service local development server
+      tags:
+        - Embeddings
+      summary: Delete an indexed agent
+      description: Removes an indexed agent from search.
+      operationId: deleteIndexedAgent
+      security: []
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Identifier of the indexed agent.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent deletion result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                  error:
+                    type: string
+                    nullable: true
 components:
+  securitySchemes:
+    bearerAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: Supabase JWT Bearer token
   responses:
     InternalServerError:
       description: Unexpected server error
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/NestJSError'
   schemas:
-    HealthResponse:
+    RootHealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
-      additionalProperties: true
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: api
       example:
         status: ok
-    Error:
+        service: api
+    HealthResponse:
       type: object
-      description: Generic error response.
+      required:
+        - status
+        - service
+        - timestamp
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: api
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp of the health check
+      example:
+        status: ok
+        service: api
+        timestamp: '2024-01-01T00:00:00Z'
+    NestJSError:
+      type: object
+      required:
+        - statusCode
+        - error
+        - message
+        - path
+        - timestamp
+      properties:
+        statusCode:
+          type: integer
+          example: 500
+        error:
+          type: string
+          example: Internal Server Error
+        message:
+          type: string
+          example: Unexpected server error
+        path:
+          type: string
+          example: /health
+        timestamp:
+          type: string
+          format: date-time
+          example: '2024-01-01T00:00:00Z'
+        requestId:
+          type: string
+          description: Optional request identifier.
+          example: req_123456
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    SignUpRequest:
+      type: object
+      required:
+        - email
+        - password
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+    AuthResponse:
+      type: object
+      description: User session with access and refresh tokens.
+      additionalProperties: true
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    OtpSendRequest:
+      type: object
+      required:
+        - email
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+    OtpSendResponse:
+      type: object
       required:
         - message
+        - isNewUser
       properties:
         message:
           type: string
-          description: Human-readable error message.
-          example: Internal server error
+        isNewUser:
+          type: boolean
+      example:
+        message: OTP sent
+        isNewUser: true
+    OtpVerifyRequest:
+      type: object
+      required:
+        - email
+        - token
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+    AiHealthResponse:
+      type: object
+      required:
+        - status
+        - service
+        - version
+        - chat_available
+      properties:
+        status:
+          type: string
+          example: healthy
+        service:
+          type: string
+          example: Gravity AI Interaction Layer
+        version:
+          type: string
+          example: 1.0.0
+        chat_available:
+          type: boolean
+          description: Whether the chat/LLM service is available
+      example:
+        status: healthy
+        service: Gravity AI Interaction Layer
+        version: 1.0.0
+        chat_available: true
+    ChatRequest:
+      type: object
+      required:
+        - user_id
+        - session_id
+        - message
+        - selected_tools
+        - submit_tools
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          maxLength: 4000
+          description: User message text (0–4000 characters)
+        selected_tools:
+          type: array
+          items:
+            type: string
+        submit_tools:
+          type: boolean
+        agent_id:
+          type: string
+          nullable: true
+    InteractionResponse:
+      type: object
+      required:
+        - session_id
+        - reply
+        - question
+        - options
+        - mode
+        - info_json
+        - ready_to_query
+        - search_query
+        - memories
+        - guardrail_log
+        - redis_history
+        - typesense_payload
+        - top_agents
+        - suggested_tools
+        - show_tool_selection
+        - llm_calls
+        - execution_id
+      properties:
+        session_id:
+          type: string
+        reply:
+          type: string
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+        info_json:
+          type: object
+          additionalProperties: true
+        ready_to_query:
+          type: boolean
+        search_query:
+          type: string
+        memories:
+          type: array
+          items:
+            type: string
+        guardrail_log:
+          type: string
+        redis_history:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        typesense_payload:
+          type: object
+          additionalProperties: true
+        top_agents:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        suggested_tools:
+          type: array
+          items:
+            type: string
+        show_tool_selection:
+          type: boolean
+        llm_calls:
+          type: integer
+        execution_id:
+          type: string
+          nullable: true
+    GuardrailRequest:
+      type: object
+      required:
+        - content
+        - source
+      properties:
+        content:
+          type: string
+        source:
+          type: string
+          enum:
+            - INPUT
+            - OUTPUT
+        context:
+          type: object
+          nullable: true
+          additionalProperties: true
+    GuardrailResponse:
+      type: object
+      required:
+        - safe
+        - reason
+        - tier
+        - output
+      properties:
+        safe:
+          type: boolean
+        reason:
+          type: string
+        tier:
+          type: string
+        output:
+          type: string
+          nullable: true
+    ReviewWorkflowRequest:
+      type: object
+      required:
+        - submission_id
+        - graph
+      properties:
+        submission_id:
+          type: string
+        graph:
+          type: object
+          description: Evidence graph that must contain a nodes array
+        step_outputs:
+          type: object
+          additionalProperties: true
+        brief_slots:
+          type: object
+          additionalProperties:
+            type: string
+        brief_source:
+          type: string
+          enum:
+            - bounty
+            - requested
+            - builder_declared
+    ReviewWorkflowResponse:
+      type: object
+      required:
+        - reviewer_version
+        - submission_id
+        - findings
+        - counts
+        - routing
+        - not_checked
+        - evaluated_runtime
+        - evaluated_output
+        - coverage
+        - evidence_scores
+        - penalty_by_severity
+      properties:
+        reviewer_version:
+          type: string
+        submission_id:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewFinding'
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        routing:
+          type: string
+        not_checked:
+          type: array
+          items:
+            type: string
+        evaluated_runtime:
+          type: boolean
+        evaluated_output:
+          type: boolean
+        coverage:
+          type: object
+          nullable: true
+          additionalProperties: true
+        evidence_scores:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        penalty_by_severity:
+          type: object
+          additionalProperties:
+            type: integer
+    ReviewFinding:
+      type: object
+      required:
+        - code
+        - severity
+        - tier
+        - dimension
+        - step
+        - title
+        - message
+        - evidence
+        - suggestion
+        - measured_precision
+        - measured_cases
+        - provenance
+      properties:
+        code:
+          type: string
+        severity:
+          type: string
+          enum:
+            - critical
+            - high
+            - medium
+            - low
+        tier:
+          type: string
+          enum:
+            - confirmed
+            - worth_checking
+            - advisory
+            - unvalidated
+        dimension:
+          type: string
+          nullable: true
+        step:
+          type: string
+          nullable: true
+        title:
+          type: string
+        message:
+          type: string
+        evidence:
+          type: string
+          nullable: true
+        suggestion:
+          type: string
+          nullable: true
+        measured_precision:
+          type: number
+          nullable: true
+        measured_cases:
+          type: integer
+          nullable: true
+        provenance:
+          type: string
+    GenerateDescriptionRequest:
+      type: object
+      required:
+        - workflow_json
+      properties:
+        workflow_json:
+          type: object
+          additionalProperties: true
+        field:
+          type: string
+          enum:
+            - description
+            - name
+            - problem_solved
+            - problem_solved_bullets
+        user_draft:
+          type: string
+    CheckSetupFieldsRequest:
+      type: object
+      required:
+        - workflow_json
+        - name
+        - description
+        - problem_solved
+      properties:
+        workflow_json:
+          type: object
+          additionalProperties: true
+        name:
+          type: string
+        description:
+          type: string
+        problem_solved:
+          type: string
+    EmbedRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 20000
+    EmbedResponse:
+      type: object
+      required:
+        - embedding
+        - dims
+      properties:
+        embedding:
+          type: array
+          items:
+            type: number
+        dims:
+          type: integer
+    IndexAgentRequest:
+      type: object
+      required:
+        - id
+        - template
+      properties:
+        id:
+          type: string
+          minLength: 1
+          maxLength: 200
+        template:
+          type: object
+          additionalProperties: true
+    ValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            type: object

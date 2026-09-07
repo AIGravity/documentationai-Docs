@@ -1,29 +1,215 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Reference for the NestJS API service, covering authentication, health checks, error handling, and the full endpoint surface.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+Use this reference to authenticate requests, check service availability, interpret errors, and find the controller responsible for each API area. The API runs on port `3001` in development.
+
+Controllers define their own `api/...` prefixes, so the application does not add a global prefix. For example, authentication routes use `/api/auth`, while the health routes are available at `/` and `/health`.
+
+## Service configuration
+
+The API applies these settings to every request:
+
+<ParamField body="validation" param-type="object" required="true" show-location="false">
+
+Global validation enables `whitelist`, rejects non-whitelisted properties with `forbidNonWhitelisted`, and transforms compatible input values with `transform`.
+
+</ParamField>
+
+<ParamField body="exceptionFilter" param-type="string" required="true" show-location="false">
+
+`HttpExceptionFilter` normalizes HTTP exceptions and unexpected server errors into the standard error response format.
+
+</ParamField>
+
+<ParamField body="interceptor" param-type="string" required="true" show-location="false">
+
+`SentryUserInterceptor` adds the authenticated user context used for request monitoring.
+
+</ParamField>
+
+<ParamField body="cors" param-type="object" required="true" show-location="false">
+
+CORS allows `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, and `OPTIONS` requests.
+
+</ParamField>
+
+<ParamField body="jsonBodyLimit" param-type="string" required="true" show-location="false">
+
+JSON request bodies are limited to `10 MB`.
+
+</ParamField>
+
+<ParamField body="urlEncodedBodyLimit" param-type="string" required="true" show-location="false">
+
+URL-encoded request bodies are limited to `1 MB`.
+
+</ParamField>
+
+<ParamField body="rawRequestBodies" param-type="boolean" required="true" show-location="false">
+
+Raw request bodies are enabled for webhook signature validation.
+
+</ParamField>
+
+### Swagger UI
+
+Open [Swagger UI](http://localhost:3001/api/docs) while the API is running locally to browse the generated NestJS API metadata.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+The Swagger route is available at `GET /api/docs`. Controller prefixes are part of each route, so authenticated endpoint paths include their `/api/...` prefix.
 
 </Callout>
+
+## Authentication
+
+Protected controllers use `SupabaseAuthGuard` to validate a Supabase JWT. Send the token in the `Authorization` header using the bearer format.
+
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs...
+```
+
+Routes marked with `@Public()` bypass the authentication guard. Admin routes use both `SupabaseAuthGuard` and `AdminGuard`.
 
 <Callout kind="alert">
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+A valid Supabase JWT does not grant administrator access. Routes under admin controllers also require the authenticated user to pass `AdminGuard`.
 
 </Callout>
 
-## Endpoint
+### Authenticated user
+
+After successful authentication, handlers receive an `AuthenticatedUser` object with this shape:
+
+```typescript
+{
+  id: string
+  email: string
+  userType?: string
+  role?: string
+  userMetadata?: Record<string, unknown>
+}
+```
+
+The optional `userType` and `role` values determine access to user-type-specific and administrator routes.
+
+## Error responses
+
+`HttpExceptionFilter` converts NestJS exceptions into a consistent JSON structure. The `requestId` field appears when the request includes an `x-request-id` value.
+
+```json
+{
+  "statusCode": 400,
+  "error": "BadRequestException",
+  "message": "Validation failed",
+  "path": "/api/auth/signup",
+  "timestamp": "2026-09-07T12:00:00.000Z",
+  "requestId": "req_7f3a91c2"
+}
+```
+
+<ResponseField name="statusCode" field-type="integer" required="true">
+
+HTTP status code for the error.
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="true">
+
+Exception name, or `InternalError` for an unexpected server error.
+
+</ResponseField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+User-facing error message. Validation errors may contain details about invalid fields.
+
+</ResponseField>
+
+<ResponseField name="path" field-type="string" required="true">
+
+Request path that produced the error.
+
+</ResponseField>
+
+<ResponseField name="timestamp" field-type="string" required="true">
+
+UTC timestamp in ISO 8601 format.
+
+</ResponseField>
+
+<ResponseField name="requestId" field-type="string" required="false">
+
+Request correlation identifier from the `x-request-id` header, when provided.
+
+</ResponseField>
+
+For unexpected 500 errors, the API returns `500` with `InternalError` and the generic message `Internal server error`. User-facing 5xx messages may pass through when an endpoint explicitly uses a safe internal server error.
+
+## Health endpoints
+
+Health endpoints do not require authentication. Use them to verify that the API is reachable and responding.
+
+### GET `/`
+
+Returns the root service status.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/`
+
+</ParamField>
+
+<ParamField body="authentication" param-type="string" required="true" show-location="false">
+
+No authentication required.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -i http://localhost:3001/
+```
+
+</CodeGroup>
+
+<Response tabs="200">
+
+```json
+{
+  "status": "ok",
+  "service": "api"
+}
+```
+
+</Response>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Service health state. The endpoint returns `ok` when the API is running.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service identifier. The endpoint returns `api`.
+
+</ResponseField>
 
 ### GET `/health`
 
-Use this endpoint to verify that the NestJS backend is running and responding.
+Returns the service status and the time at which the response was generated.
 
 <ParamField body="method" param-type="string" required="true" show-location="false">
 
@@ -37,55 +223,11 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 </ParamField>
 
-<ParamField body="auth" param-type="string" required="true" show-location="false">
+<ParamField body="authentication" param-type="string" required="true" show-location="false">
 
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
+No authentication required.
 
 </ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
 
 <CodeGroup tabs="cURL">
 
@@ -95,47 +237,491 @@ curl -i http://localhost:3001/health
 
 </CodeGroup>
 
-## Response
-
-A successful request returns a JSON object that identifies the service and reports its status.
-
-<CodeGroup tabs="JSON">
+<Response tabs="200">
 
 ```json
 {
   "status": "ok",
-  "service": "api"
+  "service": "api",
+  "timestamp": "2026-09-07T12:00:00.000Z"
 }
 ```
 
-</CodeGroup>
-
-### Response fields
+</Response>
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Service health state. The endpoint returns `ok` when the API is running.
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Service identifier. The endpoint returns `api`.
 
 </ResponseField>
 
-## Likely error responses
+<ResponseField name="timestamp" field-type="string" required="true">
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+UTC timestamp in ISO 8601 format for the health response.
 
-### 404 not found
+</ResponseField>
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+## Authentication endpoints
 
-### 500 internal server error
+Authentication routes use the `/api/auth` prefix. Public routes do not require a Supabase JWT. Protected routes require an `Authorization: Bearer` header.
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+### Check whether an email exists
 
-## Notes
+#### GET `/api/auth/check-email`
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+Checks whether an email address is registered.
+
+<ParamField query="email" param-type="string" required="true">
+
+Email address to check.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -G http://localhost:3001/api/auth/check-email \
+  --data-urlencode "email=jane.chen@acme.co"
+```
+
+</CodeGroup>
+
+<Response tabs="200">
+
+```json
+{
+  "exists": true
+}
+```
+
+</Response>
+
+<ResponseField name="exists" field-type="boolean" required="true">
+
+Whether the email address is registered.
+
+</ResponseField>
+
+### Sign up
+
+#### POST `/api/auth/signup`
+
+Creates a creator or business account and returns the resulting user and session.
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address for the new account.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+Password for the new account.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true" enum="creator,business">
+
+Account type.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.co",
+    "password": "S3cureExamplePassword!",
+    "userType": "creator"
+  }'
+```
+
+</CodeGroup>
+
+<Response tabs="201">
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.co"
+  },
+  "session": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "refresh_example_7f3a91c2"
+  }
+}
+```
+
+</Response>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Newly created user profile.
+
+</ResponseField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Session containing access and refresh tokens.
+
+</ResponseField>
+
+A malformed request returns `400`. An email that is already registered returns `409`.
+
+### Log in
+
+#### POST `/api/auth/login`
+
+Authenticates a user with an email and password.
+
+<ParamField body="email" param-type="string" required="true">
+
+Account email address.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+Account password.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.co",
+    "password": "S3cureExamplePassword!"
+  }'
+```
+
+</CodeGroup>
+
+<Response tabs="201">
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.co"
+  },
+  "session": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "refresh_example_7f3a91c2"
+  }
+}
+```
+
+</Response>
+
+Invalid credentials return `401`.
+
+### Refresh a session
+
+#### POST `/api/auth/refresh`
+
+Exchanges a refresh token for a refreshed session.
+
+<ParamField body="refreshToken" param-type="string" required="true">
+
+Refresh token issued during sign-up or login.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{
+    "refreshToken": "refresh_example_7f3a91c2"
+  }'
+```
+
+</CodeGroup>
+
+<Response tabs="200">
+
+```json
+{
+  "session": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "refresh_example_91c2d4e6"
+  }
+}
+```
+
+</Response>
+
+Invalid or expired refresh tokens return `401`.
+
+### Send an OTP
+
+#### POST `/api/auth/otp/send`
+
+Sends an OTP for the specified email and user type.
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address receiving the OTP.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true">
+
+User type associated with the OTP request.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/otp/send \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.co",
+    "userType": "creator"
+  }'
+```
+
+</CodeGroup>
+
+<Response tabs="200">
+
+```json
+{
+  "message": "OTP sent successfully",
+  "isNewUser": false
+}
+```
+
+</Response>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Result message for the OTP request.
+
+</ResponseField>
+
+<ResponseField name="isNewUser" field-type="boolean" required="true">
+
+Whether the email belongs to a new user.
+
+</ResponseField>
+
+Invalid input returns `400`.
+
+### Verify an OTP
+
+#### POST `/api/auth/otp/verify`
+
+Verifies an OTP and returns the user session.
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address associated with the OTP.
+
+</ParamField>
+
+<ParamField body="token" param-type="string" required="true">
+
+OTP value received by the user.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true">
+
+User type associated with the OTP request.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/otp/verify \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.co",
+    "token": "482913",
+    "userType": "creator"
+  }'
+```
+
+</CodeGroup>
+
+<Response tabs="200">
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.co"
+  },
+  "session": {
+    "access_token": "eyJhbGciOiJIUzI1NiIs...",
+    "refresh_token": "refresh_example_7f3a91c2"
+  },
+  "isNewUser": false
+}
+```
+
+</Response>
+
+Invalid or expired OTP values return `401`.
+
+### Get the current user
+
+#### GET `/api/auth/me`
+
+Returns the authenticated user's profile.
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Supabase JWT in the format `Bearer token`.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl http://localhost:3001/api/auth/me \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..."
+```
+
+</CodeGroup>
+
+<Response tabs="200">
+
+```json
+{
+  "id": "usr_a1b2c3d4",
+  "email": "jane.chen@acme.co",
+  "userType": "creator"
+}
+```
+
+</Response>
+
+Unauthenticated requests return `401`.
+
+### Google authentication
+
+Google authentication uses three public routes:
+
+- `GET /api/auth/google/url`: accepts the `userType` query parameter and returns `{ "url": "..." }`. Invalid user types return `400`.
+- `POST /api/auth/google/callback`: accepts `code` and `userType`, then returns a user session. Authentication failures return `401`.
+- `POST /api/auth/google/id-token`: accepts `idToken` and `userType`, then returns a session. Invalid tokens return `401`.
+
+<ParamField query="userType" param-type="string" required="true">
+
+User type for `GET /api/auth/google/url`.
+
+</ParamField>
+
+<ParamField body="code" param-type="string" required="true">
+
+Authorization code returned by Google for `POST /api/auth/google/callback`.
+
+</ParamField>
+
+<ParamField body="idToken" param-type="string" required="true">
+
+Google ID token for `POST /api/auth/google/id-token`.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true">
+
+User type associated with the Google authentication request.
+
+</ParamField>
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -G http://localhost:3001/api/auth/google/url \
+  --data-urlencode "userType=creator"
+
+curl -X POST http://localhost:3001/api/auth/google/callback \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "google_auth_code_example_91c2",
+    "userType": "creator"
+  }'
+
+curl -X POST http://localhost:3001/api/auth/google/id-token \
+  -H "Content-Type: application/json" \
+  -d '{
+    "idToken": "google_id_token_example_7f3a",
+    "userType": "creator"
+  }'
+```
+
+</CodeGroup>
+
+### Other authentication routes
+
+The authentication controller also provides these routes:
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/auth/admin/login` | Public | Authenticate an administrator with login credentials. Invalid or non-admin credentials return `401`. |
+| POST | `/api/auth/forgot-password` | Public | Start password recovery with a generic success response that does not reveal whether the email exists. |
+| POST | `/api/auth/complete-profile` | JWT | Complete the profile with `fullName`, and optionally `industry` and `profession`. |
+| POST | `/api/auth/update-password` | JWT | Update the authenticated user's password using the `password` body field. |
+| POST | `/api/auth/google/sync` | JWT | Synchronize a Google profile using `userType` and an optional `referralCode`. |
+| POST | `/api/auth/logout` | JWT | Log out the authenticated user. |
+| GET | `/api/auth/me/creator` | JWT | Return the current creator profile. A wrong user type returns `403`. |
+| GET | `/api/auth/me/business` | JWT | Return the current business profile. A wrong user type returns `403`. |
+
+## Endpoint summary
+
+The API groups related operations by controller. Authentication requirements describe the default route behavior; individual routes may be public within an authenticated controller.
+
+| Controller | Prefix | Auth | Description |
+|---|---|---|---|
+| Health | `/` | None | Service health and root status |
+| Auth | `/api/auth` | Mixed, public and JWT | Authentication, OTP, OAuth, session management |
+| Agents | `/api/agents` | JWT | Agent publishing, review, admin pending reviews, pricing |
+| Marketplace | `/api/marketplace` | JWT, some public | Workflow catalog, publishing, connections, OAuth, running workflows, builder test, file proxy |
+| Apps | `/api/apps` | JWT, catalog public | App catalog, connections, pending apps |
+| ActivePieces | `/api/activepieces` | JWT | ActivePieces session management |
+| Builder | `/api/builder` | JWT | Flow management and publishing |
+| Builder Connections | `/api/builder/connections` | JWT | Template introspection and connection management |
+| Chat | `/api/chat` | None | Chat sessions, messages, and flow state |
+| Automations | `/api/automations` | JWT | Automation CRUD, tool reconnection, and runs |
+| Bounties | `/api/bounties` | JWT | Bounty creation, payments, submissions, and awards |
+| Requested Agents | `/api/requested-agents` | JWT | Requested-agent CRUD and interest tracking |
+| Credits | `/api/credits` | JWT | Credit packages, balances, orders, and verification |
+| Payouts | `/api/payouts` | JWT | Self-service and admin payouts, FX rates, and synchronization |
+| Payout Accounts | `/api/payout-accounts` | JWT | Bank, PayPal, and Stripe account management |
+| Subscriptions | `/api/subscriptions` | JWT, some 404 when disabled | Plans, checkout, cancellation, entitlements, and history |
+| Billing Plans | `/api/billing/plans` | JWT, inconsistent | Billing plan listing |
+| Webhooks | `/api/webhooks/*` | Public, signature auth | Stripe, Razorpay, PayPal, RazorpayX, and Stripe Connect webhooks |
+| Candidates | `/api/assignments` | JWT | Candidate assignments, tasks, and submissions |
+| Admin Candidates | `/api/admin/candidates` | JWT and Admin | Submission review, approval, and rejection |
+| Referrals | `/api/referrals` | JWT, links public | Earnings, share links, and attribution |
+| Earnings | `/api/earnings` | JWT | Builder earnings balance |
+| Builder Profile | `/api/builders` | JWT | Profile management and referral information |
+| Telemetry | `/api/telemetry` | None | Loading-duration telemetry |
+| Leaderboards | `/api/leaderboard` | None | Builder, workflow, and results leaderboards |
+| Composio | `/api/connections` | JWT | OAuth app listing, initiation, status, and disconnection |
+| Admin Billing | `/api/admin/billing` | JWT and Admin | Revenue overview, top workflows and creators, leakage, and user search |
+| Referral Partners | `/api/admin/referral-partners` | JWT and Admin | Referral partner CRUD and revocation |
+
+<Callout kind="alert">
+
+Subscription routes may return `404` when the subscription feature is disabled. Billing plan authentication behavior is not consistent across all routes, so verify the specific endpoint before relying on it as public.
+
+</Callout>

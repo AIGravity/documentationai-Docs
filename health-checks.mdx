@@ -1,49 +1,64 @@
 ---
 title: Health Checks
-description: The currently implemented health endpoints for the API and AI services, how to verify them locally, and where repository documentation diverges from code.
+description: Reference the API and AI service health endpoints, detailed response fields, and local curl checks for status, version, timestamps, and chat availability.
 ---
 
 ## Current health checks at a glance
 
-Two services currently expose health endpoints: the NestJS API and the FastAPI AI service. Both implement `GET /health`, return small JSON payloads, and support direct local verification with `curl`.
+The NestJS API and FastAPI AI service expose health endpoints that return service status information. The NestJS API also exposes a root endpoint with a basic service payload.
 
 ### Current endpoints
 
-Use these paths when you verify the services based on the current code and documented local ports:
+Use these paths when you verify the services based on the current local ports:
 
-- **NestJS API** — `GET http://localhost:3001/health`
-- **FastAPI AI service** — `GET http://localhost:8001/health`
+- **NestJS API root**: `GET http://localhost:3001/`
+- **NestJS API health**: `GET http://localhost:3001/health`
+- **FastAPI AI service health**: `GET http://localhost:8001/health`
 
-### Implemented routes in code
+### Implemented response payloads
 
-<CodeGroup tabs="NestJS API,FastAPI AI service">
+#### NestJS API root response
 
-```ts
-@Controller("health")
-export class HealthController {
-  @Get()
-  getHealth() {
-    return { status: "ok", service: "api" };
-  }
+```json
+{
+  "status": "ok",
+  "service": "api"
 }
 ```
 
-```py
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+#### NestJS API health response
+
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2026-09-07T12:00:00.000Z"
+}
 ```
 
-</CodeGroup>
+#### FastAPI AI service response
+
+```json
+{
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
+}
+```
 
 ## Exact response payloads
 
-These are the current response bodies implemented by code.
+These response bodies describe the fields currently returned by each service.
 
 ### NestJS API response
 
 ```json
-{"status":"ok","service":"api"}
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2026-09-07T12:00:00.000Z"
+}
 ```
 
 <ResponseField name="status" field-type="string" required="true">
@@ -54,24 +69,45 @@ Returns `ok`.
 Returns `api`.
 </ResponseField>
 
+<ResponseField name="timestamp" field-type="string" required="true">
+Returns the health check time as an ISO 8601 timestamp.
+</ResponseField>
+
 ### FastAPI AI service response
 
 ```json
-{"status":"ok"}
+{
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
+}
 ```
 
 <ResponseField name="status" field-type="string" required="true">
-Returns `ok`.
+Returns `healthy` when the service reports a healthy state.
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+Identifies the service as `Gravity AI Interaction Layer`.
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+Returns the running AI service version.
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+Indicates whether the chat and LLM service is available.
 </ResponseField>
 
 ## Verify each endpoint locally
 
-Run each request directly against the local service port. A successful check returns the exact JSON shown in the previous section.
+Run each request directly against the local service port. A successful check returns the response shape shown in the previous section.
 
 <Steps>
   <Step title="Check the NestJS API health endpoint" icon="terminal">
 
-Use the implemented local URL:
+Use the local health URL:
 
 <CodeGroup tabs="cURL,Expected response">
 
@@ -80,18 +116,22 @@ curl http://localhost:3001/health
 ```
 
 ```json
-{"status":"ok","service":"api"}
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2026-09-07T12:00:00.000Z"
+}
 ```
 
 </CodeGroup>
 
-Success looks like a `200` response with a body that includes both `status` and `service`.
+Success looks like a `200` response with `status`, `service`, and an ISO 8601 `timestamp` field.
 
   </Step>
 
   <Step title="Check the FastAPI AI service health endpoint" icon="terminal">
 
-Use the documented local port and the implemented `/health` path:
+Use the local AI service health URL:
 
 <CodeGroup tabs="cURL,Expected response">
 
@@ -100,73 +140,36 @@ curl http://localhost:8001/health
 ```
 
 ```json
-{"status":"ok"}
+{
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
+}
 ```
 
 </CodeGroup>
 
-Success looks like a `200` response with a body containing only `status`.
+Success looks like a `200` response with the service status, service name, version, and `chat_available` state.
 
   </Step>
 </Steps>
 
-## README and code currently disagree
-
-The repository README references a different NestJS API path than the one implemented in code.
-
-<Callout kind="alert">
-
-README examples reference `http://localhost:3001/api/health` and `GET /api/health`. The NestJS code currently implements `GET /health`, and the reviewed `main.ts` does not define a global `api` prefix.
-
-</Callout>
-
-### Current discrepancy
-
-- **README documented endpoint** — `/api/health`
-- **Implemented Nest endpoint** — `/health`
-
-### Grounding for the mismatch
-
-<CodeGroup tabs="README reference,NestJS implementation">
-
-```md
-| NestJS API      | [http://localhost:3001/api/health](http://localhost:3001/api/health) |
-
-### NestJS
-
-GET /api/health
-```
-
-```ts
-@Controller("health")
-export class HealthController {
-  @Get()
-  getHealth() {
-    return { status: "ok", service: "api" };
-  }
-}
-
-// main.ts
-await app.listen(3001);
-```
-
-</CodeGroup>
-
 ## What these checks validate
 
-These endpoints currently validate one narrow thing: each service exposes a reachable HTTP route that returns a static success payload.
+The NestJS endpoint confirms that the API is reachable and returns its current service status with the time of the check. The FastAPI endpoint reports the AI service status, running version, and whether chat functionality is available.
 
 <Callout kind="info">
 
-The current health checks do **not** demonstrate dependency readiness, database connectivity, model availability, queue health, external API reachability, or any broader application readiness state. Keep their meaning limited to the exact implemented responses.
+These checks do not demonstrate database connectivity, queue health, external API reachability, or broader application readiness. The AI service check does report `chat_available`, which indicates whether the chat and LLM service is available.
 
 </Callout>
 
 ### Service-readiness notes
 
-- **NestJS API** — confirms that the API process is serving `GET /health` and returns `{"status":"ok","service":"api"}`.
-- **FastAPI AI service** — confirms that the AI service process is serving `GET /health` and returns `{"status":"ok"}`.
-- **Neither endpoint** currently exposes deeper health semantics beyond that response.
+- **NestJS API**: Confirms that the API serves its health route and returns `status`, `service`, and `timestamp`.
+- **FastAPI AI service**: Confirms that the AI service serves its health route and returns `status`, `service`, `version`, and `chat_available`.
+- **Chat availability**: Use `chat_available` to distinguish general AI service reachability from chat and LLM availability.
 
 ## Related foundation pages
 

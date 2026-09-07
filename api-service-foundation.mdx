@@ -5,17 +5,17 @@ description: How the NestJS API service boots, wires modules, enables CORS, expo
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service in `apps/api` has grown beyond its initial foundation and now includes authentication through Supabase JWT guards, class-validator DTOs, Swagger UI, a global `ValidationPipe`, an exception filter, and many controllers covering auth, agents, marketplace, bounties, payments, and more.
 
 <Callout kind="info">
 
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+The service now exposes many controllers and endpoints. Refer to the API reference for the complete endpoint inventory.
 
 </Callout>
 
 ## Bootstrap flow
 
-`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. All of that behavior is hardcoded in the entrypoint rather than driven by environment-based configuration.
+`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. The entrypoint also configures request validation, exception handling, observability, API documentation, request-body limits, and raw request bodies for webhook signature validation.
 
 <CodeGroup tabs="main.ts,Behavior summary">
 
@@ -37,6 +37,13 @@ await app.listen(3001);
 // - Enables CORS
 // - Allows exactly http://localhost:3000
 // - Enables credentials
+// - Configures a global ValidationPipe with whitelist, forbidNonWhitelisted, and transform
+// - Configures a global HttpExceptionFilter
+// - Configures a SentryUserInterceptor
+// - Serves Swagger UI at /api/docs
+// - Sets a 10 MB JSON body limit
+// - Sets a 1 MB URL-encoded body limit
+// - Preserves raw request bodies for webhook signature validation
 // - Listens on port 3001
 // - Logs: 🚀 API running on http://localhost:3001
 ```
@@ -47,7 +54,7 @@ await app.listen(3001);
 
 The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the full set of controllers, providers, and imported modules available at runtime.
 
-Because `AppModule` is currently minimal, bootstrap is also minimal. There are no global pipes, interceptors, guards, filters, or prefixes configured in the inspected entrypoint.
+The bootstrap configures a global `ValidationPipe`, `HttpExceptionFilter`, and `SentryUserInterceptor` before the server starts.
 
 ### CORS configuration
 
@@ -67,65 +74,23 @@ The runtime port is not aligned across the implementation. `main.ts` listens on 
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
-
-<CodeGroup tabs="app.module.ts,Current application graph">
-
-```ts
-@Module({
-  controllers: [HealthController],
-})
-export class AppModule {}
-```
-
-```text
-AppModule
-└── HealthController
-```
-
-</CodeGroup>
+`AppModule` now wires many feature modules and controllers, including authentication, agents, marketplace, bounties, payments, and additional application domains.
 
 ### Current module graph
 
-The module graph is intentionally small:
-
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
-
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
-
-### What is not wired yet
-
-Several common Nest application concerns are absent from the inspected files:
-
-- auth modules, guards, JWT, or session handling
-- DTO classes and validation pipes
-- database configuration, repositories, entities, or migrations
-- domain-specific modules and services
-- `ConfigModule` or other environment-driven configuration
-- OpenAPI or Swagger setup
-
-<Callout kind="info">
-
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
-
-</Callout>
+The module graph includes many feature modules, providers, guards, DTOs, and controllers. `AppModule` serves as the root that connects these modules into the running API.
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+The service exposes `GET /health` as a basic liveness endpoint. It returns the current service status, service identifier, and an ISO 8601 timestamp.
 
-<CodeGroup tabs="health.controller.ts,Response example">
+<CodeGroup tabs="Health response,Root response">
 
-```ts
-@Controller("health")
-export class HealthController {
-  @Get()
-  getHealth() {
-    return { status: "ok", service: "api" };
-  }
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2025-01-15T12:34:56.789Z"
 }
 ```
 
@@ -138,29 +103,35 @@ export class HealthController {
 
 </CodeGroup>
 
+The root `GET /` endpoint returns the same status and service fields without a timestamp.
+
 ### Route behavior
 
-The route path is `/health` because the controller is decorated with `@Controller("health")` and there is no global prefix configured in `main.ts`. The method is `GET`, and the handler returns a literal object directly from the controller method.
+The `/health` route is exposed through the health controller, and there is no global prefix configured in `main.ts`. Clients call the endpoint at `/health`, not `/api/health` or `/v1/health`.
 
-Because there is no API versioning or prefix configuration in the bootstrap file, clients call the endpoint at `/health`, not `/api/health` or `/v1/health`.
+The root `GET /` endpoint provides a second basic availability response for the service.
 
 ### Response shape
 
-The response is a small JSON object with two fields.
+The health response contains three fields.
 
 <ResponseField name="status" field-type="string" required="true">
-Returns `ok` in the current implementation.
+Returns `ok` when the service is running.
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
-Returns `api` in the current implementation.
+Returns `api` for this service.
 </ResponseField>
+
+<ResponseField name="timestamp" field-type="string" required="true">
+Returns the response time as an ISO 8601 timestamp.
+</ResponseField>
+
+The root response contains `status` and `service` and does not include `timestamp`.
 
 ### What the endpoint does not include
 
-The health endpoint is intentionally bare. It does not check downstream dependencies, validate output through a schema, or map through a response DTO.
-
-There is also no health library integration in the inspected files. The endpoint reports service availability by returning a static object from the controller.
+The health endpoint provides a basic liveness check. It does not test downstream dependencies such as databases, external services, queues, or payment providers.
 
 ## Runtime and build
 
@@ -380,17 +351,11 @@ The CI pipeline includes release and deployment scaffolding, but deployment is n
 
 <Callout kind="danger">
 
-The inspected API service is a foundation app, not a feature-complete backend. It currently has:
+The service has grown significantly from its initial foundation. The remaining limitations include:
 
-- no DTOs
-- no auth
-- no persistence or database integration
-- no domain modules or services
-- no environment-based configuration
-- no OpenAPI or Swagger setup
 - no active test step in CI
 - no lint step, even though the workflow job is labeled Build and Lint
 
 </Callout>
 
-The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.
+The implementation now supports a broad API surface, authentication, validation, exception handling, Swagger documentation, domain modules, health checks, container packaging, and CI publishing. The next layer of work should resolve the remaining runtime and delivery mismatches, especially the fixed port configuration, Docker port exposure, likely built-entry path mismatch between `main` and `start`, and the missing CI test and lint steps.
