@@ -1,56 +1,44 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track what shipped in Gravity — new features, updates, and bug fixes for each release.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+This changelog tracks notable product changes that affect end users. Entries are organized as new features, updates, and bug fixes — newest first.
 
-<Callout kind="alert">
+## September 2026
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+<Update date="2026-09-07">
 
-</Callout>
+### New features
 
-## Release history
+- **Agent review pipeline** — Admin reviewers now see test-run output in plain language instead of raw JSON. Approved agents retain their execution history, and builder answers survive failed test runs so they can be restored on retry. Failed runs receive a clear diagnosis (platform, connection, workflow, setup, or unknown) with actionable guidance instead of opaque error text.
+- **Billing and subscriptions** — A new admin billing dashboard shows revenue, margins, payouts, and per-user views. Creators can track earnings and withdrawable balances. Subscription checkout is region-routed: India uses Razorpay and other regions use Stripe. Subscriptions include usage quotas and reserved capacity for scheduled agents.
+- **Referral earnings** — Builders can earn referral revenue and track it through a dedicated earnings panel.
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+### Updates
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+- **Smarter Activepieces compatibility** — Gravity now detects the installed Activepieces version and only applies compatibility workarounds when needed. Newer versions skip obsolete shims automatically, and AI provider values from both old and new formats are accepted.
+- **Clearer run status** — Paused runs are now classified as approval, delay, AI-agent work, or unknown — instead of always showing "waiting for approval." Memory-limit, log-size, and quota failures appear as real failures with diagnostic messages. Timeout runs retain their failed-step details.
+- **Cheaper AI model routing** — Expensive AI models are automatically replaced with cheaper same-vendor alternatives based on live pricing during marketplace runs.
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+### Bug fixes
+
+- **Approval-paused runs no longer fail early** — Workflows waiting for approval stay in a paused state instead of appearing to fail immediately. Polling continues for up to two hours in the builder and 24 hours for reattachment.
+- **Recurring agents stay tracked while paused** — A regression that caused approval-paused recurring runs to lose their active run handle has been fixed. Temporary network errors no longer reset the poller to an aggressive three-second interval.
+- **Email lookups are case-insensitive** — Mixed-case or whitespace-different email addresses no longer cause account provisioning or invitation lookup failures.
+- **File proxying is scoped to your Activepieces instance** — File URLs are only proxied when they come from your configured Activepieces host. Third-party URLs that happen to contain `/api/v1/files/` are left untouched, preventing broken downloads.
+- **AI steps from Activepieces Cloud import correctly** — Provider objects exported from newer Activepieces Cloud versions no longer become `[object Object]` and fail on the first AI call. Both string and object provider formats are now accepted.
+- **Unsupported action versions are caught early** — Actions built against newer Activepieces versions are pinned to the newest compatible installed version when possible, or rejected before execution with a message naming the affected step, app, and version gap.
+- **Empty dropdown responses no longer crash the builder** — Empty Activepieces responses are converted to readable errors instead of causing JSON parse failures. Non-dynamic fields no longer trigger unnecessary options lookups.
+- **NUL bytes in workflow JSON no longer block submissions** — Agent submissions containing stray NUL characters are now cleaned before persistence, preventing a misleading error about Supabase configuration.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom when you want the newest information first. Each entry is organized into new features, updates, and bug fixes.
 
 ## Related resources
 
