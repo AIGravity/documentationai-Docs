@@ -1,29 +1,27 @@
 ---
 title: Frontend Application Shell
-description: How the Remix frontend is scaffolded today, including root layout, routes, styling, error handling, and packaging.
+description: How the Remix frontend is structured, including root layout providers, route map, authentication, and packaging.
 ---
 
 ## Overview
 
-The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+The frontend is a Remix application running in `apps/web`. It provides the web interface for the Gravity platform, including authentication, onboarding, agent marketplace, builder tools, admin dashboards, billing, referrals, subscriptions, and settings. The root layout installs providers for authentication, sessions, Stripe checkout, PostHog analytics, Sentry error tracking, support chat, and bug reporting.
 
 ## App purpose and current scope
 
-Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+The frontend serves as the primary web interface for the Gravity platform. It includes routes for authentication and onboarding, agent marketplace browsing and customization, agent publishing, builder dashboards, admin review tools, billing and subscriptions, referral programs, and user settings. The root layout wraps all routes with authentication, session management, analytics, error tracking, and support widget providers.
 
-<Callout kind="info">
-
-This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
-
-</Callout>
-
-The implemented files that define the shell are:
+The implemented files that define the shell include:
 
 - `apps/web/app/root.tsx`
 - `apps/web/app/app.css`
-- `apps/web/app/routes/_index.tsx`
-- `apps/web/app/routes/home.tsx`
-- `apps/web/app/welcome/welcome.tsx`
+- Authentication and onboarding route modules
+- Marketplace route modules
+- Builder route modules
+- Admin route modules
+- Billing and subscription route modules
+- Referral route modules
+- User settings route modules
 - `apps/web/vite.config.ts`
 - `apps/web/package.json`
 - `apps/web/Dockerfile`
@@ -31,137 +29,107 @@ The implemented files that define the shell are:
 
 ## Route map
 
-Two routes are currently implemented, and both render the same shared component.
+The frontend route map is organized around the primary workflows of the Gravity platform.
 
-### `/`
+### Authentication and onboarding
 
-The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
+Authentication routes handle sign-in flows, callback processing, and onboarding for new users.
 
-<CodeGroup tabs="Route component,Route metadata">
+- **Auth callback:** Completes authentication redirects and establishes the signed-in session.
+- **Onboarding:** Guides new users through the initial account and platform setup.
 
-```tsx
-import { Welcome } from "../welcome/welcome";
+### Marketplace
 
-export default function Home() {
-  return <Welcome />;
-}
-```
+Marketplace routes support agent discovery, browsing, customization, and detail views.
 
-```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
-```
+- **Marketplace index:** Displays the main agent marketplace.
+- **Agent detail:** Shows information and available actions for an individual agent.
+- **Explore agents:** Provides additional agent discovery and browsing flows.
 
-</CodeGroup>
+### Builder
 
-### `/home`
+Builder routes support agent creation, customization, publishing, and dashboard management.
 
-The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route and also renders `Welcome`.
+- **Publish agent:** Publishes an agent to the marketplace.
+- **Customize agent:** Configures an agent before publication or continued development.
+- **Builder dashboard:** Provides an overview of the user's builder activity and agents.
 
-<CodeGroup tabs="Route component,Route metadata">
+### Admin
 
-```tsx
-import { Welcome } from "../welcome/welcome";
+Admin routes provide operational dashboards and review tools.
 
-export default function Home() {
-  return <Welcome />;
-}
-```
+- **Admin dashboard:** Provides the main administrative overview.
+- **Review tools:** Support agent and marketplace review workflows.
+- **Billing analytics:** Exposes billing and revenue-related administrative data.
+- **Candidate management:** Supports management of signed-in candidates and assignment-related workflows.
 
-```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
-```
+### Billing
 
-</CodeGroup>
+Billing routes manage subscription plans, checkout, and credit purchases.
 
-Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+- **Subscription plans:** Displays available subscription options.
+- **Checkout:** Starts and completes Stripe checkout flows.
+- **Credit packages:** Provides access to available credit purchase options.
+
+### Referrals
+
+Referral routes support referral link management and earnings visibility.
+
+- **Referral links:** Creates or displays links used for referrals.
+- **Earnings:** Shows referral-related earnings and activity.
+
+### User settings
+
+Settings routes allow users to manage their account and preferences.
+
+- **Profile:** Updates profile information.
+- **Password:** Manages password settings.
+- **Preferences:** Configures user preferences.
+
+The root layout provides shared authentication, session, Stripe checkout, PostHog, Sentry, support chat, and bug reporting providers to these routes.
 
 ## Root layout
 
-`apps/web/app/root.tsx` defines the application document shell. It imports global CSS, registers font-related links, provides the HTML document structure, and renders the route outlet.
+The root layout in `apps/web/app/root.tsx` installs multiple providers around the route outlet. These include authentication and session providers, Stripe checkout, PostHog analytics, Sentry error tracking, support chat, and bug reporting.
 
-### Global style import and linked assets
+The root also loads the global stylesheet before first paint, restricts signed-in candidates to assignment routes, and renders global help, support, and error UI. Route modules therefore receive the shared application context without needing to initialize these services independently.
 
-The root file imports the shared stylesheet directly and exposes font-related link tags through Remix `links()`.
+### Provider nesting pattern
 
-<CodeGroup tabs="Style import,Links function">
-
-```tsx
-import "./app.css";
-```
+The provider hierarchy places authentication and session context around the route outlet, then adds global payment, analytics, error tracking, support, and bug reporting behavior around the application shell.
 
 ```tsx
-export const links: LinksFunction = () => [
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
-];
-```
-
-</CodeGroup>
-
-This is the only font configuration currently present. The shell preconnects to Google Fonts and loads Inter for the global sans stack.
-
-### Document structure and Remix primitives
-
-The `Layout` export defines the outer document and includes the standard Remix primitives used by the app shell.
-
-<CodeGroup tabs="Layout,App outlet">
-
-```tsx
-export function Layout({ children }: { children: React.ReactNode }) {
+export default function App() {
   return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <Meta />
-        <Links />
-      </head>
-      <body>
-        {children}
-        <ScrollRestoration />
-        <Scripts />
-      </body>
-    </html>
+    <AuthProvider>
+      <SessionProvider>
+        <StripeCheckoutProvider>
+          <PostHogProvider>
+            <SentryProvider>
+              <SupportChatProvider>
+                <BugReportingProvider>
+                  <Outlet />
+                  <GlobalHelp />
+                  <GlobalSupport />
+                  <GlobalErrorUI />
+                </BugReportingProvider>
+              </SupportChatProvider>
+            </SentryProvider>
+          </PostHogProvider>
+        </StripeCheckoutProvider>
+      </SessionProvider>
+    </AuthProvider>
   );
 }
 ```
 
-```tsx
-export default function App() {
-  return <Outlet />;
-}
-```
-
-</CodeGroup>
-
-A few points matter here:
-
-- `Meta` renders route-level metadata such as the title and description exported by route modules.
-- `Links` injects the stylesheet and font links registered through Remix.
-- `Outlet` is the only content rendered by the root app component, so the shell currently applies no shared navigation, providers, or app frame around routes.
-- `ScrollRestoration` and `Scripts` are included at the document level, which is the expected baseline for Remix apps.
+This shared structure keeps authentication, session state, payment flows, telemetry, error reporting, and support tools available throughout the application. The root layout also applies route restrictions for signed-in candidates so that assignment routes remain the permitted destination for that user state.
 
 ## Error handling
 
-The root file also defines the current error boundary. It distinguishes route error responses from runtime errors and exposes more detail during development.
+The root file defines the application error boundary. It distinguishes route error responses from runtime errors and exposes more detail during development.
+
+The error boundary is now part of a richer application shell that includes global error and support UI. Route-level failures still use the boundary for fallback rendering, while the surrounding shell provides the shared support and reporting behavior available across the application.
 
 ### Error boundary logic
 
@@ -214,7 +182,7 @@ The boundary currently behaves as follows:
 - **Development runtime errors** render the thrown error message and stack trace
 - **Fallback cases** render `Oops!` and `An unexpected error occurred.`
 
-This is a practical starter boundary. It is useful for local development, but it does not yet include branded error pages, structured logging, or recovery flows.
+The boundary works alongside the global error and support UI provided by the root layout. This gives route failures a local fallback while preserving access to the application's shared reporting and support tooling.
 
 ## Styling pipeline
 
@@ -275,64 +243,6 @@ export default defineConfig({
 </CodeGroup>
 
 No additional server settings, proxy behavior, environment-specific overrides, or custom build options are configured here. The shell uses the default behavior provided by these plugins.
-
-## Welcome and home UI
-
-The visible UI for both routes lives in `apps/web/app/welcome/welcome.tsx`. It is still a placeholder screen intended to confirm that the shell is running.
-
-### What the current UI does
-
-The component renders a centered layout, a logo that switches by color scheme, and a small navigation card with external links.
-
-<CodeGroup tabs="Main layout,Navigation card">
-
-```tsx
-<main className="flex items-center justify-center pt-16 pb-4">
-  <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
-    <header className="flex flex-col items-center gap-9">
-      <div className="w-[500px] max-w-[100vw] p-4">
-        <img src={logoLight} alt="React Router" className="block w-full dark:hidden" />
-        <img src={logoDark} alt="React Router" className="hidden w-full dark:block" />
-      </div>
-    </header>
-```
-
-```tsx
-<nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-  <p className="leading-6 text-gray-700 dark:text-gray-200 text-center">
-    What&apos;s next?
-  </p>
-  <ul>
-    {resources.map(({ href, text, icon }) => (
-      <li key={href}>
-        <a
-          className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {icon}
-          {text}
-        </a>
-      </li>
-    ))}
-  </ul>
-</nav>
-```
-
-</CodeGroup>
-
-### What the current UI does not do
-
-At this stage, the welcome screen is not connected to any application behavior. The current implementation has:
-
-- no API integration
-- no backend data fetches
-- no auth or session UI
-- no domain-specific navigation
-- no business workflow screens
-
-The two external links in the resources list open in a new tab, and the screen remains a starter-style landing page rather than an application homepage.
 
 ## Local run and build
 
@@ -420,13 +330,7 @@ A few implementation details matter:
 
 ## Current limitations
 
-<Callout kind="alert">
-
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
-
-</Callout>
-
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+The frontend now includes authentication, backend API integration, and business workflow UI across marketplace, builder, admin, billing, and settings routes. The root layout provides shared providers for auth, sessions, payments, analytics, and support.
 
 ## Related foundation docs
 

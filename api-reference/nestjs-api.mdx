@@ -1,21 +1,38 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Reference for the NestJS API endpoints including health checks, authentication, chat, agents, marketplace, billing, and more.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API is the backend service for the Gravity platform. It exposes health, authentication, chat, agent marketplace, billing, and operational endpoints. Most routes use an explicit `/api/` prefix in the controller path. Health endpoints (`GET /` and `GET /health`) are exceptions without the prefix. Interactive API documentation is available via Swagger at `/api/docs` when the service is running.
+
+## Endpoint families
+
+The API includes the following endpoint families. Swagger at `/api/docs` provides full interactive documentation.
+
+- **Health**: `GET /`, `GET /health` for service reachability and health status.
+- **Auth**: `/api/auth/*` for signup, login, OTP, Google OAuth, token refresh, and profile management.
+- **Chat**: `/api/chat/*` for chat messages, sessions, and flow state.
+- **Agents**: `/api/agents/*` for agent publishing, review submissions, admin review and test runs, and verification.
+- **Marketplace**: `/api/marketplace/*` for workflow listing, introspection, publishing, running, test runs, file handling, and OAuth.
+- **Billing**: `/api/billing/plans`, `/api/admin/billing/*` for public subscription plans and admin billing analytics.
+- **Subscriptions**: `/api/subscriptions/*` for plans, current subscriptions, entitlements, history, checkout, cancellation, and webhooks.
+- **Credits**: `/api/credits/*` for credit packages, balances, orders, and charges.
+- **Payouts**: `/api/payouts/*`, `/api/payout-accounts/*` for payout creation, accounts, FX rates, and provider webhooks.
+- **Earnings**: `/api/earnings/balance` for creator earnings balances.
+- **Referrals**: `/api/referrals/*` for referral earnings, share links, and attribution.
+- **Bounties**: `/api/bounties/*` for bounty creation, submissions, payments, and awards.
+- **Candidates**: `/api/assignments/*`, `/api/admin/candidates/*` for candidate assignments, submissions, and admin review.
+- **Requested agents**: `/api/requested-agents/*` for requested-agent creation, listing, and interests.
+- **Leaderboard**: `/api/leaderboard/*` for public builder and workflow rankings.
+- **Telemetry**: `/api/telemetry/*` for unauthenticated loading duration metrics.
+- **Apps**: `/api/apps/*` for the connectable app catalog and connection management.
+- **Connections**: `/api/connections/*`, `/api/builder/connections/*` for Composio and builder connection management.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
-
-</Callout>
-
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+Most endpoints require authentication via Supabase JWT sessions. Admin routes require additional admin authorization. Webhook endpoints authenticate via provider signatures. Health and telemetry endpoints are public.
 
 </Callout>
 
@@ -130,7 +147,7 @@ The analyzed code does not define custom error handling for this route. The most
 
 ### 404 not found
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+A `404` response is likely when you request the wrong path or use the wrong HTTP method. Health endpoints are available at `/` and `/health` without the `/api` prefix, while all other endpoints use the `/api/` prefix.
 
 ### 500 internal server error
 
@@ -138,4 +155,4 @@ A `500` response is only likely if the NestJS framework or runtime fails while s
 
 ## Notes
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+CORS is configured via the `CORS_ORIGINS` environment variable as a comma-separated list. Default origins include localhost ports `3000`, `5173`, and `5174`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.

@@ -1,54 +1,65 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: How the FastAPI AI service boots, exposes chat and verification endpoints, manages AI model orchestration, and packages for container deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
-
-<Callout kind="alert">
-
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
-
-</Callout>
+The AI service is the FastAPI-based AI layer for the Gravity platform, running in `apps/ai-service`. It exposes chat, agent verification, agent quality review, guardrail, embedding, and usage metering endpoints. The service orchestrates LLM calls through OpenRouter and OpenAI, manages conversation memory via Redis, persists data through Supabase, and provides agent search through Typesense.
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
-
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The AI service provides the conversational interaction layer, agent verification gates, advisory quality review, and internal services for the Gravity platform. It handles intent classification, agent discovery, memory and session management, guardrail checks, text embeddings, Typesense agent indexing, model pricing management, and execution/usage tracking.
 
 ## Bootstrap in main.py
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application starts in `apps/ai-service/main.py`. App creation happens at module import time, and the service registers routes directly while mounting additional routers for verification, agent review, and credits.
 
-<CodeGroup tabs="main.py,Notes">
+<CodeGroup tabs="main.py,Startup responsibilities">
 
 ```python
 from fastapi import FastAPI
 
+from routes.agent_review import router as agent_review_router
+from routes.credits import router as credits_router
+from routes.verification import router as verification_router
+
 app = FastAPI()
 
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+app.include_router(verification_router, prefix="/verification")
+app.include_router(agent_review_router, prefix="/agent-review")
+app.include_router(credits_router, prefix="/credits")
 ```
 
 ```text
-Grounded bootstrap details:
+Startup responsibilities:
 
-- app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- Initialize LLM clients for OpenRouter and OpenAI
+- Initialize memory through Redis and Mem0
+- Initialize agent search through Typesense
+- Initialize guardrails through AWS Bedrock
+- Initialize database connections through Supabase
+- Warm verification and agent review components
+- Start background tasks for execution tracking and model pricing synchronization
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path now initializes the main service, including LLM clients, memory, search, guardrails, and database connections. It also warms verification and review components and starts background tasks for execution tracking and model pricing synchronization.
+
+When no LLM API key is configured, `POST /chat` returns HTTP `503 Service Unavailable`.
+
+## Endpoint surface
+
+The service exposes endpoint families for conversational interaction, agent workflows, internal AI services, usage metering, and pricing administration.
+
+- **Health:** `GET /health` provides service health and chat availability.
+- **Chat:** `POST /chat` handles conversational interaction, intent classification, agent discovery, and response generation.
+- **Agent verification:** `POST /verification/*` provides workflow verification gates streamed as Server-Sent Events, description and category generation, field generation, URL safety verdicts, and guardrail health checks.
+- **Agent review:** `POST /agent-review/analyze` performs structural quality analysis, runtime and output analysis, requirement coverage analysis, and evidence-axis scoring.
+- **Internal APIs:** `POST /internal/*` provides guardrail checks, text embeddings, Typesense agent indexing and deletion, and requested-agent management.
+- **Credits and usage:** `GET /credits/executions/{id}/usage`, `GET /credits/executions/{id}/breakdown`, and `POST /credits/internal/workflow-llm-event` support chat execution usage and workflow LLM metering.
+- **Admin pricing:** `POST /admin/pricing` manages model pricing overrides and requires an admin token.
 
 ## Health endpoint
 
@@ -72,9 +83,13 @@ def health():
 
 The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
 
+The `/chat` endpoint is the primary user-facing route. It accepts a `ChatRequest` with `user_id`, `session_id`, `message`, `selected_tools`, `submit_tools`, and optional `agent_id`. The response includes the assistant reply, interaction mode, matching agents, suggested tools, and an `execution_id` for billing correlation. The endpoint returns `503` when no LLM API key is configured.
+
 ## Python environment and dependency management
 
 Python and package management are consistent across local tooling, project metadata, and the lockfile. The service requires Python `>=3.14`, uses uv for dependency resolution, and pins resolved package versions in `uv.lock`.
+
+The service dependencies have expanded beyond FastAPI, Pydantic, and Uvicorn. They now include packages for LLM orchestration such as OpenAI and HTTPX, database access through Supabase and SQLAlchemy, caching through Redis, search through Typesense, AWS integration through Boto3 for Bedrock guardrails, and embeddings through Google Generative AI. The exact dependency list is defined in `pyproject.toml`.
 
 <CodeGroup tabs="pyproject.toml,uv.lock,.python-version">
 
@@ -130,9 +145,7 @@ version = "0.41.0"
 
 </CodeGroup>
 
-The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
-
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The declared runtime dependencies include the FastAPI web framework, Pydantic models, Uvicorn, LLM clients, database and cache clients, Typesense, AWS SDK integrations, and embedding providers. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved package versions.
 
 ## Run locally
 
@@ -154,6 +167,8 @@ uv run ruff check .
 </CodeGroup>
 
 If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+
+The service requires environment variables for LLM access through `OPENROUTER_API_KEY` or `OPENAI_API_KEY` and database access through `SUPABASE_DATABASE_URL`. Redis, Typesense, Bedrock, and Gemini configuration is optional based on the features you use. Without an LLM API key, the `/chat` endpoint returns `503`.
 
 Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
 
@@ -183,7 +198,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current service as-is.
 
 ## CI workflow
 

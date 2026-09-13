@@ -1,15 +1,25 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Reference for the FastAPI AI service endpoints including chat, agent verification, agent review, guardrails, embeddings, and usage metering.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+The FastAPI AI service powers the conversational interaction layer, agent verification, agent quality review, and internal services for the Gravity platform. It exposes health, chat, verification, review, and internal endpoints.
+
+## Endpoint families
+
+- **Health:** `GET /health` for service health and chat availability.
+- **Chat:** `POST /chat` for conversational interaction, agent discovery, and tool selection.
+- **Agent verification:** `POST /verification/*` for workflow verification gates streamed as Server-Sent Events, description, category, and field generation, URL safety verdicts, and guardrail health.
+- **Agent review:** `POST /agent-review/analyze` for structural workflow-quality analysis, runtime and output analysis, requirement coverage, and evidence-axis scoring.
+- **Internal APIs:** `POST /internal/*` for guardrail checks, text embeddings, Typesense agent indexing and deletion, and requested-agent management.
+- **Credits and usage:** `GET /credits/executions/{id}/usage`, `GET /credits/executions/{id}/breakdown`, and `POST /credits/internal/workflow-llm-event` for chat execution usage and workflow LLM metering.
+- **Admin pricing:** `POST /admin/pricing` for model pricing overrides. This endpoint requires an admin token.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+The `/chat` endpoint returns `503` when no LLM API key is configured. Internal and admin endpoints are intended for service-to-service calls and admin operations. Verification and review endpoints are called by the API service during agent publishing.
 
 </Callout>
 
@@ -99,16 +109,136 @@ Service health status. The current implementation returns `ok`.
 
 </Response>
 
-## Implementation notes
+## Chat endpoint
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+### POST /chat
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+Send a chat message to the AI service for intent classification, agent discovery, and response generation.
 
-## Likely error responses
+<ParamField body="user_id" param-type="UUID" required="true">
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+Identifier of the user making the request.
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+</ParamField>
+
+<ParamField body="session_id" param-type="UUID" required="true">
+
+Identifier of the conversation session.
+
+</ParamField>
+
+<ParamField body="message" param-type="string" required="true">
+
+Message to process. The message must contain between 0 and 4000 characters.
+
+</ParamField>
+
+<ParamField body="selected_tools" param-type="string array" required="false">
+
+Tools selected by the user for the interaction.
+
+</ParamField>
+
+<ParamField body="submit_tools" param-type="boolean" required="false">
+
+Whether to submit the selected tools. Defaults to `false`.
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="string" required="false">
+
+Identifier of the agent associated with the interaction, when an agent has already been selected.
+
+</ParamField>
+
+<CodeGroup tabs="cURL,JSON body">
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "8f3d2f6a-7e1b-4c21-9e5a-6b8d2c4f1a90",
+    "session_id": "4a7c9d12-3e68-45f1-b2c7-91d5e8a6043b",
+    "message": "Find an agent that can summarize our weekly support metrics",
+    "selected_tools": [],
+    "submit_tools": false,
+    "agent_id": "agent_support_metrics"
+  }'
+```
+
+```json
+{
+  "user_id": "8f3d2f6a-7e1b-4c21-9e5a-6b8d2c4f1a90",
+  "session_id": "4a7c9d12-3e68-45f1-b2c7-91d5e8a6043b",
+  "message": "Find an agent that can summarize our weekly support metrics",
+  "selected_tools": [],
+  "submit_tools": false,
+  "agent_id": "agent_support_metrics"
+}
+```
+
+</CodeGroup>
+
+### Chat response
+
+<ResponseField name="session_id" field-type="string">
+
+Identifier of the conversation session.
+
+</ResponseField>
+
+<ResponseField name="reply" field-type="string">
+
+Generated response text for the interaction.
+
+</ResponseField>
+
+<ResponseField name="mode" field-type="string">
+
+Interaction mode, such as `clarify`, `general_help`, or `handoff`.
+
+</ResponseField>
+
+<ResponseField name="execution_id" field-type="UUID">
+
+Identifier used to correlate billing and usage records for the chat execution.
+
+</ResponseField>
+
+<ResponseField name="info_json" field-type="object">
+
+Interaction and handoff contract details.
+
+</ResponseField>
+
+<ResponseField name="top_agents" field-type="array">
+
+Agents that match the user's request.
+
+</ResponseField>
+
+<ResponseField name="suggested_tools" field-type="array">
+
+Tools suggested for the interaction.
+
+</ResponseField>
+
+<ResponseField name="show_tool_selection" field-type="boolean">
+
+Whether the client should display tool selection controls.
+
+</ResponseField>
+
+The response can also include additional fields for search payloads, memories, and guardrail logs.
+
+## Error responses
+
+The AI service exposes several endpoint families, so error responses depend on the route and request.
+
+- **`400 Bad Request`**: The request contains invalid values or cannot be processed.
+- **`401 Unauthorized`**: Authentication is required or the supplied credentials are invalid.
+- **`403 Forbidden`**: The caller does not have permission to use the endpoint.
+- **`404 Not Found`**: The requested route or resource does not exist.
+- **`422 Unprocessable Entity`**: The request body fails FastAPI validation.
+- **`503 Service Unavailable`**: The chat service has no configured LLM API key or a required upstream AI dependency is unavailable.
+- **`500 Internal Server Error`**: The service encounters an unexpected runtime failure.

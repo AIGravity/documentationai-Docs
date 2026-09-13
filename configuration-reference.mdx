@@ -1,204 +1,173 @@
 ---
 title: Configuration Reference
-description: Reference for the repository’s current environment variables, config files, hardcoded runtime settings, and workflow gates across the web, API, and AI services.
+description: Reference for environment variables, config files, runtime settings, and workflow gates across the API, AI service, and web app.
 ---
 
 ## Overview
 
-This repository currently relies far more on static configuration than on environment-driven configuration. The inspected implementation does not define any `.env` files, does not read application environment variables in source code, and does not implement an app-level feature flag system.
-
-<Callout kind="info">
-
-This page reflects the current implementation in the repository, not an intended future configuration model. If a setting is listed here, it was found in source files, Dockerfiles, package scripts, or GitHub Actions workflows.
-
-</Callout>
+The codebase uses environment-driven configuration across all three services. Each service, API, AI service, and web, has its own `.env.example` file documenting required and optional variables. The API uses NestJS ConfigModule with `isGlobal: true` to load `.env` at runtime. The AI service reads environment variables via Python's `os.getenv`. The web app uses Vite's `import.meta.env` for browser-exposed variables.
 
 Use this page to answer three practical questions:
 
 - Which settings affect local runtime, builds, and deployment
 - Where each setting is defined
-- Which mismatches in the current configuration can affect development or container runtime
+- Which environment variables each service requires or supports
 
 ## Configuration surface summary
 
-Configuration is spread across a small number of concrete surfaces rather than a centralized settings layer.
+Configuration is spread across several concrete surfaces:
 
-- **Application runtime code** defines hardcoded behavior such as the API port, API CORS origin, and the AI service health route.
-- **Package scripts** define dev and build commands for the monorepo and individual apps.
+- **`.env` files per service** define runtime configuration. The API loads variables through NestJS ConfigModule, the AI service reads them with `os.getenv`, and the web app reads browser-exposed variables through Vite's `import.meta.env`.
 - **Static config files** define TypeScript, workspace, Turbo, Nest, and Python tool settings.
-- **Dockerfiles** define container base images, exposed ports, commands, and one runtime environment variable for the AI service image.
+- **Dockerfiles** define container base images, exposed ports, commands, and runtime environment defaults.
 - **GitHub Actions workflows** define service names, image names, branch filters, concurrency behavior, setup versions, and release gating logic.
-
-<Callout kind="alert">
-
-The repository does not currently expose a general configuration abstraction for ports, CORS origin, or deployment behavior. Several values that are often environment-driven in other projects are fixed directly in code or workflow files.
-
-</Callout>
 
 ## Environment variables
 
-### App environment variables
+Each service provides a `.env.example` file. Copy the relevant file to `.env` for local development, then replace example values with credentials and service URLs for your environment.
 
-The inspected source code does not consume repository-defined application environment variables.
+### API service
 
-<Callout kind="success">
+The API loads `.env` through NestJS ConfigModule with `isGlobal: true`. These variables control HTTP behavior, integrations, payments, notifications, analytics, and AI-backed features.
 
-No `.env` files were found in the repository tree, and no application code reads of `process.env`, `import.meta.env`, `os.getenv`, `getenv`, or `dotenv` were found.
+| Variable | Purpose | Required |
+| --- | --- | --- |
+| `CORS_ORIGINS` | Comma-separated allowed CORS origins. | No. Defaults to `localhost:3000`, `localhost:5173`, and `localhost:5174`. |
+| `PORT` | HTTP listening port. | No. Defaults to `3001`. |
+| `FRONTEND_URL` | Public web app URL for OAuth callbacks. | No. Defaults to `localhost:5173`. |
+| `AI_SERVICE_URL` | Base URL for the AI service. | Yes for AI-backed features. |
+| `SUPABASE_URL` | Supabase project URL. | Yes for normal operation. |
+| `SUPABASE_ANON_KEY` | Supabase anonymous or public key. | Yes for normal operation. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-side Supabase key for privileged operations. | Yes for privileged functionality. |
+| `ACTIVEPIECES_INSTANCE_URL` | Self-hosted ActivePieces instance URL. | Yes for ActivePieces integration. |
+| `AP_JWT_SECRET` | Shared HS256 secret for ActivePieces user JWTs. | Yes for user provisioning. |
+| `AP_POSTGRES_HOST` | ActivePieces PostgreSQL host. | Yes for ActivePieces PostgreSQL integration. |
+| `SENTRY_DSN` | Sentry DSN. | No. |
+| `POSTHOG_API_KEY` | PostHog server-side key. | No. |
+| `POSTHOG_ENVIRONMENT` | Enables PostHog only when set to production. | No. |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay payment credentials. | Required for Razorpay payments. |
+| `STRIPE_SECRET_KEY` | Stripe server-side API key. | Conditional. Stripe is disabled when absent. |
+| `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` | PayPal REST credentials. | Conditional for PayPal payouts. |
+| `OPENROUTER_API_KEY` | LLM API key for chat and recommendations. | Yes unless `OPENAI_API_KEY` is supplied. |
+| `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | Email notification credentials. | Required when email notifications are enabled. |
+| `NOTIFICATIONS_ENABLED` | Global notification sender switch. | No. Defaults to `true`. |
+| `GRAVITY_CHECKPOINT_INJECTION` | Enables or disables checkpoint injection. | No. Defaults to off. |
+
+### AI service
+
+The AI service reads environment variables with Python's `os.getenv`. These variables configure model access, databases, caching, guardrails, search, embeddings, monitoring, and analytics.
+
+| Variable | Purpose | Required |
+| --- | --- | --- |
+| `OPENROUTER_API_KEY` | Preferred LLM API key. | Yes unless `OPENAI_API_KEY` is supplied. |
+| `OPENAI_API_KEY` | Fallback or direct OpenAI key. | Yes if the OpenRouter key is absent. |
+| `SUPABASE_DATABASE_URL` | Preferred database URL. | Yes, or provide all `SUPABASE_DB_*` variables. |
+| `REDIS_HOST` / `REDIS_PORT` | Redis cache host and port. | No. Defaults to `localhost:6379`. |
+| `BEDROCK_GUARDRAIL_ID` | AWS Bedrock guardrail ID. | Required for guardrail operation. |
+| `AWS_REGION` | AWS region. | Required for Bedrock. |
+| `TYPESENSE_API_KEY` / `TYPESENSE_HOST` | Typesense search credentials. | Required for agent search. |
+| `GEMINI_API_KEY` | Gemini API key for embeddings. | Required for embedding features. |
+| `SENTRY_DSN` | Sentry DSN. | No. |
+| `POSTHOG_API_KEY` / `POSTHOG_ENVIRONMENT` | PostHog analytics configuration. | No. |
+
+### Web app
+
+The web app reads browser-exposed variables through Vite's `import.meta.env`. Variables intended for browser access use the `VITE_` prefix.
+
+| Variable | Purpose | Required |
+| --- | --- | --- |
+| `VITE_SUPABASE_URL` | Supabase URL exposed to the browser. | Yes for authentication. |
+| `VITE_SUPABASE_ANON_KEY` | Supabase public key exposed to the browser. | Yes for authentication. |
+| `VITE_API_URL` | API base URL. | Yes for API-backed functionality. |
+| `VITE_APP_ENVIRONMENT` | App environment. Production hides development-only UI. | No. |
+| `VITE_SENTRY_DSN` | Browser Sentry DSN. | No. |
+| `VITE_POSTHOG_KEY` | Browser PostHog project key. | No. |
+| `VITE_CRISP_WEBSITE_ID` | Crisp support widget ID. | No. |
+| `VITE_BUGFEED_PROJECT_ID` | Bugfeed feedback widget project ID. | No. |
+
+<Callout kind="info">
+
+Variables with the `VITE_` prefix are bundled into browser code. Non-`VITE_` Sentry and PostHog variables are server or build-time values and should not contain secrets exposed to clients.
 
 </Callout>
 
-### Current status
-
-<ParamField body="repo-defined-app-env" param-type="none" required="false" show-location="false">
-
-**Purpose:** Configure application runtime through repository-defined environment variables.
-
-**Type:** none.
-
-**Explicit value:** not present.
-
-**Required:** No. The current codebase does not depend on a repo-defined `.env` file for local startup.
-
-</ParamField>
-
-<ParamField body="env-file-support" param-type="none" required="false" show-location="false">
-
-**Purpose:** Load local configuration from `.env` files.
-
-**Type:** none.
-
-**Explicit value:** not implemented.
-
-**Required:** No. No `.env`, `.env.example`, or application dotenv loading was found.
-
-</ParamField>
-
-### Workflow and container environment variables
-
-The repository does use environment variables outside application code in Docker and GitHub Actions.
-
-#### Docker runtime environment
-
-<ParamField body="PATH" param-type="string" required="false" show-location="false">
-
-**Purpose:** Prepend the AI service virtual environment binary path so `uvicorn` and installed tools resolve from `/app/.venv/bin`.
-
-**Type:** string.
-
-**Explicit value:** `/app/.venv/bin:$PATH`.
-
-**Required:** No. The AI service Docker image sets this value internally.
-
-</ParamField>
-
-#### GitHub Actions workflow environment
-
-<ParamField body="SERVICE_NAME" param-type="string" required="true" show-location="false">
-
-**Purpose:** Identify the service being built in a workflow.
-
-**Type:** string.
-
-**Explicit values:** `api`, `web`, and `ai-service`, depending on the workflow file.
-
-**Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
-
-</ParamField>
-
-<ParamField body="IMAGE_NAME" param-type="string" required="true" show-location="false">
-
-**Purpose:** Define the Docker image name used by a workflow.
-
-**Type:** string.
-
-**Explicit values:** `gravity-api`, `gravity-web`, and `gravity-ai-service`.
-
-**Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
-
-</ParamField>
-
-<ParamField body="GITHUB_TOKEN" param-type="string" required="true" show-location="false">
-
-**Purpose:** Authenticate Docker login in GitHub Actions.
-
-**Type:** string.
-
-**Explicit value:** GitHub-provided secret at workflow runtime.
-
-**Required:** Yes for workflow execution paths that log in to GitHub Container Registry.
-
-</ParamField>
-
-<ParamField body="github-context-values" param-type="string" required="true" show-location="false">
-
-**Purpose:** Drive branch-based and event-based workflow behavior.
-
-**Type:** GitHub Actions context values.
-
-**Explicit values:** `github.ref`, `github.ref_name`, `github.actor`, `github.repository_owner`, and `github.event_name`.
-
-**Required:** Yes for the current workflow conditions and tagging logic.
-
-</ParamField>
-
-### Grounded excerpts
-
-<CodeGroup tabs="AI service Dockerfile,Workflow env">
-
-```dockerfile
-ENV PATH="/app/.venv/bin:$PATH"
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
-```
-
-```yaml
-env:
-  SERVICE_NAME: api
-  IMAGE_NAME: gravity-api
-```
-
-</CodeGroup>
-
 ## Application runtime settings
 
-Application runtime behavior is mostly fixed in source rather than configured dynamically.
+Application runtime behavior is configured through service environment variables, with defaults applied when optional variables are absent.
 
 ### API service runtime settings
 
-The API bootstrap file hardcodes both network binding and CORS behavior.
+The API reads CORS origins from `CORS_ORIGINS` and the listening port from `PORT`.
 
 <CodeGroup tabs="main.ts,Behavior summary">
 
 ```ts
-const app = await NestFactory.create(AppModule);
+const corsOrigins = configService
+  .get<string>("CORS_ORIGINS", "http://localhost:3000,http://localhost:5173,http://localhost:5174")
+  .split(",")
+  .map((origin) => origin.trim());
 
 app.enableCors({
-  origin: ["http://localhost:3000"],
+  origin: corsOrigins,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "Accept",
+    "sentry-trace",
+    "baggage",
+  ],
   credentials: true,
 });
 
-await app.listen(3001);
+await app.listen(configService.get<number>("PORT", 3001));
 ```
 
 ```ts
 // Effective runtime behavior:
-// - CORS allows exactly http://localhost:3000
+// - CORS origins come from CORS_ORIGINS
+// - Defaults include localhost ports 3000, 5173, and 5174
+// - GET, POST, PUT, PATCH, DELETE, and OPTIONS are allowed
+// - Content-Type, Authorization, Accept, sentry-trace, and baggage are allowed
 // - Credentialed requests are enabled
-// - API listens on port 3001
-// - No environment-based override is present
+// - PORT defaults to 3001
 ```
 
 </CodeGroup>
 
-<ParamField body="origin" param-type="string[]" required="true" show-location="false">
+<ParamField body="CORS_ORIGINS" param-type="string" required="false" show-location="false">
 
-**Purpose:** Define which frontend origins may access the API through CORS.
+**Purpose:** Define comma-separated origins that may access the API through CORS.
+
+**Type:** string.
+
+**Explicit value:** Environment-driven. Defaults to `http://localhost:3000,http://localhost:5173,http://localhost:5174`.
+
+**Required:** No.
+
+</ParamField>
+
+<ParamField body="methods" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define HTTP methods accepted by the API CORS configuration.
 
 **Type:** array of strings.
 
-**Explicit value:** `["http://localhost:3000"]`.
+**Explicit value:** `["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]`.
 
-**Required:** Yes. The current bootstrap code passes this value directly to `app.enableCors(...)`.
+**Required:** Yes. The bootstrap configuration sets these methods directly.
+
+</ParamField>
+
+<ParamField body="allowedHeaders" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Define request headers accepted by the API CORS configuration.
+
+**Type:** array of strings.
+
+**Explicit value:** `["Content-Type", "Authorization", "Accept", "sentry-trace", "baggage"]`.
+
+**Required:** Yes. The bootstrap configuration sets these headers directly.
 
 </ParamField>
 
@@ -210,25 +179,25 @@ await app.listen(3001);
 
 **Explicit value:** `true`.
 
-**Required:** Yes. The current bootstrap code sets it directly.
+**Required:** Yes. The current bootstrap configuration sets it directly.
 
 </ParamField>
 
-<ParamField body="port" param-type="number" required="true" show-location="false">
+<ParamField body="PORT" param-type="number" required="false" show-location="false">
 
 **Purpose:** Define the API listening port.
 
 **Type:** number.
 
-**Explicit value:** `3001`.
+**Explicit value:** Environment-driven through `PORT`, defaulting to `3001`.
 
-**Required:** Yes. The service binds with `app.listen(3001)` and does not read a port from environment variables.
+**Required:** No.
 
 </ParamField>
 
 ### AI service runtime settings
 
-The AI service runtime surface is small and mostly script- and Docker-defined.
+The AI service runtime surface is controlled by environment variables, scripts, and Docker configuration.
 
 <CodeGroup tabs="main.py,package script">
 
@@ -286,7 +255,7 @@ def health():
 
 ### Web service runtime notes
 
-The web app runtime port is not driven by a repository-defined environment variable. The inspected repository instead documents and hardcodes port expectations in multiple places, including `3000` in Docker and root documentation, with a separate development note referencing `5173`.
+The web app runtime uses Vite environment variables for browser-exposed configuration. `VITE_API_URL` defines the API base URL, while `VITE_APP_ENVIRONMENT` controls environment-specific behavior such as hiding development-only UI.
 
 ## Config files
 
@@ -1061,121 +1030,75 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 ## Feature flags
 
-No true application feature flag system was found in the inspected codebase.
+The codebase does not use a dedicated application feature-flag framework. Some behavior is controlled by database-backed configuration, such as subscription plan availability, while other behavior is controlled by environment variables.
 
-<Callout kind="info">
+<ParamField body="database-backed-configuration" param-type="runtime configuration" required="false" show-location="false">
 
-Boolean settings exist in the repository, but they are not feature flags unless application code uses them to enable or disable user-facing behavior at runtime. In this repository, the booleans that were found belong to bootstrap settings, build tools, or workflows.
+**Purpose:** Control product behavior through persisted application configuration.
 
-</Callout>
+**Type:** database-backed settings.
 
-### App code feature flags
+**Explicit value:** includes configuration such as subscription plan availability.
 
-<ParamField body="app-feature-flags" param-type="none" required="false" show-location="false">
-
-**Purpose:** Toggle application behavior through a dedicated feature-flag mechanism.
-
-**Type:** none.
-
-**Explicit value:** not present.
-
-**Required:** No. No app-level feature flag framework or env-driven toggle system was found.
+**Required:** No. Availability depends on the feature using the setting.
 
 </ParamField>
 
-### Workflow and tool booleans that are not feature flags
+<ParamField body="GRAVITY_CHECKPOINT_INJECTION" param-type="boolean" required="false" show-location="false">
 
-<ParamField body="api-cors-credentials" param-type="boolean" required="true" show-location="false">
+**Purpose:** Enable or disable checkpoint injection.
 
-**Purpose:** Allow credentialed CORS requests in the API bootstrap config.
+**Type:** environment variable.
 
-**Type:** boolean.
+**Explicit value:** defaults to off.
 
-**Explicit value:** `true`.
-
-**Required:** Yes.
+**Required:** No.
 
 </ParamField>
 
-<ParamField body="turbo-dev-cache" param-type="boolean" required="true" show-location="false">
+<ParamField body="NOTIFICATIONS_ENABLED" param-type="boolean" required="false" show-location="false">
 
-**Purpose:** Disable caching for Turbo dev tasks.
+**Purpose:** Enable or disable the global notification sender.
 
-**Type:** boolean.
+**Type:** environment variable.
 
-**Explicit value:** `false`.
+**Explicit value:** defaults to `true`.
 
-**Required:** Yes.
+**Required:** No.
 
 </ParamField>
 
-<ParamField body="workflow-cancel-in-progress" param-type="boolean" required="true" show-location="false">
+<ParamField body="POSTHOG_ENVIRONMENT" param-type="string" required="false" show-location="false">
 
-**Purpose:** Cancel overlapping CI runs for the same ref.
+**Purpose:** Gate PostHog analytics so it is enabled only in production.
 
-**Type:** boolean.
+**Type:** environment variable.
 
-**Explicit value:** `true`.
+**Explicit value:** PostHog is enabled when the value is `production`.
 
-**Required:** Yes.
+**Required:** No.
 
 </ParamField>
 
 ## Notable mismatches
 
-A few current settings conflict across files or docs and can affect local setup or deployment assumptions.
+The API Dockerfile exposes port `3000`, while the API application defaults to listening on port `3001`. Set `PORT` during deployment to reconcile the container configuration with the application runtime.
 
 <Callout kind="alert">
 
-The API service listens on port `3001` in source code, but `apps/api/Dockerfile` exposes port `3000`. Treat this as an active mismatch until one side changes.
+The API deployment must use a consistent port value. Either configure `PORT` to match the container's exposed port or update the Dockerfile and deployment configuration to expose the application's default port, `3001`.
 
 </Callout>
 
-<ParamField body="api-port-mismatch" param-type="runtime mismatch" required="false" show-location="false">
+<ParamField body="api-container-port" param-type="runtime mismatch" required="false" show-location="false">
 
-**Purpose:** Highlight the difference between API source runtime port and container exposed port.
-
-**Type:** mismatch.
-
-**Explicit value:** source listens on `3001`, Docker exposes `3000`.
-
-**Required:** No, but it is operationally important.
-
-</ParamField>
-
-<ParamField body="web-port-documentation-mismatch" param-type="documentation mismatch" required="false" show-location="false">
-
-**Purpose:** Highlight inconsistent frontend port expectations across repository materials.
+**Purpose:** Highlight the difference between the API Dockerfile port and the application default.
 
 **Type:** mismatch.
 
-**Explicit value:** root docs and API CORS expect `http://localhost:3000`, while the web app README mentions `http://localhost:5173`.
+**Explicit value:** the Dockerfile exposes `3000`, while the application defaults to `3001`.
 
-**Required:** No, but it affects local integration expectations.
-
-</ParamField>
-
-<ParamField body="service-name-mismatch" param-type="documentation mismatch" required="false" show-location="false">
-
-**Purpose:** Highlight the naming inconsistency for the Python or AI service.
-
-**Type:** mismatch.
-
-**Explicit value:** the root README refers to `py-service`, while the actual directory is `apps/ai-service`.
-
-**Required:** No, but it can mislead local setup and script interpretation.
-
-</ParamField>
-
-<ParamField body="env-abstraction-gap" param-type="architecture note" required="false" show-location="false">
-
-**Purpose:** Call out that ports, CORS origin, and several deployment choices are hardcoded rather than abstracted into application configuration.
-
-**Type:** implementation characteristic.
-
-**Explicit value:** present across runtime code and workflows.
-
-**Required:** No, but it is important when planning changes.
+**Required:** No, but deployment must reconcile the values through `PORT` or Docker configuration.
 
 </ParamField>
 

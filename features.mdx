@@ -1,66 +1,64 @@
 ---
 title: Features
-description: Key capabilities for building and maintaining MDX documentation sites.
+description: Key capabilities of the Gravity platform, including chat, agent marketplace, billing, agent review, and ActivePieces integration.
 ---
 
 ## Overview
 
-This page summarizes the core building blocks for an MDX documentation site and shows how they work together from authoring through publishing.
-
-<Callout kind="info">
-
-Keep pages small and focused so each document answers one reader need well.
-
-</Callout>
+The Gravity platform is an AI-agent and workflow marketplace. It provides conversational agent discovery, an agent marketplace with publishing and verification, billing with subscriptions and credits, agent quality review, bounties for builder community contributions, and ActivePieces-powered workflow execution.
 
 ## Feature grid
 
 <Columns cols={2}>
-  <Card title="MDX page authoring" icon="code" href="/help-center">
-    Write documentation pages in MDX so content, structure, and components live in one file.
+  <Card title="Conversational AI Chat" icon="message-circle" href="/help-center">
+    Interact with an AI assistant that classifies intent, discovers agents, manages conversation memory, and routes through guardrails.
   </Card>
-  <Card title="Navigation-driven IA" icon="folder" href="/help-center">
-    Organize pages through navigation so readers can find the right topic without hunting across the site.
+  <Card title="Agent Marketplace" icon="store" href="/help-center">
+    Browse, search, and run AI agents. Agents are published workflows with consumer-facing inputs and connections.
   </Card>
-  <Card title="Reusable MDX components" icon="settings" href="/help-center">
-    Use shared components to present callouts, cards, layouts, and structured content consistently.
+  <Card title="Agent Publishing and Verification" icon="shield-check" href="/help-center">
+    Builders publish agents through a verification pipeline that checks workflow behavior, guardrails, and review gates before marketplace availability.
   </Card>
-  <Card title="Integration hooks" icon="plug" href="/help-center">
-    Connect documentation to external tooling, publishing workflows, and site-level behavior where needed.
+  <Card title="Agent Quality Review" icon="clipboard-check" href="/help-center">
+    Advisory quality analysis with evidence-axis scoring across static, runtime, and output dimensions. Admins can re-review, edit findings, and send reports. Builders can respond to individual findings.
   </Card>
-  <Card title="Help center organization" icon="help-circle" href="/help-center">
-    Group task-based articles so support content stays easy to scan and maintain.
+  <Card title="Billing and Credits" icon="credit-card" href="/help-center">
+    Purchase credits, subscribe to plans, and pay for agent runs. Supports Razorpay, Stripe, and PayPal for payments and payouts.
   </Card>
-  <Card title="Release notes" icon="book-open" href="/help-center">
-    Record changes in a focused format so readers can quickly see what changed and whether they need to act.
+  <Card title="Subscriptions" icon="repeat" href="/help-center">
+    Subscription plans with entitlements, checkout, cancellation, and webhook-driven lifecycle management.
+  </Card>
+  <Card title="Creator Earnings and Payouts" icon="wallet" href="/help-center">
+    Creators earn from agent runs and receive payouts through RazorpayX, Stripe Connect, or PayPal.
+  </Card>
+  <Card title="Referrals" icon="users" href="/help-center">
+    Share agent referral links, attribute referrals, and track referral earnings.
+  </Card>
+  <Card title="Bounties and Candidates" icon="trophy" href="/help-center">
+    Post bounties for specific agent needs, accept builder submissions, and award payouts to winning builders.
+  </Card>
+  <Card title="Leaderboards" icon="bar-chart" href="/help-center">
+    Public builder and workflow rankings based on platform activity.
+  </Card>
+  <Card title="ActivePieces Integration" icon="workflow" href="/help-center">
+    Self-hosted ActivePieces powers workflow execution, with version-gated compatibility shims, consumer flow cloning, and run polling.
+  </Card>
+  <Card title="Telemetry and Health" icon="activity" href="/help-center">
+    Loading-duration metrics, service health checks, and Sentry/PostHog observability across all services.
   </Card>
 </Columns>
 
-## How the pieces fit together
+## How it fits together
 
-Author a page in MDX, wire it into navigation, and use reusable components to make the content clear and scannable. Integration hooks extend the site where needed, while the help center and release notes keep operational content organized around reader tasks and change history.
-
-```mermaid
-graph LR
-  A[Author MDX] --> B[Add navigation]
-  B --> C[Use shared components]
-  C --> D[Preview and refine]
-  D --> E[Publish site]
-```
-
-## Recommended workflow
-
-- **Author** the page in MDX with one clear topic and a structure that matches the reader's task.
-- **Preview** the page to confirm links, components, and navigation placement.
-- **Publish** once the page is concise, accurate, and easy to scan.
+The chat interface helps users discover agents through conversational AI. Builders publish agents through a verification pipeline. Consumers browse the marketplace, connect required tools, and run agents. Billing tracks per-run charges against credit balances or subscription entitlements. Creators earn from their agents and can receive payouts. The agent review system provides quality assurance alongside the verification gates.
 
 ## Related links
 
 <Columns cols={2}>
-  <Card title="Help Center" icon="help-circle" href="/help-center">
-    Find task-oriented articles for setup, troubleshooting, and maintenance.
+  <Card title="NestJS API" icon="code" href="/api-reference/nestjs-api">
+    Explore the NestJS API reference for Gravity platform integrations.
   </Card>
-  <Card title="Help articles" icon="book-open" href="/help-center">
-    Browse focused guidance for common documentation workflows.
+  <Card title="Changelog" icon="book-open" href="/changelog">
+    Review platform updates, improvements, and fixes.
   </Card>
 </Columns>
