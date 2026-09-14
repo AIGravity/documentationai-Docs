@@ -1,114 +1,312 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Send chat messages, run guardrail checks, generate embeddings, index agents, verify workflows, and review agent submissions through the FastAPI AI service.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+Use the AI service to send chat messages, evaluate guardrails, generate embeddings, index agents, verify workflows, and review agent submissions. The FastAPI application listens on port `8001` by default.
 
-<Callout kind="info">
+Routes are organized into three groups:
 
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+- **Core routes:** Root-level and internal service operations.
+- **Verification routes:** Workflow verification and AI-assisted setup checks under `/verification`.
+- **Review routes:** Agent workflow evidence review under `/agent-review`.
 
-</Callout>
+Most routes do not require authentication because the service is internal-facing and called by the NestJS API. The admin pricing route requires the `x-admin-token` header.
 
-## Endpoint
+## Health
 
 ### GET /health
 
-Use this endpoint to verify that the AI service is running and able to respond to requests.
+Returns the service health status and runtime capabilities.
 
-<ParamField body="method" param-type="string" required="true" show-location="false">
+- **Authentication:** None
+- **Success:** `200 OK`
+- **Default URL:** `http://localhost:8001/health`
 
-`GET`
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl http://localhost:8001/health
+```
+
+```json
+{
+  "status": "healthy",
+  "service": "ai-service",
+  "version": "1.0.0",
+  "chat_available": true
+}
+```
+
+</CodeGroup>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Health status. The healthy response returns `healthy`.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service identifier.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+Running service version.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Whether chat requests can currently reach a configured language model provider.
+
+</ResponseField>
+
+## Core routes
+
+Core routes handle chat, guardrail checks, pricing administration, embeddings, agent indexing, and requested-agent workflows.
+
+| Method | Path | Auth | Description | Success | Key errors |
+|--------|------|------|-------------|---------|------------|
+| POST | `/chat` | None | Send a chat message to the AI | 200 | 503 when no LLM key is configured, 500 |
+| POST | `/internal/guardrail/check` | None | Check content against guardrails | 200 | None documented |
+| POST | `/admin/pricing` | `x-admin-token` | Override AI pricing | 200 | 403 for an invalid or missing token |
+| POST | `/internal/embed` | None | Generate a text embedding | 200 | 503 when the key is missing, 502 for provider or dimension failures |
+| POST | `/internal/agents/index` | None | Index an agent for retrieval | 200 | Best-effort failures are returned in the response body |
+| DELETE | `/internal/agents/{agent_id}` | None | Remove an indexed agent | 200 | Best-effort failures are returned in the response body |
+| POST | `/internal/requested-agents` | None | Create or merge a requested agent | 200 | 400, 501 |
+| GET | `/internal/requested-agents` | None | List requested agents | 200 | None documented |
+| GET | `/internal/requested-agents/{request_id}` | None | Get a requested agent | 200 | 404 |
+| POST | `/internal/requested-agents/{request_id}/interest` | None | Register interest in a requested agent | 200 | 404 |
+| GET | `/internal/requested-agents/{request_id}/interest-count` | None | Get the interest count | 200 | None documented |
+| POST | `/internal/requested-agents/{request_id}/mark-built` | None | Mark a requested agent as built | 200 | 404 |
+
+### POST /chat
+
+Send a message to the AI service with the current user, session, selected tools, and optional agent context.
+
+<ParamField body="userId" param-type="string" required="true" show-location="false">
+
+User identifier.
 
 </ParamField>
 
-<ParamField body="path" param-type="string" required="true" show-location="false">
+<ParamField body="sessionId" param-type="string" required="true" show-location="false">
 
-`/health`
+Chat session identifier.
 
 </ParamField>
 
-<ParamField body="auth" param-type="string" required="false" show-location="false">
+<ParamField body="message" param-type="string" required="true" show-location="false">
 
-No authentication requirement was found in the FastAPI route implementation.
+User message content.
+
+</ParamField>
+
+<ParamField body="selectedTools" param-type="array of strings" required="false" show-location="false">
+
+Tools selected by the user.
+
+</ParamField>
+
+<ParamField body="submitTools" param-type="array of strings" required="false" show-location="false">
+
+Tools to submit for the request.
+
+</ParamField>
+
+<ParamField body="agent" param-type="object" required="false" show-location="false">
+
+Agent context used to process the chat request.
 
 </ParamField>
 
 <CodeGroup tabs="cURL,JSON response">
 
 ```bash
-curl -X GET http://localhost:8000/health
+curl -X POST http://localhost:8001/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "usr_8f31c2a9",
+    "sessionId": "sess_72b9d4e1",
+    "message": "Summarize the latest workflow run.",
+    "selectedTools": ["workflow_search"],
+    "submitTools": [],
+    "agent": {
+      "id": "agt_customer_ops",
+      "name": "Customer Operations"
+    }
+  }'
 ```
 
 ```json
 {
-  "status": "ok"
+  "execution_id": "exec_4c8b2f19",
+  "response": {
+    "content": "The latest workflow completed successfully with 12 steps.",
+    "role": "assistant"
+  }
 }
 ```
 
 </CodeGroup>
 
-## Request details
+<ResponseField name="execution_id" field-type="string" required="true">
 
-This endpoint does not accept any request inputs beyond the request method and path.
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route path is static and does not define any path parameters.
-
-</ParamField>
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. No query parameters are defined in the route handler.
-
-</ParamField>
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. Send the request without a body.
-
-</ParamField>
-
-<Callout kind="info">
-
-No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
-
-</Callout>
-
-## Response
-
-A successful request returns a JSON object with a single status field.
-
-<ResponseField name="status" field-type="string" required="true">
-
-Service health status. The current implementation returns `ok`.
+Unique identifier for the AI execution.
 
 </ResponseField>
 
-<Response tabs="200 OK" show-lines="false">
+<ResponseField name="response" field-type="object" required="true">
 
-```json
-{
-  "status": "ok"
-}
-```
+AI response content and related response metadata.
 
-</Response>
+</ResponseField>
 
-## Implementation notes
+<Callout kind="info">
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+`/chat` returns `503 Service Unavailable` when no LLM API key is configured. `/admin/pricing` returns `403 Forbidden` when the `x-admin-token` header is missing or does not match the configured token. `/internal/embed` returns `503 Service Unavailable` when `GEMINI_API_KEY` is missing and `502 Bad Gateway` for provider or embedding-dimension failures.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+Agent indexing is best effort. `POST /internal/agents/index` and `DELETE /internal/agents/{agent_id}` return `200 OK` even when indexing work fails; inspect the response body for error details. `POST /internal/requested-agents` returns `501 Not Implemented` when the requested-agent feature is not implemented.
 
-## Likely error responses
+</Callout>
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+### Error responses
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+<Callout kind="alert">
+
+A `503 Service Unavailable` response indicates that a required language model credential is unavailable. A `502 Bad Gateway` response indicates a provider failure or an embedding-dimension failure. A `403 Forbidden` response from `/admin/pricing` indicates that the `x-admin-token` header is missing or invalid. A `422 Unprocessable Entity` response indicates that request validation failed before the route handler processed the request.
+
+</Callout>
+
+## Verification routes
+
+Verification routes warm up the verification service, evaluate URLs and workflow requests, generate workflow metadata, and stream application verification results.
+
+| Method | Path | Auth | Description | Success | Key errors |
+|--------|------|------|-------------|---------|------------|
+| POST | `/verification/warmup` | None | Warm up the verification service | 200 | None documented |
+| GET | `/verification/guardrail-health` | None | Get guardrail health | 200 | None documented |
+| POST | `/verification/url-verdict` | None | Evaluate a URL verdict | 200 | 422 for an invalid verdict or domain |
+| POST | `/verification/generate-description` | None | Generate a workflow description | 200 | 502 for generation failure |
+| POST | `/verification/generate-workflow-steps` | None | Generate workflow steps | 200 | 502 for generation failure |
+| POST | `/verification/generate-categories` | None | Generate workflow categories | 200 | Fails open with empty categories |
+| POST | `/verification/generate-fillable-fields` | None | Generate fillable fields | 200 | 502 for generation failure |
+| POST | `/verification/check-setup-fields` | None | Check setup fields | 200 | Fails open with empty fields |
+| POST | `/verification/judge-request-alignment` | None | Judge request alignment | 200 | Fails open with `should_reject: false` |
+| POST | `/verification/prewarm` | None | Prewarm verification | 200 | Fails open with `cached: false` |
+| POST | `/verification/verify-ap-stream` | None | Stream AP verification through SSE | 200 | Errors emitted as SSE events |
+
+<Callout kind="info">
+
+The verification service intentionally fails open for `generate-categories`, `check-setup-fields`, `judge-request-alignment`, and `prewarm`. When the AI provider is unavailable, these routes return empty results or safe defaults instead of an error.
+
+`generate-description`, `generate-workflow-steps`, and `generate-fillable-fields` return `502 Bad Gateway` when generation fails. A failure from `judge-request-alignment` returns `should_reject: false`, so the failure does not block submission. `verify-ap-stream` returns Server-Sent Events with gate events for gates 4 through 6, followed by a final event containing `type: "done"` and `passed`, or an error event.
+
+</Callout>
+
+<Callout kind="alert">
+
+`POST /verification/url-verdict` returns `422 Unprocessable Entity` when the verdict or domain fails request validation. Generation routes that depend on an unavailable provider can return `502 Bad Gateway` instead of a generated result.
+
+</Callout>
+
+## Review routes
+
+### POST /agent-review/analyze
+
+Review an agent workflow evidence graph. The service evaluates structural findings, runtime behavior, output quality, and experimental requirement coverage when the corresponding evidence is available.
+
+- **Authentication:** None
+- **Success:** `200 OK`
+- **Validation error:** `422 Unprocessable Entity` when the evidence graph has no nodes or cannot be analyzed
+
+<ParamField body="evidenceGraph" param-type="object" required="true" show-location="false">
+
+Evidence graph containing workflow nodes and edges.
+
+</ParamField>
+
+<ParamField body="stepOutputs" param-type="object" required="false" show-location="false">
+
+Step execution outputs used for runtime analysis.
+
+</ParamField>
+
+<ParamField body="brief" param-type="object" required="false" show-location="false">
+
+Brief slots and source information used during review.
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="false" show-location="false">
+
+Source of the review request.
+
+</ParamField>
+
+<ResponseField name="reviewerVersion" field-type="string" required="true">
+
+Version of the reviewer that produced the analysis.
+
+</ResponseField>
+
+<ResponseField name="submissionId" field-type="string" required="true">
+
+Submission identifier associated with the review.
+
+</ResponseField>
+
+<ResponseField name="findings" field-type="array" required="true">
+
+Review findings, including structural, runtime, and output-judge findings.
+
+</ResponseField>
+
+<ResponseField name="counts" field-type="object" required="true">
+
+Finding counts grouped by severity.
+
+</ResponseField>
+
+<ResponseField name="routing" field-type="object" required="true">
+
+Routing decisions produced by the reviewer.
+
+</ResponseField>
+
+<ResponseField name="notChecked" field-type="array" required="true">
+
+Review categories that were not checked.
+
+</ResponseField>
+
+<ResponseField name="coverage" field-type="object" required="true">
+
+Requirement coverage analysis.
+
+</ResponseField>
+
+<ResponseField name="evidenceScores" field-type="object" required="true">
+
+Evidence quality scores and applied penalties.
+
+</ResponseField>
+
+<Callout kind="info">
+
+The review distinguishes structural findings, runtime findings when `stepOutputs` are present, output-judge findings when a model is configured, and experimental requirement coverage.
+
+A provider outage is not represented as a workflow finding. The output tier is omitted, and the response explains the unavailable analysis through `notChecked` and availability fields. The route returns `422 Unprocessable Entity` when the evidence graph lacks nodes or is otherwise unusable.
+
+</Callout>
+
+<Callout kind="alert">
+
+Treat `422 Unprocessable Entity` as a request validation failure. Check that `evidenceGraph` contains usable nodes and edges before retrying the review.
+
+</Callout>

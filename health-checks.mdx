@@ -31,7 +31,12 @@ export class HealthController {
 ```py
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "healthy",
+        "service": "ai-service",
+        "version": "...",
+        "chat_available": True,
+    }
 ```
 
 </CodeGroup>
@@ -57,11 +62,23 @@ Returns `api`.
 ### FastAPI AI service response
 
 ```json
-{"status":"ok"}
+{"status":"healthy","service":"ai-service","version":"1.0.0","chat_available":true}
 ```
 
 <ResponseField name="status" field-type="string" required="true">
-Returns `ok`.
+Returns `healthy` when the service is running.
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+Returns `ai-service`.
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+Running service version.
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+Indicates whether the chat route can currently reach a configured language model provider.
 </ResponseField>
 
 ## Verify each endpoint locally
@@ -100,12 +117,12 @@ curl http://localhost:8001/health
 ```
 
 ```json
-{"status":"ok"}
+{"status":"healthy","service":"ai-service","version":"1.0.0","chat_available":true}
 ```
 
 </CodeGroup>
 
-Success looks like a `200` response with a body containing only `status`.
+Success looks like a `200` response with a body that includes `status`, `service`, `version`, and `chat_available`. The `chat_available` field indicates whether the chat route can reach a configured language model provider.
 
   </Step>
 </Steps>
@@ -158,15 +175,14 @@ These endpoints currently validate one narrow thing: each service exposes a reac
 
 <Callout kind="info">
 
-The current health checks do **not** demonstrate dependency readiness, database connectivity, model availability, queue health, external API reachability, or any broader application readiness state. Keep their meaning limited to the exact implemented responses.
+The NestJS API health check does not demonstrate dependency readiness, database connectivity, or broader application readiness. The AI service health check goes slightly further by reporting `chat_available`, which indicates whether the chat route can currently reach a configured language model provider. Neither endpoint checks queue health, external API reachability, or other downstream dependencies.
 
 </Callout>
 
 ### Service-readiness notes
 
 - **NestJS API** — confirms that the API process is serving `GET /health` and returns `{"status":"ok","service":"api"}`.
-- **FastAPI AI service** — confirms that the AI service process is serving `GET /health` and returns `{"status":"ok"}`.
-- **Neither endpoint** currently exposes deeper health semantics beyond that response.
+- **FastAPI AI service** — confirms that the AI service process is serving `GET /health` and returns `{"status":"healthy","service":"ai-service","version":"...","chat_available":true}`. The `chat_available` field indicates whether the chat route can reach a configured language model provider.
 
 ## Related foundation pages
 

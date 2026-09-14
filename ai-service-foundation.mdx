@@ -5,23 +5,23 @@ description: How the FastAPI-based AI service currently starts, manages dependen
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application that handles chat, guardrail checks, embeddings, agent indexing, requested agents, workflow verification, and agent review analysis. It uses uv for dependency management and has a container build path for deployment.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The service integrates with LLM providers for chat and workflow verification, and with embedding providers for agent indexing. Some verification routes fail open when providers are unavailable, returning empty results or safe defaults instead of erroring.
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The AI service is a multi-router application that handles chat, verification generation, alignment judgment, embeddings, agent indexing, requested agents, and evidence-based review analysis. Routes are split across core routes, verification routes under `/verification/*`, and review routes under `/agent-review/*`.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service uses Pydantic models for request validation, integrates with LLM providers for chat and verification, and uses embedding providers for agent indexing. Some verification routes fail open when providers are unavailable, returning empty results or safe defaults rather than blocking the request.
 
 ## Bootstrap in main.py
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and the application now assembles multiple `APIRouter` modules for verification and review, in addition to core routes defined directly on the FastAPI app instance.
 
 <CodeGroup tabs="main.py,Notes">
 
@@ -30,47 +30,75 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
+# Core routes (chat, health, guardrail, embed, indexing, requested agents)
+# are registered on the app instance or included via routers.
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+# Verification router
+# app.include_router(verification_router, prefix="/verification")
+
+# Agent review router
+# app.include_router(review_router, prefix="/agent-review")
 ```
 
 ```text
-Grounded bootstrap details:
+Bootstrap details:
 
 - app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- APIRouter modules are used for /verification and /agent-review prefixes
+- Pydantic models validate request bodies across routes
+- the service integrates with LLM and embedding providers via environment configuration
+- admin routes use x-admin-token header authorization
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path assembles the application with core routes, verification routes, and review routes. Service classes handle domain-specific logic for each route group.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+The `GET /health` endpoint is one of many routes in the AI service. It returns a JSON object with the service status, version, and chat availability.
 
 <CodeGroup tabs="Route,Response">
 
 ```python
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "healthy",
+        "service": "ai-service",
+        "version": "...",
+        "chat_available": True
+    }
 ```
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "ai-service",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+The `chat_available` field indicates whether the chat route can currently reach a configured language model provider.
+
+## Route groups
+
+The AI service exposes three groups of routes:
+
+- **Core routes:** `POST /chat`, `POST /internal/guardrail/check`, `POST /admin/pricing`, `POST /internal/embed`, `POST /internal/agents/index`, `DELETE /internal/agents/{agent_id}`, and requested-agent CRUD routes under `/internal/requested-agents/*`.
+- **Verification routes (under `/verification/*`):** warmup, guardrail-health, url-verdict, generate-description, generate-workflow-steps, generate-categories, generate-fillable-fields, check-setup-fields, judge-request-alignment, prewarm, and verify-ap-stream.
+- **Review routes (under `/agent-review/*`):** `POST /agent-review/analyze`.
+
+<Callout kind="info">
+
+Verification routes use a fail-open policy: `generate-categories`, `check-setup-fields`, `judge-request-alignment`, and `prewarm` return empty results or safe defaults when the AI provider is unavailable. The chat route returns `503` when no LLM key is configured, embedding routes return `503` for missing keys and `502` for provider failures, `url-verdict` returns `422` for invalid input, and `admin/pricing` returns `403` for invalid tokens.
+
+</Callout>
+
+For full endpoint details, parameters, and response shapes, see the [AI Service API reference](/api-reference/ai-service).
 
 ## Python environment and dependency management
 
@@ -132,7 +160,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The service integrates with LLM and embedding providers configured through environment variables. Specific provider SDKs and credentials are managed externally rather than declared in the project dependencies.
 
 ## Run locally
 
@@ -153,7 +181,7 @@ uv run ruff check .
 
 </CodeGroup>
 
-If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "healthy", "service": "ai-service", "version": "...", "chat_available": true}`.
 
 Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
 
@@ -196,6 +224,7 @@ On `dev`, the workflow generates a development version using the base version, t
 ## Related docs
 
 <Columns cols={3}>
+  <Card title="AI Service API reference" href="/api-reference/ai-service" icon="code" cta="Open API reference" />
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />

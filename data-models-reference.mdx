@@ -1,63 +1,81 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Inventory of DTOs, Pydantic models, response shapes, and persistence patterns across the NestJS API and FastAPI AI service.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+The NestJS API defines DTOs with `class-validator` decorators for request validation, and the FastAPI AI service defines Pydantic `BaseModel` classes for request and response validation. The API uses Supabase as its persistence layer, with service classes querying Supabase for domain data.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+A global NestJS `ValidationPipe` applies `whitelist`, `forbidNonWhitelisted`, and `transform` behavior to all incoming requests. FastAPI validates request bodies against the Pydantic models declared by each route.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+DTOs and Pydantic models define request and response contracts. Supabase provides persistence and authentication, while migration management is handled through Supabase rather than an in-repo ORM.
 
 </Callout>
 
 ## Current model inventory summary
 
-The repository is closer to a service scaffold than an application with domain entities.
-
 | Area | Current status |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+| Named domain models | DTOs across NestJS feature modules; Pydantic models in the AI service |
+| ORM or database models | Supabase-backed persistence accessed through service classes |
+| DTO classes | Multiple DTOs with `class-validator` decorators, including authentication, agent, marketplace, automation, bounty, subscription, credit, payout, and chat DTOs |
+| Named validation schemas | NestJS `ValidationPipe` with whitelist and transform; Pydantic models with field validators |
+| Migration files | Managed through Supabase, not in-repo ORM migrations |
+| Inline response shapes | Health endpoint responses plus many service-returned objects |
+| Persisted entities | User profiles, agents, workflows, bounties, payouts, subscriptions, credits, referrals, and other domain data in Supabase |
 
-### Model-like definitions found
+## NestJS API models and DTOs
 
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
-- **FastAPI health response** — inline response shape: `{"status": "ok"}`
+The NestJS API defines DTOs across its feature modules for request validation. The global `ValidationPipe` enforces whitelist, forbid-non-whitelisted, and transform behavior, rejecting unknown body properties with `400` responses.
 
-<Callout kind="danger">
+### DTO groups
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+- **Authentication:** `SignUpDto`, `LoginDto`, `SendOtpDto`, `VerifyOtpDto`, `RefreshTokenDto`, `ForgotPasswordDto`, `UpdatePasswordDto`, `CompleteProfileDto`
+- **Agents:** `PublishAgentDto`, `CheckRequestAlignmentDto`, `ReviewSubmissionDto`, `VerifyAgentDto`
+- **Marketplace:** `PublishPasteDto`, `RunWorkflowDto`
+- **Automations:** `CreateAutomationDto`, `UpdateAutomationDto`
+- **Bounties:** `CreateBountyDto`, `PreviewBountyDto`
+- **Subscriptions:** `SubscriptionCheckoutRequest`
+- **Credits:** `CreditOrderRequest`
+- **Payouts:** `PayoutRequest`, `PayoutAccountRequest`
+- **Chat:** `SendMessageDto`
 
-</Callout>
+These DTOs define the accepted request shapes at the feature boundary. Decorators on DTO properties provide type and constraint validation before the request reaches the service layer.
 
-## Persistence and migration status
+### Global validation configuration
 
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
+The API configures validation globally with the following behavior:
 
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
+<ParamField body="whitelist" param-type="boolean" required="true" show-location="false">
 
-### Repository-level signals
+Removes properties that do not have validation decorators on the DTO.
 
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
+</ParamField>
 
-## NestJS API response shape
+<ParamField body="forbidNonWhitelisted" param-type="boolean" required="true" show-location="false">
 
-The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
+Rejects requests containing properties that are not allowed by the DTO. These requests return `400`.
 
-### Implemented shape
+</ParamField>
+
+<ParamField body="transform" param-type="boolean" required="true" show-location="false">
+
+Transforms incoming values according to the DTO property types where supported.
+
+</ParamField>
+
+<ParamField path="id" param-type="UUID" required="true">
+
+Path parameters that represent UUIDs use `ParseUUIDPipe` for format validation before the controller method runs.
+
+</ParamField>
+
+### Health response shape
+
+The API health endpoint returns a structured response with service status and runtime metadata.
 
 <CodeGroup tabs="TypeScript">
 
@@ -66,133 +84,175 @@ The NestJS API currently returns one structured object from the health endpoint.
 export class HealthController {
   @Get()
   getHealth() {
-    return { status: "ok", service: "api" };
+    return {
+      status: "ok",
+      service: "api",
+      timestamp: new Date().toISOString(),
+    };
   }
 }
 ```
 
 </CodeGroup>
 
-### Classification
-
-- **Kind** — Inline response shape
-- **Named entity or DTO** — None found in the analyzed code
-- **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
-
-### Response fields
+### Health response fields
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Health state returned by the endpoint. The healthy response uses `ok`.
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Service identifier returned by the endpoint. The API response uses `api`.
 
 </ResponseField>
 
-### Notes
+<ResponseField name="timestamp" field-type="string" required="true">
 
-This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
+ISO 8601 timestamp indicating when the health response was generated.
 
-## FastAPI response shape
+</ResponseField>
 
-The FastAPI service currently returns one structured object from the health endpoint. This object is an inline response shape, not a named Pydantic model or persisted entity.
+## FastAPI AI service models
 
-### Implemented shape
+The FastAPI AI service defines Pydantic `BaseModel` classes for request and response validation across its route groups. FastAPI validates request bodies against these models before invoking the route handler and returns `422` responses for validation failures.
+
+### Pydantic model groups
+
+- **Chat:** `ChatRequest`, `InteractionResponse`
+- **Guardrails:** `GuardrailCheckRequest`, `GuardrailCheckResponse`
+- **Embeddings:** `EmbedRequest`, `EmbedResponse`
+- **Agent indexing:** `IndexAgentRequest`
+- **Workflow review:** `ReviewWorkflowRequest`, `ReviewWorkflowResponse`
+- **Requested agents:** `CreateRequestedAgentRequest`, `CreateOrMergeResponse`, `RequestedAgentView`, `InterestResponse`
+- **Verification:** Request models based on `workflowJson`
+- **URL evaluation:** `UrlVerdictResponse`
+- **Pricing:** `PricingOverrideRequest`
+
+Typed fields on these models establish the accepted request and response shapes for AI service routes. Field validators apply additional constraints where a type declaration alone is insufficient.
+
+### Health response shape
+
+The AI service health endpoint returns service status, version metadata, and chat availability.
 
 <CodeGroup tabs="Python">
 
 ```python
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "ai",
+        "version": "1.0.0",
+        "chat_available": True,
+    }
 ```
 
 </CodeGroup>
 
-### Classification
-
-- **Kind** — Inline response shape
-- **Named model** — None found in the analyzed code
-- **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
-
-### Response fields
+### Health response fields
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Health state returned by the endpoint. The healthy response uses `ok`.
 
 </ResponseField>
 
-### Notes
+<ResponseField name="service" field-type="string" required="true">
 
-The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
+Service identifier returned by the endpoint. The AI service response uses `ai`.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+Version identifier reported by the AI service.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Indicates whether the chat capability is available.
+
+</ResponseField>
 
 ## Validation schema and DTO status
 
-No named validation layer is implemented in the analyzed repository.
+Validation is implemented at both service boundaries with framework-native schema systems.
 
 ### NestJS API
 
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
+- DTO properties use `class-validator` decorators.
+- The global `ValidationPipe` uses `whitelist: true`.
+- The global `ValidationPipe` uses `forbidNonWhitelisted: true`.
+- The global `ValidationPipe` uses `transform: true`.
+- Unknown body properties produce `400` responses.
+- `ParseUUIDPipe` validates UUID path parameters.
+- Feature modules use DTOs for authentication, agents, marketplace operations, automations, bounties, subscriptions, credits, payouts, and chat.
 
 ### FastAPI service
 
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+- Request and response models extend Pydantic `BaseModel`.
+- Typed fields define the expected request and response data.
+- Field validators enforce constraints that require more than basic type checking.
+- FastAPI validates request bodies before route handlers run.
+- Invalid request bodies produce `422` responses.
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+NestJS DTOs and FastAPI Pydantic models are the primary validation contracts at their respective service boundaries. Supabase data access remains service-layer logic rather than ORM entity mapping.
 
 </Callout>
 
-## Migration status
+## Persistence and migration status
 
-No migration system is present in the analyzed code.
+The API uses Supabase as its persistence layer. Service classes query Supabase for user profiles, agents, workflows, bounties, payouts, subscriptions, credits, referrals, and other domain data.
 
-### Summary
+Supabase also provides the authentication infrastructure used by the application. The application models persisted domain data through service queries and returned objects rather than through Prisma, TypeORM, Drizzle, Mongoose, SQLAlchemy, Sequelize, or another in-repo ORM model layer.
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+### Persisted domain areas
 
-### Current implication
+Supabase stores data for areas including:
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+- User profiles and authentication-related records
+- Agents and agent publication data
+- Workflows and marketplace activity
+- Bounties and bounty previews
+- Payouts and payout accounts
+- Subscriptions and credit orders
+- Referrals
+- Other feature-specific application data accessed by service classes
+
+### Migration management
+
+Migration management is handled through Supabase rather than through ORM migration files checked into the application repository. Supabase is the source of truth for the database schema and its evolution.
 
 ## Gaps and implications
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+The codebase now defines request and response contracts, validates inputs at both service boundaries, and persists domain data through Supabase. The remaining contract gap concerns reuse between services.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
+- **DTOs and Pydantic models define domain shapes:** NestJS feature DTOs and FastAPI models formalize many request and response contracts.
+- **Validation is enforced at the service boundaries:** Class-validator, the global `ValidationPipe`, Pydantic, and FastAPI reject invalid input before business logic executes.
+- **Supabase provides the persistence contract:** Service classes query Supabase for users, agents, workflows, bounties, payouts, subscriptions, credits, referrals, and related records.
+- **Supabase manages schema evolution:** Database migrations are managed through Supabase rather than an in-repo ORM migration system.
+- **Shared contracts are not yet centralized:** Cross-service schemas are not currently maintained in a shared `packages/` directory.
 
-<Callout kind="danger">
+<Callout kind="info">
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+DTOs and Pydantic models define request and response shapes for each service. Cross-service contract sharing through workspace packages is not yet implemented, so equivalent concepts may remain defined separately in the NestJS API and FastAPI AI service.
 
 </Callout>
 
 ## Related docs
 
-<Columns cols={2}>
+<Columns cols={3}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
+
+  <Card title="AI Service API reference" href="/api-reference/ai-service" icon="code" cta="Open API reference" />
+
   <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
 </Columns>

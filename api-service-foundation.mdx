@@ -5,17 +5,17 @@ description: How the NestJS API service boots, wires modules, enables CORS, expo
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service is a multi-module NestJS application in `apps/api`. It boots a single Nest application, enables CORS, applies global validation and exception handling, configures Swagger/OpenAPI, and connects feature modules for authentication, agents, marketplace, automations, bounties, chat, connections, credits, payouts, subscriptions, referrals, leaderboard, telemetry, and other domain areas. The service uses DTOs for request contracts and Supabase for persistence.
 
 <Callout kind="info">
 
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+The health endpoint is one of many routes exposed by the API. The application graph includes feature modules for each domain area, with module-specific controllers, services, DTOs, persistence logic, and supporting providers.
 
 </Callout>
 
 ## Bootstrap flow
 
-`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. All of that behavior is hardcoded in the entrypoint rather than driven by environment-based configuration.
+`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, configures global request validation and exception handling, sets up Swagger/OpenAPI, and starts the HTTP server. The entrypoint also reads the runtime port from `PORT`, defaulting to `3001`.
 
 <CodeGroup tabs="main.ts,Behavior summary">
 
@@ -27,17 +27,42 @@ app.enableCors({
   credentials: true,
 });
 
-await app.listen(3001);
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }),
+);
+
+app.useGlobalFilters(new GlobalExceptionFilter());
+
+const config = new DocumentBuilder()
+  .setTitle("API")
+  .setDescription("API service reference")
+  .setVersion("1.0")
+  .build();
+
+const document = SwaggerModule.createDocument(app, config);
+SwaggerModule.setup("api", app, document);
+
+await app.listen(process.env.PORT || 3001);
 ```
 
 ```ts
-// Grounded behavior from the inspected file:
+// Application behavior:
 //
 // - Creates the app with NestFactory.create(AppModule)
 // - Enables CORS
 // - Allows exactly http://localhost:3000
 // - Enables credentials
-// - Listens on port 3001
+// - Applies a global ValidationPipe
+// - Whitelists declared DTO properties
+// - Rejects non-whitelisted properties
+// - Transforms request values to declared DTO types
+// - Applies a global exception filter
+// - Generates and serves Swagger/OpenAPI documentation
+// - Listens on PORT, defaulting to 3001
 // - Logs: 🚀 API running on http://localhost:3001
 ```
 
@@ -45,77 +70,75 @@ await app.listen(3001);
 
 ### Application creation
 
-The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the full set of controllers, providers, and imported modules available at runtime.
+The service starts by calling `NestFactory.create(AppModule)`. `AppModule` is the root of the application graph and makes the imported feature modules, controllers, providers, and persistence integrations available at runtime.
 
-Because `AppModule` is currently minimal, bootstrap is also minimal. There are no global pipes, interceptors, guards, filters, or prefixes configured in the inspected entrypoint.
+Bootstrap applies cross-cutting behavior before the server starts. Global validation standardizes request handling across modules, while the exception filter provides a consistent error response path.
 
 ### CORS configuration
 
 CORS is enabled with `app.enableCors(...)` and allows exactly one origin: `http://localhost:3000`. The configuration also sets `credentials: true`, so browsers can include credentials on cross-origin requests from that origin.
 
-That setup is enough for local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables or a configuration module.
+That setup supports local frontend-to-API development. The allowed origin remains defined in the bootstrap configuration rather than being loaded from an environment-based configuration provider.
+
+### Global validation
+
+The global `ValidationPipe` applies DTO validation to incoming requests throughout the application. `whitelist: true` removes properties that are not declared by the target DTO, `forbidNonWhitelisted: true` rejects requests that contain undeclared properties, and `transform: true` converts values to the types declared by DTO metadata where supported.
+
+Feature modules therefore share the same request-validation behavior without registering a separate pipe on each controller.
+
+### Exception handling
+
+A global exception filter handles uncaught application errors at the HTTP boundary. This keeps error formatting consistent across health, authentication, domain, persistence, and other feature routes.
+
+### Swagger and OpenAPI
+
+The bootstrap file builds an OpenAPI document from the application metadata and registers the Swagger UI under the API documentation route. Use the [NestJS API reference](/api-reference/nestjs-api) for the complete endpoint catalog and request and response contracts.
 
 ### Port binding
 
-The service binds to port `3001` with `app.listen(3001)`. There is no `process.env.PORT` handling in the inspected source, so the listening port is fixed in code.
+The service listens on the port supplied through `PORT`, with `3001` as the default. Container and deployment configuration must provide a matching port value when the runtime environment uses a different binding.
 
 <Callout kind="alert">
 
-The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
+The runtime port is not aligned across the implementation. `main.ts` listens on `PORT` with a default of `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and may bind another unless the runtime environment supplies a matching `PORT` value.
 
 </Callout>
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
+`AppModule` imports feature modules for authentication, agents, marketplace, automations, bounties, chat, connections, credits, payouts, subscriptions, referrals, leaderboard, telemetry, and other domain areas. Each feature module declares the controllers, services, DTOs, and persistence providers required for its domain.
 
-<CodeGroup tabs="app.module.ts,Current application graph">
+### Application module graph
 
-```ts
-@Module({
-  controllers: [HealthController],
-})
-export class AppModule {}
-```
+The application graph is organized around domain modules rather than a single controller:
 
 ```text
 AppModule
-└── HealthController
+├── AuthModule
+├── AgentsModule
+├── MarketplaceModule
+├── AutomationsModule
+├── BountiesModule
+├── ChatModule
+├── ConnectionsModule
+├── CreditsModule
+├── PayoutsModule
+├── SubscriptionsModule
+├── ReferralsModule
+├── LeaderboardModule
+├── TelemetryModule
+└── Other domain modules
 ```
 
-</CodeGroup>
+Each module owns its HTTP entrypoints and application logic. DTOs define request and response contracts, services coordinate domain behavior, and Supabase-backed providers handle persistence where the feature requires stored data.
 
-### Current module graph
+### Cross-cutting module behavior
 
-The module graph is intentionally small:
-
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
-
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
-
-### What is not wired yet
-
-Several common Nest application concerns are absent from the inspected files:
-
-- auth modules, guards, JWT, or session handling
-- DTO classes and validation pipes
-- database configuration, repositories, entities, or migrations
-- domain-specific modules and services
-- `ConfigModule` or other environment-driven configuration
-- OpenAPI or Swagger setup
-
-<Callout kind="info">
-
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
-
-</Callout>
+Authentication, validation, persistence, and API documentation are integrated into the broader application rather than isolated as future extensions. Global bootstrap configuration applies validation and exception handling to every feature module, while Swagger/OpenAPI metadata exposes the available routes and schemas.
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+`GET /health` provides a lightweight service availability check alongside the API's other feature routes. It returns a static JSON object and does not query downstream dependencies.
 
 <CodeGroup tabs="health.controller.ts,Response example">
 
@@ -140,27 +163,25 @@ export class HealthController {
 
 ### Route behavior
 
-The route path is `/health` because the controller is decorated with `@Controller("health")` and there is no global prefix configured in `main.ts`. The method is `GET`, and the handler returns a literal object directly from the controller method.
+The route path is `/health` because the controller is decorated with `@Controller("health")` and no global route prefix changes that path. The method is `GET`, and the handler returns a literal object directly from the controller method.
 
-Because there is no API versioning or prefix configuration in the bootstrap file, clients call the endpoint at `/health`, not `/api/health` or `/v1/health`.
+Clients call the endpoint at `/health`, not `/api/health` or `/v1/health`, unless a deployment layer adds an external prefix. For the complete list of routes, schemas, and operations, see the [NestJS API reference](/api-reference/nestjs-api).
 
 ### Response shape
 
 The response is a small JSON object with two fields.
 
 <ResponseField name="status" field-type="string" required="true">
-Returns `ok` in the current implementation.
+Returns `ok` from the health handler.
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
-Returns `api` in the current implementation.
+Returns `api` from the health handler.
 </ResponseField>
 
-### What the endpoint does not include
+### Health check scope
 
-The health endpoint is intentionally bare. It does not check downstream dependencies, validate output through a schema, or map through a response DTO.
-
-There is also no health library integration in the inspected files. The endpoint reports service availability by returning a static object from the controller.
+The health endpoint reports API process availability by returning a static object from the controller. It does not check downstream dependencies or map the result through a separate response DTO.
 
 ## Runtime and build
 
@@ -192,10 +213,10 @@ Local development and runtime execution are defined in `apps/api/package.json`, 
 
 The service defines four runtime and build scripts:
 
-- **`dev`** — runs `bun --watch src/main.ts`
-- **`build`** — runs `tsc -p tsconfig.build.json`
-- **`start`** — runs `bun dist/main.js`
-- **`start:prod`** — runs `bun .`
+- **`dev`**: Runs `bun --watch src/main.ts`
+- **`build`**: Runs `tsc -p tsconfig.build.json`
+- **`start`**: Runs `bun dist/main.js`
+- **`start:prod`**: Runs `bun .`
 
 The `dev` command runs the TypeScript entrypoint directly in Bun watch mode. The `build` command compiles with TypeScript rather than `nest build`.
 
@@ -316,7 +337,7 @@ That keeps the final image smaller than a single-stage build and matches the Bun
 
 The runtime image exposes port `3000` and starts the service with `bun run start:prod`. That command resolves to `bun .`, so the container depends on package metadata to find the entrypoint rather than using an explicit file path.
 
-This is one more place where the current packaging is functional but indirect. Between the `main` value, the `start` script path, and the hardcoded port in `main.ts`, the implementation has multiple runtime assumptions that do not fully agree.
+This is one more place where the current packaging is functional but indirect. Between the `main` value, the `start` script path, and the runtime port configuration, the implementation has multiple assumptions that do not fully agree.
 
 ## CI integration
 
@@ -378,19 +399,14 @@ The CI pipeline includes release and deployment scaffolding, but deployment is n
 
 ## Current limitations
 
-<Callout kind="danger">
+<Callout kind="info">
 
-The inspected API service is a foundation app, not a feature-complete backend. It currently has:
-
-- no DTOs
-- no auth
-- no persistence or database integration
-- no domain modules or services
-- no environment-based configuration
-- no OpenAPI or Swagger setup
-- no active test step in CI
-- no lint step, even though the workflow job is labeled Build and Lint
+The API includes DTOs, authentication, Supabase persistence, domain modules, Swagger/OpenAPI documentation, and global request validation. CI still has no active test step, and the workflow job labeled Build and Lint does not include a lint step.
 
 </Callout>
 
-The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.
+The service now provides a multi-module NestJS foundation with shared bootstrap behavior, domain-specific application modules, validated request contracts, Supabase-backed persistence, and generated API documentation. The remaining foundation work is concentrated in infrastructure alignment and delivery quality, especially the runtime port configuration, the likely built-entry path mismatch, and active test and lint steps in CI.
+
+## Related docs
+
+<Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />

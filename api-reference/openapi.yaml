@@ -1,13 +1,13 @@
 openapi: '3.0.0'
 info:
   version: 1.0.0
-  title: AIGravity Core API Service
+  title: AIGravity Core API
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    This specification documents the NestJS API service and FastAPI AI service in the AIGravity core repository.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    The NestJS service provides authentication, agents, marketplace workflows, automations, billing, bounties, chat, connections, payouts, referrals, and telemetry. The FastAPI service provides AI chat, guardrails, embeddings, indexing, verification, and agent review capabilities.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    NestJS endpoints use JWT Bearer authentication where indicated. AI service administrative endpoints use the `x-admin-token` header.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -16,33 +16,3131 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
-    description: API service local development server
+  - url: http://localhost:3001
+    description: NestJS API service (local development)
+  - url: http://localhost:8001
+    description: FastAPI AI service (local development)
 tags:
   - name: Health
-    description: Service health and readiness operations for the API service
+    description: Service health and readiness
+  - name: Authentication
+    description: User signup, login, OTP, OAuth, and session management
+  - name: Agents
+    description: Agent publishing, verification, review, and administration
+  - name: Marketplace
+    description: Workflow marketplace, execution, connections, and builder testing
+  - name: Automations
+    description: User automation CRUD and run history
+  - name: Bounties
+    description: Bounty creation, submissions, payments, and awards
+  - name: Subscriptions
+    description: Subscription plans, checkout, entitlement, and history
+  - name: Credits
+    description: Credit packages, orders, and balance
+  - name: Payouts
+    description: Builder payout requests and payout accounts
+  - name: Chat
+    description: Chat sessions and AI messaging
+  - name: Connections
+    description: Third-party integration connections
+  - name: Leaderboard
+    description: Public builder and workflow leaderboards
+  - name: Telemetry
+    description: Client-side loading duration telemetry
+  - name: Referrals
+    description: Referral links, earnings, and attribution
+  - name: AI Core
+    description: AI service chat, health, guardrails, embeddings, and indexing
+  - name: AI Verification
+    description: Agent verification generation, alignment, and streaming
+  - name: AI Review
+    description: Agent review and analysis
 paths:
   /health:
     get:
       tags:
         - Health
-      summary: Get API service health
-      description: Returns a simple health response for the AIGravity/core API service.
+      summary: Get service health
+      description: Returns the health of the service represented by the selected server.
       operationId: getHealth
       security: []
       responses:
         '200':
-          description: API service is reachable and healthy
+          description: Service is healthy
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+                service: api
+                timestamp: '2024-01-01T00:00:00Z'
+  /:
+    get:
+      tags:
+        - Health
+      summary: Get API root health
+      description: Returns the NestJS API root health response.
+      operationId: getApiRootHealth
+      security: []
+      responses:
+        '200':
+          description: API service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                service: api
+  /api/auth/check-email:
+    get:
+      tags:
+        - Authentication
+      summary: Check whether an email exists
+      description: Checks whether an email address is associated with an account.
+      operationId: checkEmail
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Email'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Sign up
+      description: Creates a user account and profile.
+      operationId: signUp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in
+      description: Authenticates a user and returns access and refresh tokens.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/otp/send:
+    post:
+      tags:
+        - Authentication
+      summary: Send an OTP
+      description: Sends a one-time password to an email address.
+      operationId: sendOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendOtpDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/otp/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify an OTP
+      description: Verifies an OTP and creates or authenticates the user session.
+      operationId: verifyOtp
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyOtpDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh tokens
+      description: Exchanges a refresh token for a new token pair.
+      operationId: refreshAuthTokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out
+      description: Invalidates the authenticated session.
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user
+      description: Returns the authenticated user's profile.
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      summary: Request a password reset
+      description: Sends a generic password reset response for an email address.
+      operationId: forgotPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/auth/update-password:
+    post:
+      tags:
+        - Authentication
+      summary: Update password
+      description: Updates the authenticated user's password.
+      operationId: updatePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - password
+              properties:
+                password:
+                  type: string
+                  format: password
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/google/url:
+    get:
+      tags:
+        - Authentication
+      summary: Get Google OAuth URL
+      description: Returns a Google OAuth redirect URL.
+      operationId: getGoogleOAuthUrl
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserType'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/google/callback:
+    post:
+      tags:
+        - Authentication
+      summary: Complete Google OAuth callback
+      description: Exchanges an OAuth authorization code for a user session.
+      operationId: handleGoogleCallback
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/google/id-token:
+    post:
+      tags:
+        - Authentication
+      summary: Authenticate with Google ID token
+      description: Authenticates a user with a Google ID token.
+      operationId: authenticateGoogleIdToken
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/AuthSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/google/sync:
+    post:
+      tags:
+        - Authentication
+      summary: Synchronize Google profile
+      description: Synchronizes the authenticated user's Google profile.
+      operationId: syncGoogleProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/agents/publish:
+    post:
+      tags:
+        - Agents
+      summary: Publish an agent
+      description: Publishes an agent for marketplace use.
+      operationId: publishAgent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/check-request-alignment:
+    post:
+      tags:
+        - Agents
+      summary: Check request alignment
+      description: Determines whether an agent request aligns with the submitted workflow.
+      operationId: checkRequestAlignment
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckRequestAlignmentDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/check-duplicate:
+    post:
+      tags:
+        - Agents
+      summary: Check for duplicate agent
+      description: Checks workflow content for duplicate agents.
+      operationId: checkDuplicateAgent
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/mine:
+    get:
+      tags:
+        - Agents
+      summary: List owned agents
+      description: Returns agents owned by the authenticated user.
+      operationId: listOwnedAgents
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/agents/mine/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get owned agent
+      description: Returns details for an owned agent.
+      operationId: getOwnedAgent
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Agents
+      summary: Delete owned agent
+      description: Deletes an owned agent.
+      operationId: deleteOwnedAgent
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/preview-description:
+    post:
+      tags:
+        - Agents
+      summary: Preview agent description
+      description: Generates a description preview from workflow data.
+      operationId: previewAgentDescription
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/preview-workflow-steps:
+    post:
+      tags:
+        - Agents
+      summary: Preview workflow steps
+      description: Generates workflow step descriptions.
+      operationId: previewWorkflowSteps
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/preview-categories:
+    post:
+      tags:
+        - Agents
+      summary: Preview agent categories
+      description: Generates categories for a workflow.
+      operationId: previewAgentCategories
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/validate-setup:
+    post:
+      tags:
+        - Agents
+      summary: Validate agent setup
+      description: Validates required agent setup fields.
+      operationId: validateAgentSetup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/review-submission:
+    post:
+      tags:
+        - Agents
+      summary: Submit an agent for review
+      description: Creates a pending agent review submission.
+      operationId: submitAgentReview
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewSubmissionDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/review-submissions/mine:
+    get:
+      tags:
+        - Agents
+      summary: List own review submissions
+      description: Returns pending and rejected review submissions for the user.
+      operationId: listOwnReviewSubmissions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/agents/review-submissions/mine/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get own review submission
+      description: Returns a review submission and its details.
+      operationId: getOwnReviewSubmission
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/review-submissions/mine/{id}/feedback:
+    post:
+      tags:
+        - Agents
+      summary: Save review feedback
+      description: Saves feedback for a review finding.
+      operationId: saveReviewFeedback
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/agents/admin/pending-reviews:
+    get:
+      tags:
+        - Agents
+      summary: List pending reviews
+      description: Returns pending agent review cards for administrators.
+      operationId: listPendingAgentReviews
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Status'
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/published:
+    get:
+      tags:
+        - Agents
+      summary: List published agents
+      description: Returns published agents for administrators.
+      operationId: listPublishedAgents
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit50'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/running-automations:
+    get:
+      tags:
+        - Agents
+      summary: List running automations
+      description: Returns running automation rollups for administrators.
+      operationId: listRunningAutomations
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Limit50'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/pending-reviews/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get pending review
+      description: Returns a full pending review for administrators.
+      operationId: getPendingReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/builder-report/draft:
+    get:
+      tags:
+        - Agents
+      summary: Get builder report draft
+      description: Returns a draft builder report.
+      operationId: getBuilderReportDraft
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/re-review:
+    post:
+      tags:
+        - Agents
+      summary: Re-queue a review
+      description: Re-queues a pending review for analysis.
+      operationId: reReviewAgent
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/builder-report/send:
+    post:
+      tags:
+        - Agents
+      summary: Send builder report
+      description: Sends or rejects a builder report.
+      operationId: sendBuilderReport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/approve:
+    post:
+      tags:
+        - Agents
+      summary: Approve agent review
+      description: Approves and publishes an agent.
+      operationId: approveAgentReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/reject:
+    post:
+      tags:
+        - Agents
+      summary: Reject agent review
+      description: Rejects a pending agent review.
+      operationId: rejectAgentReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/test-run/prepare:
+    post:
+      tags:
+        - Agents
+      summary: Prepare review test run
+      description: Prepares a test-run workspace for a pending review.
+      operationId: prepareReviewTestRun
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/test-run:
+    post:
+      tags:
+        - Agents
+      summary: Run review test
+      description: Runs a prepared pending-review test.
+      operationId: runReviewTest
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/admin/pending-reviews/{id}/test-run/result:
+    post:
+      tags:
+        - Agents
+      summary: Poll review test result
+      description: Re-polls the result of a review test.
+      operationId: pollReviewTestResult
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/preview-fillable-fields:
+    post:
+      tags:
+        - Agents
+      summary: Preview fillable fields
+      description: Returns fields that can be filled by a workflow consumer.
+      operationId: previewFillableFields
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/verify-stream:
+    post:
+      tags:
+        - Agents
+      summary: Stream agent verification
+      description: Streams verification gate events and the final verification result.
+      operationId: verifyAgentStream
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyAgentDto'
+      responses:
+        '200':
+          description: Verification event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /api/agents/verify-warmup:
+    post:
+      tags:
+        - Agents
+      summary: Warm up verification
+      description: Starts verification service warmup.
+      operationId: warmupAgentVerification
+      security:
+        - bearerAuth: []
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+  /api/agents/verify-prewarm:
+    post:
+      tags:
+        - Agents
+      summary: Prewarm agent verification
+      description: Prewarms verification for a workflow.
+      operationId: prewarmAgentVerification
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '202':
+          $ref: '#/components/responses/Accepted'
+  /api/agents/url-verdict:
+    post:
+      tags:
+        - Agents
+      summary: Evaluate URL verdict
+      description: Evaluates a URL action and reviewer decision.
+      operationId: evaluateAgentUrlVerdict
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/agents/{id}/pricing:
+    get:
+      tags:
+        - Agents
+      summary: Get agent pricing
+      description: Returns pricing for an agent.
+      operationId: getAgentPricing
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/connections:
+    post:
+      tags:
+        - Marketplace
+      summary: Create marketplace connection
+      description: Creates a third-party marketplace connection.
+      operationId: createMarketplaceConnection
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/workflows:
+    get:
+      tags:
+        - Marketplace
+      summary: List marketplace workflows
+      description: Returns the public workflow catalog.
+      operationId: listMarketplaceWorkflows
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/marketplace/builder-fields:
+    post:
+      tags:
+        - Marketplace
+      summary: Get builder fields
+      description: Returns fields required by a builder workflow.
+      operationId: getBuilderFields
+      security: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/workflows/{id}:
+    get:
+      tags:
+        - Marketplace
+      summary: Get marketplace workflow
+      description: Returns workflow details and consumer-input schema.
+      operationId: getMarketplaceWorkflow
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/introspect:
+    post:
+      tags:
+        - Marketplace
+      summary: Introspect workflow
+      description: Returns workflow trigger, input, and output details.
+      operationId: introspectWorkflow
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/publish:
+    post:
+      tags:
+        - Marketplace
+      summary: Publish workflow
+      description: Publishes a workflow template to the marketplace.
+      operationId: publishMarketplaceWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishPasteDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/run:
+    post:
+      tags:
+        - Marketplace
+      summary: Run marketplace workflow
+      description: Executes a published workflow and returns a result or pending handle.
+      operationId: runMarketplaceWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunWorkflowDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/marketplace/run-result:
+    post:
+      tags:
+        - Marketplace
+      summary: Get marketplace run result
+      description: Returns normalized status for a marketplace run.
+      operationId: getMarketplaceRunResult
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/execute:
+    post:
+      tags:
+        - Marketplace
+      summary: Execute workflow once
+      description: Performs one-shot workflow execution.
+      operationId: executeMarketplaceWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/feedback:
+    post:
+      tags:
+        - Marketplace
+      summary: Submit marketplace feedback
+      description: Records marketplace execution feedback.
+      operationId: submitMarketplaceFeedback
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/draft-events/{id}:
+    post:
+      tags:
+        - Marketplace
+      summary: Update draft event
+      description: Records the outcome of a marketplace draft event.
+      operationId: updateMarketplaceDraftEvent
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UuidId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/marketplace/activate:
+    post:
+      tags:
+        - Marketplace
+      summary: Activate workflow subscription
+      description: Activates a consumer workflow subscription.
+      operationId: activateMarketplaceWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/marketplace/pause:
+    post:
+      tags:
+        - Marketplace
+      summary: Pause workflow subscription
+      description: Pauses a consumer workflow subscription.
+      operationId: pauseMarketplaceWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/unsubscribe:
+    post:
+      tags:
+        - Marketplace
+      summary: Unsubscribe from workflow
+      description: Cancels a consumer workflow subscription.
+      operationId: unsubscribeMarketplaceWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/runs/{consumerCopyId}:
+    get:
+      tags:
+        - Marketplace
+      summary: List workflow runs
+      description: Returns recent normalized runs for a consumer workflow.
+      operationId: listMarketplaceRuns
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: consumerCopyId
+          in: path
+          required: true
+          description: Consumer workflow identifier
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/prepare-run:
+    post:
+      tags:
+        - Marketplace
+      summary: Prepare workflow run
+      description: Prepares a workflow clone and required connections.
+      operationId: prepareMarketplaceRun
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/workflow-connections:
+    post:
+      tags:
+        - Marketplace
+      summary: Get workflow connections
+      description: Returns required workflow connections and their status.
+      operationId: getWorkflowConnections
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/property-options:
+    post:
+      tags:
+        - Marketplace
+      summary: Get property options
+      description: Returns dynamic property dropdown options.
+      operationId: getMarketplacePropertyOptions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/marketplace/test-builder/prepare:
+    post:
+      tags:
+        - Marketplace
+      summary: Prepare builder test
+      description: Prepares a builder draft flow for testing.
+      operationId: prepareBuilderTest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/test-builder/run:
+    post:
+      tags:
+        - Marketplace
+      summary: Run builder test
+      description: Runs a builder test workflow.
+      operationId: runBuilderTest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/marketplace/test-builder/run-result:
+    post:
+      tags:
+        - Marketplace
+      summary: Get builder test result
+      description: Re-polls a builder test result.
+      operationId: getBuilderTestResult
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/marketplace/scratchpad/run:
+    post:
+      tags:
+        - Marketplace
+      summary: Run scratchpad workflow
+      description: Executes a scratchpad workflow template.
+      operationId: runScratchpadWorkflow
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/automations:
+    post:
+      tags:
+        - Automations
+      summary: Create automation
+      description: Creates an automation for the authenticated user.
+      operationId: createAutomation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAutomationDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+    get:
+      tags:
+        - Automations
+      summary: List automations
+      description: Returns automations owned by the authenticated user.
+      operationId: listAutomations
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/automations/{id}:
+    get:
+      tags:
+        - Automations
+      summary: Get automation
+      description: Returns an automation by identifier.
+      operationId: getAutomation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Automations
+      summary: Update automation
+      description: Updates an automation.
+      operationId: updateAutomation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAutomationDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    delete:
+      tags:
+        - Automations
+      summary: Delete automation
+      description: Deletes an automation.
+      operationId: deleteAutomation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/automations/{id}/runs:
+    get:
+      tags:
+        - Automations
+      summary: List automation runs
+      description: Returns run history for an automation.
+      operationId: listAutomationRuns
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/automations/{id}/tools/reconnect:
+    post:
+      tags:
+        - Automations
+      summary: Reconnect automation tool
+      description: Returns an OAuth reconnect descriptor for a tool.
+      operationId: reconnectAutomationTool
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/billing/plans:
+    get:
+      tags:
+        - Subscriptions
+      summary: List billing plans
+      description: Returns available billing plans.
+      operationId: listBillingPlans
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/plans:
+    get:
+      tags:
+        - Subscriptions
+      summary: List subscription plans
+      description: Returns available subscription plans.
+      operationId: listSubscriptionPlans
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/current:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get current subscription
+      description: Returns the authenticated user's active subscription.
+      operationId: getCurrentSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/entitlement:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription entitlement
+      description: Returns subscription budget and entitlement ledger information.
+      operationId: getSubscriptionEntitlement
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/subscriptions/history:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription history
+      description: Returns subscription history for the authenticated user.
+      operationId: getSubscriptionHistory
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/subscriptions/checkout:
+    post:
+      tags:
+        - Subscriptions
+      summary: Create subscription checkout
+      description: Creates a checkout session for a subscription plan.
+      operationId: createSubscriptionCheckout
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCheckoutRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/cancel:
+    post:
+      tags:
+        - Subscriptions
+      summary: Cancel subscription
+      description: Cancels the authenticated user's subscription.
+      operationId: cancelSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/{planId}:
+    post:
+      tags:
+        - Subscriptions
+      summary: Subscribe to plan
+      description: Creates a subscription for a plan.
+      operationId: subscribeToPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          description: Subscription plan identifier
+          schema:
+            type: string
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/packages:
+    get:
+      tags:
+        - Credits
+      summary: List credit packages
+      description: Returns available credit packages.
+      operationId: listCreditPackages
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/credits/balance:
+    get:
+      tags:
+        - Credits
+      summary: Get credit balance
+      description: Returns the authenticated user's credit balance.
+      operationId: getCreditBalance
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/credits/orders:
+    get:
+      tags:
+        - Credits
+      summary: List credit orders
+      description: Returns credit orders for the authenticated user.
+      operationId: listCreditOrders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    post:
+      tags:
+        - Credits
+      summary: Create credit order
+      description: Creates a checkout order for a credit package.
+      operationId: createCreditOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditOrderRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/credits/orders/custom:
+    post:
+      tags:
+        - Credits
+      summary: Create custom credit order
+      description: Creates a checkout order for a custom credit amount.
+      operationId: createCustomCreditOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditOrderRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/credits/orders/verify:
+    post:
+      tags:
+        - Credits
+      summary: Verify credit order
+      description: Verifies a credit payment order.
+      operationId: verifyCreditOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/credits/charges:
+    get:
+      tags:
+        - Credits
+      summary: List credit charges
+      description: Returns credit charges for the authenticated user.
+      operationId: listCreditCharges
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payouts:
+    post:
+      tags:
+        - Payouts
+      summary: Create payout request
+      description: Requests a builder payout.
+      operationId: createPayout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/PayoutSuccess'
+    get:
+      tags:
+        - Payouts
+      summary: List payouts
+      description: Returns payouts for the authenticated user.
+      operationId: listPayouts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payouts/fx-rate:
+    get:
+      tags:
+        - Payouts
+      summary: Get payout exchange rate
+      description: Returns the current payout exchange rate.
+      operationId: getPayoutFxRate
+      security: []
+      parameters:
+        - name: target
+          in: query
+          description: Target currency
+          schema:
+            type: string
+            default: INR
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payouts/sync:
+    post:
+      tags:
+        - Payouts
+      summary: Synchronize payouts
+      description: Synchronizes payout status.
+      operationId: syncPayouts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payouts/{id}:
+    get:
+      tags:
+        - Payouts
+      summary: Get payout
+      description: Returns a payout and its events.
+      operationId: getPayout
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/PayoutSuccess'
+  /api/payouts/{id}/refresh:
+    post:
+      tags:
+        - Payouts
+      summary: Refresh payout
+      description: Refreshes payout status.
+      operationId: refreshPayout
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/PayoutSuccess'
+  /api/payout-accounts/region:
+    get:
+      tags:
+        - Payouts
+      summary: Get payout region
+      description: Returns the payout region for the current request.
+      operationId: getPayoutRegion
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payout-accounts:
+    get:
+      tags:
+        - Payouts
+      summary: List payout accounts
+      description: Returns redacted payout accounts.
+      operationId: listPayoutAccounts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    post:
+      tags:
+        - Payouts
+      summary: Create payout account
+      description: Creates a payout account.
+      operationId: createPayoutAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutAccountRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payout-accounts/connect-paypal:
+    post:
+      tags:
+        - Payouts
+      summary: Connect PayPal account
+      description: Connects a PayPal payout account.
+      operationId: connectPayPalPayoutAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/payout-accounts/connect-stripe:
+    post:
+      tags:
+        - Payouts
+      summary: Connect Stripe account
+      description: Starts Stripe payout account onboarding.
+      operationId: connectStripePayoutAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/payout-accounts/{id}:
+    patch:
+      tags:
+        - Payouts
+      summary: Update payout account
+      description: Updates a payout account.
+      operationId: updatePayoutAccount
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    delete:
+      tags:
+        - Payouts
+      summary: Delete payout account
+      description: Deletes a payout account.
+      operationId: deletePayoutAccount
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/preview:
+    post:
+      tags:
+        - Bounties
+      summary: Preview bounty
+      description: Validates and previews a bounty.
+      operationId: previewBounty
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreviewBountyDto'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/suggest-intent:
+    post:
+      tags:
+        - Bounties
+      summary: Suggest bounty intent
+      description: Suggests bounty intent from a chat session.
+      operationId: suggestBountyIntent
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/draft-brief:
+    post:
+      tags:
+        - Bounties
+      summary: Draft bounty brief
+      description: Generates a bounty brief from a chat session.
+      operationId: draftBountyBrief
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties:
+    post:
+      tags:
+        - Bounties
+      summary: Create bounty
+      description: Creates a bounty.
+      operationId: createBounty
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBountyDto'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+    get:
+      tags:
+        - Bounties
+      summary: List bounties
+      description: Returns available bounties.
+      operationId: listBounties
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/bounties/{id}:
+    get:
+      tags:
+        - Bounties
+      summary: Get bounty
+      description: Returns bounty details and the caller's submission.
+      operationId: getBounty
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/pay/order:
+    post:
+      tags:
+        - Bounties
+      summary: Create bounty payment order
+      description: Creates a payment order for a bounty.
+      operationId: createBountyPaymentOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/{id}/pay/verify:
+    post:
+      tags:
+        - Bounties
+      summary: Verify bounty payment
+      description: Verifies a bounty payment.
+      operationId: verifyBountyPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/{id}/submissions:
+    post:
+      tags:
+        - Bounties
+      summary: Submit to bounty
+      description: Creates a bounty submission.
+      operationId: submitToBounty
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    get:
+      tags:
+        - Bounties
+      summary: List bounty submissions
+      description: Returns submissions for a bounty owner.
+      operationId: listBountySubmissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          $ref: '#/components/responses/ArraySuccess'
+  /api/bounties/{id}/submissions/{submissionId}/status:
+    patch:
+      tags:
+        - Bounties
+      summary: Update submission status
+      description: Updates a bounty submission status.
+      operationId: updateBountySubmissionStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/SubmissionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/{id}/submissions/{submissionId}/ensure-runnable:
+    post:
+      tags:
+        - Bounties
+      summary: Ensure submission is runnable
+      description: Ensures that a bounty submission has a runnable workflow.
+      operationId: ensureBountySubmissionRunnable
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/SubmissionId'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/{id}/submissions/{submissionId}/accept:
+    post:
+      tags:
+        - Bounties
+      summary: Accept bounty submission
+      description: Accepts and deploys a bounty submission.
+      operationId: acceptBountySubmission
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/SubmissionId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/bounties/{id}/award:
+    post:
+      tags:
+        - Bounties
+      summary: Award bounty
+      description: Awards a bounty to a submission.
+      operationId: awardBounty
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/chat/message:
+    post:
+      tags:
+        - Chat
+      summary: Send chat message
+      description: Sends a message to the AI chat service.
+      operationId: sendChatMessage
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/chat/sessions/{userId}:
+    get:
+      tags:
+        - Chat
+      summary: List user chat sessions
+      description: Returns chat sessions for a user.
+      operationId: listUserChatSessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: User identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/chat/sessions/claim:
+    post:
+      tags:
+        - Chat
+      summary: Claim anonymous sessions
+      description: Claims anonymous chat sessions for a user.
+      operationId: claimChatSessions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/chat/sessions/{sessionId}/messages:
+    get:
+      tags:
+        - Chat
+      summary: List session messages
+      description: Returns messages in a chat session.
+      operationId: listChatMessages
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Chat session identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/chat/sessions/{sessionId}:
+    delete:
+      tags:
+        - Chat
+      summary: Delete chat session
+      description: Deletes a chat session.
+      operationId: deleteChatSession
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Chat session identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/chat/sessions/{sessionId}/flow-state:
+    get:
+      tags:
+        - Chat
+      summary: Get chat flow state
+      description: Returns the flow state for a chat session.
+      operationId: getChatFlowState
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Chat session identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    put:
+      tags:
+        - Chat
+      summary: Update chat flow state
+      description: Updates the flow state for a chat session.
+      operationId: updateChatFlowState
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Chat session identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/chat/health:
+    get:
+      tags:
+        - Chat
+      summary: Get chat health
+      description: Returns chat service health.
+      operationId: getChatHealth
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/connections/auth/apps:
+    post:
+      tags:
+        - Connections
+      summary: List connection apps
+      description: Returns integration apps used by a workflow.
+      operationId: listConnectionApps
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/connections/auth/initiate:
+    post:
+      tags:
+        - Connections
+      summary: Initiate connection
+      description: Initiates third-party connection authorization.
+      operationId: initiateConnection
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/connections/auth/status:
+    post:
+      tags:
+        - Connections
+      summary: Check connection status
+      description: Returns connection status for an integration app.
+      operationId: getConnectionStatus
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/connections/auth/connections:
+    get:
+      tags:
+        - Connections
+      summary: List user connections
+      description: Returns the authenticated user's connections.
+      operationId: listUserConnections
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/connections/auth/disconnect:
+    post:
+      tags:
+        - Connections
+      summary: Disconnect integration
+      description: Disconnects an integration app.
+      operationId: disconnectIntegration
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/leaderboard/builders:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get builder leaderboard
+      description: Returns the public builder leaderboard.
+      operationId: getBuilderLeaderboard
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Limit200'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/leaderboard/workflows:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get workflow leaderboard
+      description: Returns the public workflow leaderboard.
+      operationId: getWorkflowLeaderboard
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Limit200'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/leaderboard/results:
+    get:
+      tags:
+        - Leaderboard
+      summary: Get leaderboard results
+      description: Returns public leaderboard results for a season.
+      operationId: getLeaderboardResults
+      security: []
+      parameters:
+        - name: season
+          in: query
+          description: Leaderboard season
+          schema:
+            type: string
+            default: season-01
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/telemetry/loading-durations:
+    get:
+      tags:
+        - Telemetry
+      summary: Get loading durations
+      description: Returns client-side loading duration telemetry.
+      operationId: getLoadingDurations
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+    post:
+      tags:
+        - Telemetry
+      summary: Record loading duration
+      description: Records a client-side loading duration.
+      operationId: recordLoadingDuration
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - opKey
+                - durationMs
+              properties:
+                opKey:
+                  type: string
+                durationMs:
+                  type: number
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/referrals/earnings:
+    get:
+      tags:
+        - Referrals
+      summary: Get referral earnings
+      description: Returns monthly referral earnings for the authenticated user.
+      operationId: getReferralEarnings
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/referrals/links:
+    post:
+      tags:
+        - Referrals
+      summary: Create referral link
+      description: Creates a share link for an agent or workflow.
+      operationId: createReferralLink
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/referrals/links/{code}:
+    get:
+      tags:
+        - Referrals
+      summary: Resolve referral link
+      description: Resolves a public referral share link.
+      operationId: resolveReferralLink
+      security: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          description: Referral link code
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /api/referrals/attribute:
+    post:
+      tags:
+        - Referrals
+      summary: Attribute referral
+      description: Attributes a referral link to the authenticated user.
+      operationId: attributeReferral
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/GenericSuccess'
+  /chat:
+    post:
+      tags:
+        - AI Core
+      summary: Send AI chat request
+      description: Sends a message to the FastAPI AI service.
+      operationId: sendAiChat
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
         '500':
           $ref: '#/components/responses/InternalServerError'
+        '503':
+          description: LLM provider is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /internal/guardrail/check:
+    post:
+      tags:
+        - AI Core
+      summary: Check content guardrails
+      description: Evaluates content against AI guardrails.
+      operationId: checkGuardrail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailCheckRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /admin/pricing:
+    post:
+      tags:
+        - AI Core
+      summary: Override AI pricing
+      description: Updates AI pricing using an administrative token.
+      operationId: overrideAiPricing
+      security:
+        - adminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /internal/embed:
+    post:
+      tags:
+        - AI Core
+      summary: Generate embedding
+      description: Generates an embedding vector for text.
+      operationId: generateEmbedding
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          description: Embedding provider is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /internal/agents/index:
+    post:
+      tags:
+        - AI Core
+      summary: Index an agent
+      description: Indexes an agent workflow for AI retrieval.
+      operationId: indexAgent
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IndexAgentRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /internal/agents/{agent_id}:
+    delete:
+      tags:
+        - AI Core
+      summary: Delete indexed agent
+      description: Removes an agent from the AI index.
+      operationId: deleteIndexedAgent
+      security: []
+      parameters:
+        - name: agent_id
+          in: path
+          required: true
+          description: Agent identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /internal/requested-agents:
+    post:
+      tags:
+        - AI Core
+      summary: Create requested agent
+      description: Creates or merges an agent request.
+      operationId: createRequestedAgent
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '501':
+          description: Requested-agent feature is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      tags:
+        - AI Core
+      summary: List requested agents
+      description: Returns requested agents filtered by status.
+      operationId: listRequestedAgents
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of requests
+          schema:
+            type: integer
+            default: 50
+        - $ref: '#/components/parameters/Status'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /internal/requested-agents/{request_id}:
+    get:
+      tags:
+        - AI Core
+      summary: Get requested agent
+      description: Returns a requested agent.
+      operationId: getRequestedAgent
+      security: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          description: Requested-agent identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /internal/requested-agents/{request_id}/interest:
+    post:
+      tags:
+        - AI Core
+      summary: Register requested-agent interest
+      description: Registers user interest in a requested agent.
+      operationId: registerRequestedAgentInterest
+      security: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          description: Requested-agent identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /internal/requested-agents/{request_id}/interest-count:
+    get:
+      tags:
+        - AI Core
+      summary: Get requested-agent interest count
+      description: Returns the number of users interested in a requested agent.
+      operationId: getRequestedAgentInterestCount
+      security: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          description: Requested-agent identifier
+          schema:
+            type: string
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /internal/requested-agents/{request_id}/mark-built:
+    post:
+      tags:
+        - AI Core
+      summary: Mark requested agent as built
+      description: Marks a requested agent as fulfilled.
+      operationId: markRequestedAgentBuilt
+      security: []
+      parameters:
+        - name: request_id
+          in: path
+          required: true
+          description: Requested-agent identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /verification/warmup:
+    post:
+      tags:
+        - AI Verification
+      summary: Warm up verification
+      description: Warms the verification service.
+      operationId: warmupVerification
+      security: []
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /verification/guardrail-health:
+    get:
+      tags:
+        - AI Verification
+      summary: Get guardrail health
+      description: Returns cached guardrail health.
+      operationId: getVerificationGuardrailHealth
+      security: []
+      parameters:
+        - name: run
+          in: query
+          description: Run a fresh health check
+          schema:
+            type: boolean
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /verification/url-verdict:
+    post:
+      tags:
+        - AI Verification
+      summary: Evaluate verification URL
+      description: Evaluates a URL verdict for verification.
+      operationId: evaluateVerificationUrl
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenericRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /verification/generate-description:
+    post:
+      tags:
+        - AI Verification
+      summary: Generate workflow description
+      description: Generates a workflow description.
+      operationId: generateWorkflowDescription
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /verification/generate-workflow-steps:
+    post:
+      tags:
+        - AI Verification
+      summary: Generate workflow steps
+      description: Generates descriptions for workflow steps.
+      operationId: generateVerificationWorkflowSteps
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /verification/generate-categories:
+    post:
+      tags:
+        - AI Verification
+      summary: Generate workflow categories
+      description: Generates categories for a workflow.
+      operationId: generateWorkflowCategories
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /verification/generate-fillable-fields:
+    post:
+      tags:
+        - AI Verification
+      summary: Generate fillable fields
+      description: Generates consumer-fillable workflow fields.
+      operationId: generateFillableFields
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+  /verification/check-setup-fields:
+    post:
+      tags:
+        - AI Verification
+      summary: Check setup fields
+      description: Validates workflow setup fields.
+      operationId: checkSetupFields
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /verification/judge-request-alignment:
+    post:
+      tags:
+        - AI Verification
+      summary: Judge request alignment
+      description: Determines whether a workflow aligns with a request.
+      operationId: judgeRequestAlignment
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /verification/prewarm:
+    post:
+      tags:
+        - AI Verification
+      summary: Prewarm verification
+      description: Prewarms verification resources for a workflow.
+      operationId: prewarmVerification
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+  /verification/verify-ap-stream:
+    post:
+      tags:
+        - AI Verification
+      summary: Stream AP verification
+      description: Streams verification gate events and the final pass or failure result.
+      operationId: verifyApStream
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerificationRequest'
+      responses:
+        '200':
+          description: Verification event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /agent-review/analyze:
+    post:
+      tags:
+        - AI Review
+      summary: Analyze agent workflow
+      description: Reviews an agent workflow evidence graph and returns findings and routing.
+      operationId: analyzeAgentWorkflow
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewWorkflowRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/GenericSuccess'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
 components:
+  parameters:
+    Email:
+      name: email
+      in: query
+      required: true
+      description: Email address to check
+      schema:
+        type: string
+        format: email
+    UserType:
+      name: userType
+      in: query
+      required: true
+      description: Account type
+      schema:
+        type: string
+        enum:
+          - creator
+          - business
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Resource identifier
+      schema:
+        type: string
+    UuidId:
+      name: id
+      in: path
+      required: true
+      description: UUID resource identifier
+      schema:
+        type: string
+        format: uuid
+    SubmissionId:
+      name: submissionId
+      in: path
+      required: true
+      description: Submission identifier
+      schema:
+        type: string
+    Status:
+      name: status
+      in: query
+      required: false
+      description: Resource status filter
+      schema:
+        type: string
+        default: pending
+    Limit50:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of results
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 15
+    Limit200:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of results
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 100
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Number of results to skip
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
   responses:
+    GenericSuccess:
+      description: Successful request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GenericObject'
+    ArraySuccess:
+      description: Successful request
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/GenericObject'
+    AuthSuccess:
+      description: Authentication succeeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthResponse'
+    PayoutSuccess:
+      description: Payout request succeeded
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PayoutResponse'
+    Accepted:
+      description: Request accepted for asynchronous processing
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GenericObject'
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: Semantic validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadGateway:
+      description: Upstream provider failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalServerError:
       description: Unexpected server error
       content:
@@ -50,12 +3148,34 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   schemas:
+    GenericObject:
+      type: object
+      description: Generic JSON object returned by an endpoint.
+      additionalProperties: true
+    GenericRequest:
+      type: object
+      description: Request object whose fields depend on the operation.
+      additionalProperties: true
     HealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
-      additionalProperties: true
-      example:
-        status: ok
+      description: Service health response.
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: api
+        version:
+          type: string
+        chat_available:
+          type: boolean
+        timestamp:
+          type: string
+          format: date-time
     Error:
       type: object
       description: Generic error response.
@@ -64,5 +3184,493 @@ components:
       properties:
         message:
           type: string
-          description: Human-readable error message.
           example: Internal server error
+        code:
+          type: string
+    AuthResponse:
+      type: object
+      description: Authenticated user and token response.
+      required:
+        - user
+        - accessToken
+        - refreshToken
+      properties:
+        user:
+          $ref: '#/components/schemas/GenericObject'
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        isNewUser:
+          type: boolean
+    SignUpDto:
+      type: object
+      required:
+        - email
+        - password
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+        profile:
+          type: object
+          additionalProperties: true
+    LoginDto:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    SendOtpDto:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+    VerifyOtpDto:
+      type: object
+      required:
+        - email
+        - token
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+    RefreshTokenDto:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    GoogleAuthRequest:
+      type: object
+      required:
+        - userType
+      properties:
+        code:
+          type: string
+        idToken:
+          type: string
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+        referralCode:
+          type: string
+    PublishAgentDto:
+      type: object
+      required:
+        - workflowJson
+        - name
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+        name:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    CheckRequestAlignmentDto:
+      type: object
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+        title:
+          type: string
+        description:
+          type: string
+        platforms:
+          type: array
+          items:
+            type: string
+        tools:
+          type: array
+          items:
+            type: string
+    ReviewSubmissionDto:
+      type: object
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+        agentId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    VerifyAgentDto:
+      type: object
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+        agentId:
+          type: string
+        request:
+          type: object
+          additionalProperties: true
+    PublishPasteDto:
+      type: object
+      required:
+        - template
+        - name
+      properties:
+        template:
+          type: object
+          additionalProperties: true
+        name:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        inputs:
+          type: object
+          additionalProperties: true
+        existingId:
+          type: string
+    RunWorkflowDto:
+      type: object
+      required:
+        - publishedWorkflowId
+        - input
+      properties:
+        publishedWorkflowId:
+          type: string
+          format: uuid
+        input:
+          type: object
+          additionalProperties: true
+        fieldValues:
+          type: object
+          additionalProperties: true
+        sessionId:
+          type: string
+        idempotencyKey:
+          type: string
+    CreateAutomationDto:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        workflowJson:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+    UpdateAutomationDto:
+      type: object
+      properties:
+        name:
+          type: string
+        workflowJson:
+          type: object
+          additionalProperties: true
+        enabled:
+          type: boolean
+    CreateBountyDto:
+      type: object
+      required:
+        - title
+        - description
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        reward:
+          type: number
+        currency:
+          type: string
+    PreviewBountyDto:
+      type: object
+      required:
+        - sessionId
+      properties:
+        sessionId:
+          type: string
+    SubscriptionCheckoutRequest:
+      type: object
+      required:
+        - planId
+      properties:
+        planId:
+          type: string
+        countryOverride:
+          type: string
+    SubscriptionResponse:
+      type: object
+      properties:
+        subscriptionId:
+          type: string
+        plan:
+          type: object
+          additionalProperties: true
+        status:
+          type: string
+        renewsAt:
+          type: string
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+    SubscriptionEntitlement:
+      type: object
+      additionalProperties: true
+      properties:
+        active:
+          type: boolean
+        spendable:
+          type: number
+        reserved:
+          type: number
+    CreditOrderRequest:
+      type: object
+      required:
+        - package
+        - currency
+      properties:
+        package:
+          type: string
+        amount:
+          type: number
+        currency:
+          type: string
+        countryOverride:
+          type: string
+    CreditBalance:
+      type: object
+      properties:
+        balance:
+          type: number
+        currency:
+          type: string
+    PayoutRequest:
+      type: object
+      required:
+        - amountMinor
+        - currency
+      properties:
+        amountMinor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        note:
+          type: string
+        accountId:
+          type: string
+    PayoutResponse:
+      type: object
+      properties:
+        payout:
+          type: object
+          additionalProperties: true
+    PayoutAccountRequest:
+      type: object
+      required:
+        - country
+      properties:
+        country:
+          type: string
+        accountType:
+          type: string
+        bankAccount:
+          type: object
+          additionalProperties: true
+        upi:
+          type: string
+        paypalEmail:
+          type: string
+          format: email
+        default:
+          type: boolean
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        userId:
+          type: string
+        sessionId:
+          type: string
+        message:
+          type: string
+        selectedTools:
+          type: array
+          items:
+            type: string
+        submitTools:
+          type: array
+          items:
+            type: string
+        agent:
+          type: object
+          additionalProperties: true
+    InteractionResponse:
+      type: object
+      properties:
+        execution_id:
+          type: string
+        response:
+          type: object
+          additionalProperties: true
+    GuardrailCheckRequest:
+      type: object
+      required:
+        - content
+        - source
+      properties:
+        content:
+          type: string
+        source:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+    GuardrailCheckResponse:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          type: string
+    EmbedRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+    EmbedResponse:
+      type: object
+      required:
+        - embedding
+        - dims
+      properties:
+        embedding:
+          type: array
+          items:
+            type: number
+        dims:
+          type: integer
+    IndexAgentRequest:
+      type: object
+      required:
+        - agentId
+        - template
+      properties:
+        agentId:
+          type: string
+        template:
+          type: object
+          additionalProperties: true
+    ReviewWorkflowRequest:
+      type: object
+      required:
+        - evidenceGraph
+      properties:
+        evidenceGraph:
+          type: object
+          additionalProperties: true
+        stepOutputs:
+          type: object
+          additionalProperties: true
+        brief:
+          type: object
+          additionalProperties: true
+        source:
+          type: string
+    ReviewWorkflowResponse:
+      type: object
+      additionalProperties: true
+      properties:
+        reviewerVersion:
+          type: string
+        submissionId:
+          type: string
+        findings:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        counts:
+          type: object
+          additionalProperties: true
+    VerificationRequest:
+      type: object
+      required:
+        - workflowJson
+      properties:
+        workflowJson:
+          type: object
+          additionalProperties: true
+        field:
+          type: string
+        user_draft:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        problemSolved:
+          type: string
+        contentHash:
+          type: string
+        allowedHosts:
+          type: array
+          items:
+            type: string
+  securitySchemes:
+    bearerAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: JWT Bearer token for the NestJS API. Use the value `Bearer <token>`.
+    adminToken:
+      type: apiKey
+      in: header
+      name: x-admin-token
+      description: Administrative token for AI service admin routes.

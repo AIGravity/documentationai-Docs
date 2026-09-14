@@ -1,105 +1,91 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Authenticate users, publish and verify agents, run marketplace workflows, manage automations, handle billing and payouts, and integrate third-party connections through the NestJS API.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+Authenticate users, publish agents, run marketplace workflows, manage automations, process billing and payouts, and integrate third-party connections through the NestJS API.
 
-<Callout kind="info">
+The API listens on port `3001` by default. Most routes use the `/api` prefix applied at the controller level. The application does not apply `/api` as a global prefix.
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Protected endpoints use JWT bearer authentication. Include the token in the `Authorization` header:
 
-</Callout>
-
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
-
-</Callout>
-
-## Endpoint
-
-### GET `/health`
-
-Use this endpoint to verify that the NestJS backend is running and responding.
-
-<ParamField body="method" param-type="string" required="true" show-location="false">
-
-`GET`
-
-</ParamField>
-
-<ParamField body="path" param-type="string" required="true" show-location="false">
-
-`/health`
-
-</ParamField>
-
-<ParamField body="auth" param-type="string" required="true" show-location="false">
-
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
-
-</ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
-
-<CodeGroup tabs="cURL">
-
-```bash
-curl -i http://localhost:3001/health
+```http
+Authorization: Bearer <token>
 ```
 
-</CodeGroup>
+DTO-validated endpoints reject unknown request body properties with a `400` response. Admin endpoints require both a valid bearer token and administrator authorization.
 
-## Response
+## Authentication
 
-A successful request returns a JSON object that identifies the service and reports its status.
+<ParamField header="Authorization" param-type="string" required="true">
 
-<CodeGroup tabs="JSON">
+JWT bearer token for protected endpoints. Format: `Bearer <token>`.
+
+</ParamField>
+
+### Common error responses
+
+<ResponseField name="400" field-type="object">
+
+Validation failure or invalid input, such as an invalid UUID or a missing required field.
+
+</ResponseField>
+
+<ResponseField name="401" field-type="object">
+
+The request does not include a valid authentication token.
+
+</ResponseField>
+
+<ResponseField name="403" field-type="object">
+
+The authenticated user does not have sufficient permissions, such as when a non-admin accesses an admin route.
+
+</ResponseField>
+
+<ResponseField name="404" field-type="object">
+
+The requested resource does not exist.
+
+</ResponseField>
+
+<ResponseField name="409" field-type="object">
+
+The request conflicts with existing data, such as an email address that is already registered.
+
+</ResponseField>
+
+<ResponseField name="422" field-type="object">
+
+The request is syntactically valid but cannot be completed semantically, such as when a marketplace trigger cannot be enabled.
+
+</ResponseField>
+
+<ResponseField name="500" field-type="object">
+
+An unexpected server error. The global exception filter sanitizes the response before returning it to the client.
+
+</ResponseField>
+
+## Health
+
+Health routes do not require authentication.
+
+### GET `/`
+
+Returns the API service status.
+
+| Status | Response |
+| --- | --- |
+| `200` | `{ "status": "ok", "service": "api" }` |
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -i http://localhost:3001/
+```
 
 ```json
 {
@@ -110,32 +96,416 @@ A successful request returns a JSON object that identifies the service and repor
 
 </CodeGroup>
 
-### Response fields
+### GET `/health`
+
+Returns the API service status and the time of the health check.
+
+| Status | Response |
+| --- | --- |
+| `200` | `{ "status": "ok", "service": "api", "timestamp": "..." }` |
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -i http://localhost:3001/health
+```
+
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2025-01-15T12:00:00.000Z"
+}
+```
+
+</CodeGroup>
+
+## Authentication endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| GET | `/api/auth/check-email` | None | Check if an email exists | `200` |
+| POST | `/api/auth/signup` | None | Create an account | `201` |
+| POST | `/api/auth/login` | None | Authenticate a user | `201` |
+| POST | `/api/auth/otp/send` | None | Send an OTP to an email address | `201` |
+| POST | `/api/auth/otp/verify` | None | Verify an OTP and authenticate | `201` |
+| POST | `/api/auth/refresh` | None | Refresh tokens | `201` |
+| POST | `/api/auth/logout` | Bearer | Invalidate a session | `201` |
+| GET | `/api/auth/me` | Bearer | Get the current user profile | `200` |
+| POST | `/api/auth/forgot-password` | None | Request a password reset | `201` |
+| POST | `/api/auth/update-password` | Bearer | Update the password | `201` |
+| GET | `/api/auth/google/url` | None | Get a Google OAuth URL | `200` |
+| POST | `/api/auth/google/callback` | None | Complete Google OAuth | `201` |
+| POST | `/api/auth/google/id-token` | None | Authenticate with a Google ID token | `201` |
+| POST | `/api/auth/google/sync` | Bearer | Sync the Google profile | `201` |
+
+### POST `/api/auth/login`
+
+Authenticate with an email address and password.
+
+<ParamField body="email" param-type="string" required="true">
+
+User email address.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+User password.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+User profile information.
+
+</ResponseField>
+
+<ResponseField name="accessToken" field-type="string" required="true">
+
+JWT access token for protected API requests.
+
+</ResponseField>
+
+<ResponseField name="refreshToken" field-type="string" required="true">
+
+Refresh token used to obtain a new access token.
+
+</ResponseField>
+
+<ResponseField name="isNewUser" field-type="boolean" required="false">
+
+Indicates whether the authentication flow created a new user. OTP endpoints may include this field.
+
+</ResponseField>
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.test",
+    "password": "S3cureExamplePassword!"
+  }'
+```
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.test",
+    "name": "Jane Chen"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.access",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example.refresh",
+  "isNewUser": false
+}
+```
+
+</CodeGroup>
+
+## Agents and verification endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/agents/publish` | Bearer | Publish an agent | `200` |
+| POST | `/api/agents/check-request-alignment` | None | Check request alignment | `200` |
+| POST | `/api/agents/check-duplicate` | None | Check for a duplicate agent | `200` |
+| GET | `/api/agents/mine` | Bearer | List owned agents | `200` |
+| GET | `/api/agents/mine/{id}` | Bearer | Get an owned agent | `200` |
+| DELETE | `/api/agents/mine/{id}` | Bearer | Delete an owned agent | `200` |
+| POST | `/api/agents/preview-description` | None | Generate a description preview | `200` |
+| POST | `/api/agents/preview-workflow-steps` | None | Generate workflow steps | `200` |
+| POST | `/api/agents/preview-categories` | None | Generate categories | `200` |
+| POST | `/api/agents/validate-setup` | None | Validate agent setup fields | `200` |
+| POST | `/api/agents/review-submission` | Bearer | Submit an agent for review | `200` |
+| GET | `/api/agents/review-submissions/mine` | Bearer | List owned review submissions | `200` |
+| GET | `/api/agents/review-submissions/mine/{id}` | Bearer | Get an owned review submission | `200` |
+| POST | `/api/agents/review-submissions/mine/{id}/feedback` | Bearer | Save review finding feedback | `200` |
+| GET | `/api/agents/admin/pending-reviews` | Bearer plus Admin | List pending reviews | `200` |
+| GET | `/api/agents/admin/published` | Bearer plus Admin | List published agents | `200` |
+| GET | `/api/agents/admin/running-automations` | Bearer plus Admin | List running automations | `200` |
+| GET | `/api/agents/admin/pending-reviews/{id}` | Bearer plus Admin | Get pending review detail | `200` |
+| GET | `/api/agents/admin/pending-reviews/{id}/builder-report/draft` | Bearer plus Admin | Get a builder report draft | `200` |
+| POST | `/api/agents/admin/pending-reviews/{id}/re-review` | Bearer plus Admin | Re-queue a review | `202` |
+| POST | `/api/agents/admin/pending-reviews/{id}/builder-report/send` | Bearer plus Admin | Send a builder report | `200` |
+| POST | `/api/agents/admin/pending-reviews/{id}/approve` | Bearer plus Admin | Approve an agent review | `200` |
+| POST | `/api/agents/admin/pending-reviews/{id}/reject` | Bearer plus Admin | Reject an agent review | `200` |
+| POST | `/api/agents/admin/pending-reviews/{id}/test-run/prepare` | Bearer plus Admin | Prepare a test run | `200` |
+| POST | `/api/agents/admin/pending-reviews/{id}/test-run` | Bearer plus Admin | Execute a test run | `200` |
+| POST | `/api/agents/admin/pending-reviews/{id}/test-run/result` | Bearer plus Admin | Poll a test run result | `200` |
+| POST | `/api/agents/preview-fillable-fields` | None | Preview fillable fields | `200` |
+| POST | `/api/agents/verify-stream` | Bearer | Stream verification using SSE | `200` |
+| POST | `/api/agents/verify-warmup` | Bearer | Warm up verification | `202` |
+| POST | `/api/agents/verify-prewarm` | Bearer | Prewarm verification | `202` |
+| POST | `/api/agents/url-verdict` | None | Submit a URL verdict | `200` |
+| GET | `/api/agents/{id}/pricing` | None | Get agent pricing | `200` |
+
+<Callout kind="info">
+
+`verify-stream` returns Server-Sent Events with gate events and a final result. `verify-warmup` and `verify-prewarm` return `202 Accepted`. `re-review` also returns `202 Accepted`.
+
+Preview and generation endpoints fail open. AI failures return empty results instead of blocking the request. Admin test-run endpoints use a prepare, run, and result polling sequence.
+
+</Callout>
+
+## Marketplace endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/marketplace/connections` | Bearer | Create an API-key connection | `200` |
+| GET | `/api/marketplace/workflows` | None | List the workflow catalog | `200` |
+| POST | `/api/marketplace/builder-fields` | None | Get builder fields | `200` |
+| GET | `/api/marketplace/workflows/{id}` | None | Get workflow details | `200` |
+| POST | `/api/marketplace/introspect` | None | Introspect a workflow | `200` |
+| POST | `/api/marketplace/publish` | Bearer | Publish a workflow | `200` |
+| POST | `/api/marketplace/run` | Bearer | Run a workflow | `200` |
+| POST | `/api/marketplace/run-result` | Bearer | Poll a workflow run result | `200` |
+| POST | `/api/marketplace/execute` | Bearer | Execute a workflow in one request | `200` |
+| POST | `/api/marketplace/feedback` | None | Submit feedback | `200` |
+| POST | `/api/marketplace/draft-events/{id}` | None | Update a draft event | `200` |
+| POST | `/api/marketplace/activate` | Bearer | Activate a subscription | `200` |
+| POST | `/api/marketplace/pause` | Bearer | Pause a subscription | `200` |
+| POST | `/api/marketplace/unsubscribe` | Bearer | Unsubscribe | `200` |
+| GET | `/api/marketplace/runs/{consumerCopyId}` | Bearer | List workflow runs | `200` |
+| POST | `/api/marketplace/prepare-run` | Bearer | Prepare a workflow run | `200` |
+| POST | `/api/marketplace/workflow-connections` | Bearer | Get workflow connections | `200` |
+| POST | `/api/marketplace/property-options` | Bearer | Get dynamic property options | `200` |
+| POST | `/api/marketplace/test-builder/prepare` | Bearer | Prepare a builder test | `200` |
+| POST | `/api/marketplace/test-builder/run` | Bearer | Run a builder test | `200` |
+| POST | `/api/marketplace/test-builder/run-result` | Bearer | Poll a builder test result | `200` |
+| POST | `/api/marketplace/scratchpad/run` | Bearer | Run a scratchpad | `200` |
+
+### POST `/api/marketplace/run`
+
+Start a marketplace workflow run.
+
+<ParamField body="workflowId" param-type="string" required="true">
+
+Identifier of the workflow to run.
+
+</ParamField>
+
+<ParamField body="input" param-type="object" required="true">
+
+Input values required by the workflow.
+
+</ParamField>
+
+<ParamField body="consumerCopyId" param-type="string" required="false">
+
+Optional consumer workflow copy identifier.
+
+</ParamField>
+
+<ResponseField name="runId" field-type="string" required="true">
+
+Identifier used to poll the run result.
+
+</ResponseField>
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Run state. Long-running runs can return `running` or `pending`.
 
 </ResponseField>
 
-<ResponseField name="service" field-type="string" required="true">
+<Callout kind="info">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Long-running runs return a running or pending handle instead of blocking. Poll `/api/marketplace/run-result` or `/api/marketplace/test-builder/run-result` for completion. ActivePieces `QUEUED` runs are represented as `running`, not as errors.
+
+Trigger-enable failures return `422` with actionable engine details. The `activate` endpoint can return the same `422` response when enabling a trigger fails.
+
+</Callout>
+
+## Automations endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/automations` | Bearer | Create an automation | `201` |
+| GET | `/api/automations` | Bearer | List automations | `200` |
+| GET | `/api/automations/{id}` | Bearer | Get an automation | `200` |
+| PATCH | `/api/automations/{id}` | Bearer | Update an automation | `200` |
+| DELETE | `/api/automations/{id}` | Bearer | Delete an automation | `200` |
+| GET | `/api/automations/{id}/runs` | Bearer | List automation runs | `200` |
+| POST | `/api/automations/{id}/tools/reconnect` | Bearer | Reconnect a tool | `200` |
+
+## Bounties endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/bounties/preview` | Bearer | Preview a bounty | `200` |
+| POST | `/api/bounties/suggest-intent` | Bearer | Suggest bounty intent | `200` |
+| POST | `/api/bounties/draft-brief` | Bearer | Draft a bounty brief | `200` |
+| POST | `/api/bounties` | Bearer | Create a bounty | `201` |
+| GET | `/api/bounties` | None | List bounties | `200` |
+| GET | `/api/bounties/{id}` | None | Get bounty details | `200` |
+| POST | `/api/bounties/{id}/pay/order` | Bearer | Create a payment order | `201` |
+| POST | `/api/bounties/{id}/pay/verify` | Bearer | Verify payment | `200` |
+| POST | `/api/bounties/{id}/submissions` | Bearer | Submit to a bounty | `200` |
+| GET | `/api/bounties/{id}/submissions` | Bearer | List submissions | `200` |
+| PATCH | `/api/bounties/{id}/submissions/{submissionId}/status` | Bearer | Update submission status | `200` |
+| POST | `/api/bounties/{id}/submissions/{submissionId}/ensure-runnable` | Bearer | Ensure a submission is runnable | `200` |
+| POST | `/api/bounties/{id}/submissions/{submissionId}/accept` | Bearer | Accept a submission | `200` |
+| POST | `/api/bounties/{id}/award` | Bearer | Award a bounty | `200` |
+
+<Callout kind="alert">
+
+The award endpoint returns `404` when the bounty or submission does not exist. It returns `403` when the bounty is not open, the requester is not the creator, or the submission does not belong to the bounty.
+
+</Callout>
+
+## Subscriptions and billing endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| GET | `/api/billing/plans` | None | List billing plans | `200` |
+| GET | `/api/subscriptions/plans` | None | List subscription plans | `200` |
+| GET | `/api/subscriptions/current` | Bearer | Get the current subscription | `200` |
+| GET | `/api/subscriptions/entitlement` | Bearer | Get entitlement and budget | `200` |
+| GET | `/api/subscriptions/history` | Bearer | Get subscription history | `200` |
+| POST | `/api/subscriptions/checkout` | None | Create a checkout session | `201` |
+| POST | `/api/subscriptions/cancel` | Bearer | Cancel a subscription | `200` |
+| POST | `/api/subscriptions/{planId}` | Bearer | Subscribe to a plan | `201` |
+
+### POST `/api/subscriptions/checkout`
+
+Create a checkout session for a paid subscription plan.
+
+<ParamField body="planId" param-type="string" required="true">
+
+Identifier of the plan to purchase.
+
+</ParamField>
+
+<ParamField body="successUrl" param-type="string" required="true">
+
+URL to redirect to after successful checkout.
+
+</ParamField>
+
+<ParamField body="cancelUrl" param-type="string" required="true">
+
+URL to redirect to when checkout is canceled.
+
+</ParamField>
+
+<ResponseField name="checkoutUrl" field-type="string" required="true">
+
+URL for the hosted checkout session.
 
 </ResponseField>
 
-## Likely error responses
+<Callout kind="info">
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+`/api/subscriptions/current` returns `404` with `NO_ACTIVE_SUBSCRIPTION` when the user has no active subscription. Subscribing with an invalid plan ID returns `PLAN_NOT_FOUND`.
 
-### 404 not found
+Paid plans require checkout. A direct request to `/api/subscriptions/{planId}` returns `400` with `PAID_PLAN_REQUIRES_CHECKOUT`; use `/api/subscriptions/checkout` instead. Plans endpoints return `404` when the billing feature flag is disabled.
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+</Callout>
 
-### 500 internal server error
+## Credits endpoints
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| GET | `/api/credits/packages` | None | List credit packages | `200` |
+| GET | `/api/credits/balance` | Bearer | Get the credit balance | `200` |
+| GET | `/api/credits/orders` | Bearer | List credit orders | `200` |
+| GET | `/api/credits/charges` | Bearer | List credit charges | `200` |
+| POST | `/api/credits/orders` | Bearer | Create a credit order | `201` |
+| POST | `/api/credits/orders/custom` | Bearer | Create a custom credit order | `201` |
+| POST | `/api/credits/orders/verify` | Bearer | Verify a credit payment | `200` |
 
-## Notes
+## Payouts and payout accounts
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/payouts` | Bearer | Request a payout | `201` |
+| GET | `/api/payouts` | Bearer | List payouts | `200` |
+| GET | `/api/payouts/fx-rate` | None | Get the exchange rate | `200` |
+| POST | `/api/payouts/sync` | Bearer | Sync payout status | `200` |
+| GET | `/api/payouts/{id}` | Bearer | Get payout details | `200` |
+| POST | `/api/payouts/{id}/refresh` | Bearer | Refresh a payout | `200` |
+| GET | `/api/payout-accounts/region` | None | Get the payout region | `200` |
+| GET | `/api/payout-accounts` | Bearer | List payout accounts | `200` |
+| POST | `/api/payout-accounts` | Bearer | Create a payout account | `201` |
+| POST | `/api/payout-accounts/connect-paypal` | Bearer | Connect PayPal | `201` |
+| POST | `/api/payout-accounts/connect-stripe` | Bearer | Connect Stripe | `200` |
+| PATCH | `/api/payout-accounts/{id}` | Bearer | Update a payout account | `200` |
+| DELETE | `/api/payout-accounts/{id}` | Bearer | Delete a payout account | `200` |
+
+Bank account numbers are redacted in payout account list responses.
+
+## Chat endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/chat/message` | Bearer | Send a chat message | `200` |
+| GET | `/api/chat/sessions/{userId}` | Bearer | List user sessions | `200` |
+| POST | `/api/chat/sessions/claim` | Bearer | Claim anonymous sessions | `200` |
+| GET | `/api/chat/sessions/{sessionId}/messages` | Bearer | List session messages | `200` |
+| DELETE | `/api/chat/sessions/{sessionId}` | Bearer | Delete a session | `200` |
+| GET | `/api/chat/sessions/{sessionId}/flow-state` | Bearer | Get flow state | `200` |
+| PUT | `/api/chat/sessions/{sessionId}/flow-state` | Bearer | Update flow state | `200` |
+| GET | `/api/chat/health` | None | Check chat service health | `200` |
+
+## Connections
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| POST | `/api/connections/auth/apps` | None | List connection apps | `200` |
+| POST | `/api/connections/auth/initiate` | None | Initiate a connection | `200` |
+| POST | `/api/connections/auth/status` | None | Check connection status | `200` |
+| GET | `/api/connections/auth/connections` | Bearer | List user connections | `200` |
+| POST | `/api/connections/auth/disconnect` | Bearer | Disconnect an integration | `200` |
+
+<Callout kind="info">
+
+Connection endpoints fail closed. Disabled or unavailable integrations return `connected: false` or empty lists instead of throwing an exception.
+
+</Callout>
+
+## Leaderboard endpoints
+
+These public endpoints do not require authentication.
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| GET | `/api/leaderboard/builders` | None | Get the builder leaderboard | `200` |
+| GET | `/api/leaderboard/workflows` | None | Get the workflow leaderboard | `200` |
+| GET | `/api/leaderboard/results` | None | Get season results | `200` |
+
+## Telemetry endpoints
+
+These endpoints do not require authentication.
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| GET | `/api/telemetry/loading-durations` | None | Get loading durations | `200` |
+| POST | `/api/telemetry/loading-durations` | None | Record a loading duration | `200` |
+
+## Referrals endpoints
+
+| Method | Path | Auth | Description | Success |
+| --- | --- | --- | --- | --- |
+| GET | `/api/referrals/earnings` | Bearer | Get referral earnings | `200` |
+| POST | `/api/referrals/links` | Bearer | Create a referral link | `201` |
+| GET | `/api/referrals/links/{code}` | None | Resolve a referral link | `200` |
+| POST | `/api/referrals/attribute` | Bearer | Attribute a referral | `201` |
+
+## Additional endpoint groups
+
+The API also exposes these endpoint groups:
+
+- Apps and ActivePieces sessions: `/api/apps/*` and `/api/activepieces/*`
+- Builder and builder profiles: `/api/builder/*` and `/api/builders/*`
+- Builder connections: `/api/builder/connections/*`
+- Marketplace file proxy: `/api/marketplace/files*`
+- OAuth callbacks: `/api/marketplace/oauth/*`
+- Requested agents: `/api/requested-agents/*`
+- Earnings: `/api/earnings/balance`
+- Candidates and assignments: `/api/assignments/*` and `/api/admin/candidates/*`
+- Admin billing: `/api/admin/billing/*`
+- Referral partners: `/api/admin/referral-partners/*`
+- Payment webhooks: `/api/webhooks/*` and `/api/subscriptions/webhook/*`
