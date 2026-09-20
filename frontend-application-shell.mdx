@@ -5,15 +5,15 @@ description: How the Remix frontend is scaffolded today, including root layout, 
 
 ## Overview
 
-The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+The frontend is a Remix application with multiple route modules, builder and admin interfaces, agent customization flows, API client integration, shared components, and backend-driven data flows. It establishes the document structure, asset pipeline, runtime boundaries, product-specific views, and application interfaces for the web app.
 
 ## App purpose and current scope
 
-Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+The frontend now provides product-specific screens and workflows rather than serving only as a starter shell. Current application areas include builder dashboards, admin dashboards, agent customization flows, and API-backed application interfaces.
 
 <Callout kind="info">
 
-This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+This page reflects the current implementation in `apps/web`. The frontend includes routing, layout, styling, error handling, local scripts, Docker packaging, product-specific screens, API client integration, and backend data flows.
 
 </Callout>
 
@@ -31,11 +31,13 @@ The implemented files that define the shell are:
 
 ## Route map
 
-Two routes are currently implemented, and both render the same shared component.
+The frontend includes multiple route modules. The original index and home routes remain part of the application, alongside builder dashboard routes, admin dashboard routes, agent customization routes, and marketplace-related routes.
+
+Product-specific routes use Remix loaders and actions to fetch and mutate application data through the API. This separates route-level data loading and mutations from the views that render each application area.
 
 ### `/`
 
-The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
+The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`. This route is an example of the original application shell and now exists alongside product-specific routes.
 
 <CodeGroup tabs="Route component,Route metadata">
 
@@ -60,7 +62,7 @@ export function meta() {
 
 ### `/home`
 
-The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route and also renders `Welcome`.
+The `/home` route is defined in `apps/web/app/routes/home.tsx`. It remains effectively identical to the index route and also renders `Welcome`.
 
 <CodeGroup tabs="Route component,Route metadata">
 
@@ -83,11 +85,11 @@ export function meta() {
 
 </CodeGroup>
 
-Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+The index and home routes preserve the original shell behavior. Builder, admin, agent customization, and marketplace-related routes provide the product-specific route structure and backend data flows.
 
 ## Root layout
 
-`apps/web/app/root.tsx` defines the application document shell. It imports global CSS, registers font-related links, provides the HTML document structure, and renders the route outlet.
+`apps/web/app/root.tsx` defines the application document shell. It imports global CSS, registers font-related links, provides the HTML document structure, and renders the route outlet. The root shell continues to provide the document structure while route modules compose product-specific views.
 
 ### Global style import and linked assets
 
@@ -156,7 +158,7 @@ A few points matter here:
 
 - `Meta` renders route-level metadata such as the title and description exported by route modules.
 - `Links` injects the stylesheet and font links registered through Remix.
-- `Outlet` is the only content rendered by the root app component, so the shell currently applies no shared navigation, providers, or app frame around routes.
+- `Outlet` is the only content rendered by the root app component, so route modules compose the product-specific views rendered within the document shell.
 - `ScrollRestoration` and `Scripts` are included at the document level, which is the expected baseline for Remix apps.
 
 ## Error handling
@@ -278,7 +280,7 @@ No additional server settings, proxy behavior, environment-specific overrides, o
 
 ## Welcome and home UI
 
-The visible UI for both routes lives in `apps/web/app/welcome/welcome.tsx`. It is still a placeholder screen intended to confirm that the shell is running.
+The visible UI for the original index and home routes lives in `apps/web/app/welcome/welcome.tsx`. It remains a placeholder screen and historical example of the initial shell, but it is no longer the only visible UI in the frontend.
 
 ### What the current UI does
 
@@ -322,17 +324,7 @@ The component renders a centered layout, a logo that switches by color scheme, a
 
 </CodeGroup>
 
-### What the current UI does not do
-
-At this stage, the welcome screen is not connected to any application behavior. The current implementation has:
-
-- no API integration
-- no backend data fetches
-- no auth or session UI
-- no domain-specific navigation
-- no business workflow screens
-
-The two external links in the resources list open in a new tab, and the screen remains a starter-style landing page rather than an application homepage.
+The broader frontend now includes builder interfaces, admin dashboards, agent customization flows, marketplace-related views, and other product-specific components. These interfaces use route modules and API clients to support backend-driven application behavior.
 
 ## Local run and build
 
@@ -422,11 +414,11 @@ A few implementation details matter:
 
 <Callout kind="alert">
 
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
+The original unit tests have not been written yet. Some legacy starter artifacts may remain, and parts of the frontend may still need consolidation around shared styling and component patterns.
 
 </Callout>
 
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+These limitations affect ongoing frontend work, but the application now includes product-specific routes, dashboards, customization flows, API client integration, and backend-driven interfaces.
 
 ## Related foundation docs
 

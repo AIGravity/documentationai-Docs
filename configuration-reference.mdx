@@ -5,11 +5,13 @@ description: Reference for the repository’s current environment variables, con
 
 ## Overview
 
-This repository currently relies far more on static configuration than on environment-driven configuration. The inspected implementation does not define any `.env` files, does not read application environment variables in source code, and does not implement an app-level feature flag system.
+Application runtime configuration is now driven by environment variables injected through the deployment workflow. The unified deployment workflow injects service-specific environment variables into ECS task definitions for the API, web, and AI services. These variables configure service connections, credentials, external integrations, and runtime behavior.
+
+The inspected implementation does not define an app-level feature flag system.
 
 <Callout kind="info">
 
-This page reflects the current implementation in the repository, not an intended future configuration model. If a setting is listed here, it was found in source files, Dockerfiles, package scripts, or GitHub Actions workflows.
+This page reflects the current implementation in the repository, not an intended future configuration model. Application environment variables are injected through the deployment workflow, while other settings remain defined in source files, Dockerfiles, package scripts, or GitHub Actions workflows.
 
 </Callout>
 
@@ -23,15 +25,15 @@ Use this page to answer three practical questions:
 
 Configuration is spread across a small number of concrete surfaces rather than a centralized settings layer.
 
-- **Application runtime code** defines hardcoded behavior such as the API port, API CORS origin, and the AI service health route.
+- **Application runtime code and deployment environment variables** define service connections, credentials, external integrations, and runtime behavior.
 - **Package scripts** define dev and build commands for the monorepo and individual apps.
 - **Static config files** define TypeScript, workspace, Turbo, Nest, and Python tool settings.
 - **Dockerfiles** define container base images, exposed ports, commands, and one runtime environment variable for the AI service image.
-- **GitHub Actions workflows** define service names, image names, branch filters, concurrency behavior, setup versions, and release gating logic.
+- **GitHub Actions workflows** define service names, image names, branch filters, concurrency behavior, setup versions, release gating logic, and ECS task definition environment injection.
 
 <Callout kind="alert">
 
-The repository does not currently expose a general configuration abstraction for ports, CORS origin, or deployment behavior. Several values that are often environment-driven in other projects are fixed directly in code or workflow files.
+The repository now provides environment-driven configuration for production deployments through ECS task definitions. Ports, local CORS behavior, and some deployment settings remain fixed directly in code or workflow files.
 
 </Callout>
 
@@ -39,37 +41,61 @@ The repository does not currently expose a general configuration abstraction for
 
 ### App environment variables
 
-The inspected source code does not consume repository-defined application environment variables.
+Production application environment variables are injected through the unified deployment workflow into ECS task definitions for the API, web, and AI services. The variables cover service connections, API keys, external integrations, and runtime configuration.
 
 <Callout kind="success">
 
-No `.env` files were found in the repository tree, and no application code reads of `process.env`, `import.meta.env`, `os.getenv`, `getenv`, or `dotenv` were found.
+The deployment workflow uses service-specific environment variables for Supabase, payment providers, LLM providers, search, analytics, error tracking, email, caching, content safety, and frontend integrations. ECS receives these values as part of each service task definition.
 
 </Callout>
 
-### Current status
+### Current environment variable categories
 
-<ParamField body="repo-defined-app-env" param-type="none" required="false" show-location="false">
+<ParamField body="api-service-environment" param-type="string[]" required="true" show-location="false">
 
-**Purpose:** Configure application runtime through repository-defined environment variables.
+**Purpose:** Configure API service connections, credentials, integrations, and runtime identity.
 
-**Type:** none.
+**Type:** service-specific environment variable categories.
 
-**Explicit value:** not present.
+**Explicit values:** Supabase connection values including URL, anon key, and service role key; Activepieces values including instance URL, JWT secret, Postgres password, and database hostname; payment provider keys and webhook secrets for Stripe, Razorpay, and PayPal; OpenAI and OpenRouter keys; Typesense search configuration; PostHog analytics configuration; Sentry error tracking configuration; SMTP email configuration; AI service URL, base URL, and frontend URL; and environment identity.
 
-**Required:** No. The current codebase does not depend on a repo-defined `.env` file for local startup.
+**Required:** Yes for the production API deployment values used by the corresponding integrations and runtime paths.
 
 </ParamField>
 
-<ParamField body="env-file-support" param-type="none" required="false" show-location="false">
+<ParamField body="ai-service-environment" param-type="string[]" required="true" show-location="false">
 
-**Purpose:** Load local configuration from `.env` files.
+**Purpose:** Configure AI service connections, model providers, search, caching, content safety, observability, and runtime identity.
 
-**Type:** none.
+**Type:** service-specific environment variable categories.
 
-**Explicit value:** not implemented.
+**Explicit values:** Supabase database connection values; OpenAI, OpenRouter, Gemini, and Mem0 provider keys and configuration; Typesense search configuration; Redis caching configuration; AWS Bedrock guardrail configuration for content safety; PostHog analytics configuration; Sentry error tracking configuration; and environment identity.
 
-**Required:** No. No `.env`, `.env.example`, or application dotenv loading was found.
+**Required:** Yes for the production AI service deployment values used by the corresponding integrations and runtime paths.
+
+</ParamField>
+
+<ParamField body="web-service-environment" param-type="string[]" required="true" show-location="false">
+
+**Purpose:** Configure frontend build-time service connections, integrations, and environment identity.
+
+**Type:** Vite build-time environment variable categories.
+
+**Explicit values:** Supabase URL and anon key; API URL; PostHog analytics; Sentry error tracking; Crisp; Bugfeed; Appcues; and environment configuration.
+
+**Required:** Yes for the production web build values used by the corresponding frontend integrations and API connection.
+
+</ParamField>
+
+<ParamField body="env-file-support" param-type="deployment mechanism" required="true" show-location="false">
+
+**Purpose:** Inject deployment environment variables into service task definitions.
+
+**Type:** workflow-based substitution.
+
+**Explicit value:** The deployment workflow uses `envsubst` to render environment variables into ECS task definitions rather than loading `.env` files.
+
+**Required:** Yes for the current production deployment mechanism.
 
 </ParamField>
 
@@ -161,7 +187,7 @@ env:
 
 ## Application runtime settings
 
-Application runtime behavior is mostly fixed in source rather than configured dynamically.
+Application runtime behavior combines deployment-injected environment variables with settings fixed in source, scripts, and container definitions.
 
 ### API service runtime settings
 
@@ -1079,7 +1105,7 @@ Boolean settings exist in the repository, but they are not feature flags unless 
 
 **Explicit value:** not present.
 
-**Required:** No. No app-level feature flag framework or env-driven toggle system was found.
+**Required:** No. No app-level feature flag framework was found.
 
 </ParamField>
 
@@ -1169,13 +1195,13 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 
 <ParamField body="env-abstraction-gap" param-type="architecture note" required="false" show-location="false">
 
-**Purpose:** Call out that ports, CORS origin, and several deployment choices are hardcoded rather than abstracted into application configuration.
+**Purpose:** Call out the split between deployment-injected application configuration and settings that remain fixed in runtime code or workflows.
 
 **Type:** implementation characteristic.
 
-**Explicit value:** present across runtime code and workflows.
+**Explicit value:** application service integrations use deployment environment variables, while ports, local CORS behavior, and selected deployment settings remain defined directly in source files or workflows.
 
-**Required:** No, but it is important when planning changes.
+**Required:** No, but it is important when planning configuration changes.
 
 </ParamField>
 

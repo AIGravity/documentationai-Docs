@@ -5,17 +5,17 @@ description: How the NestJS API service boots, wires modules, enables CORS, expo
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service is a full NestJS application in `apps/api`. It boots a multi-module API with authentication, Supabase persistence, domain modules, DTOs, validation, and external service integrations. The surrounding build and delivery setup includes Bun scripts, a Dockerfile, and GitHub Actions workflows for building, publishing, and deploying the service.
 
 <Callout kind="info">
 
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
+The current module graph spans authentication, marketplace, agent management, payments, Activepieces integration, Supabase persistence, bounties, builder tools, chat, referrals, notifications, and supporting infrastructure. The `GET /health` endpoint remains available, but it is no longer the only application endpoint.
 
 </Callout>
 
 ## Bootstrap flow
 
-`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. All of that behavior is hardcoded in the entrypoint rather than driven by environment-based configuration.
+`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. The inspected bootstrap behavior still keeps the allowed origin and listening port in the entrypoint rather than driving them from environment-based configuration.
 
 <CodeGroup tabs="main.ts,Behavior summary">
 
@@ -45,19 +45,19 @@ await app.listen(3001);
 
 ### Application creation
 
-The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the full set of controllers, providers, and imported modules available at runtime.
+The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the controllers, providers, guards, strategies, integrations, and feature modules available at runtime.
 
-Because `AppModule` is currently minimal, bootstrap is also minimal. There are no global pipes, interceptors, guards, filters, or prefixes configured in the inspected entrypoint.
+`AppModule` now imports the service's domain and infrastructure modules. Bootstrap still does not configure global pipes, interceptors, filters, or prefixes in the inspected entrypoint, while validation and request shaping are handled within the application's DTO and module implementations.
 
 ### CORS configuration
 
 CORS is enabled with `app.enableCors(...)` and allows exactly one origin: `http://localhost:3000`. The configuration also sets `credentials: true`, so browsers can include credentials on cross-origin requests from that origin.
 
-That setup is enough for local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables or a configuration module.
+That setup supports local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables or a configuration module in the inspected bootstrap file.
 
 ### Port binding
 
-The service binds to port `3001` with `app.listen(3001)`. There is no `process.env.PORT` handling in the inspected source, so the listening port is fixed in code.
+The service binds to port `3001` with `app.listen(3001)`. There is no `process.env.PORT` handling in the inspected source, so the listening port remains fixed in code.
 
 <Callout kind="alert">
 
@@ -67,55 +67,107 @@ The runtime port is not aligned across the implementation. `main.ts` listens on 
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
+`AppModule` is the application root and now imports the feature and infrastructure modules that implement authentication, marketplace workflows, agent management, payments, integrations, persistence, and user-facing platform features.
 
 <CodeGroup tabs="app.module.ts,Current application graph">
 
 ```ts
 @Module({
-  controllers: [HealthController],
+  imports: [
+    // Authentication
+    AuthModule,
+
+    // Marketplace and agent management
+    MarketplaceModule,
+    AgentsModule,
+
+    // Payments and external integrations
+    PaymentsModule,
+    ActivepiecesModule,
+
+    // Persistence and platform features
+    SupabaseModule,
+    BountiesModule,
+    BuilderModule,
+    ChatModule,
+    NotificationsModule,
+    ReferralsModule,
+  ],
 })
 export class AppModule {}
 ```
 
 ```text
 AppModule
-└── HealthController
+├── Authentication
+│   ├── JWT guards
+│   └── JWT strategies
+├── Marketplace
+│   ├── Catalog
+│   ├── Publishing
+│   ├── Workflow runs
+│   ├── Consumer connections
+│   └── File proxy
+├── Agent management
+│   ├── Agent CRUD
+│   ├── Builder fields
+│   ├── Admin review
+│   └── Agent ranking
+├── Payments
+│   ├── Credits
+│   ├── Subscriptions
+│   ├── Payouts
+│   └── Payin routing
+├── Activepieces integration
+│   ├── Session management
+│   ├── User provisioning
+│   ├── Flow management
+│   └── Capability detection
+├── Supabase persistence
+├── Bounties
+├── Builder tools
+├── Chat
+├── Notifications
+└── Referrals
 ```
 
 </CodeGroup>
 
 ### Current module graph
 
-The module graph is intentionally small:
+The application graph is organized around feature areas and shared infrastructure:
 
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
+- **Authentication** provides JWT guards and strategies for protected routes and authenticated request handling.
+- **Marketplace** covers catalog access, publishing, workflow runs, consumer connections, and file proxy behavior.
+- **Agent management** covers agent CRUD, builder fields, administrative review, and agent ranking.
+- **Payments** handles credits, subscriptions, payouts, and payin routing through Stripe and Razorpay.
+- **Activepieces integration** handles sessions, user provisioning, flow management, and capability detection.
+- **Supabase** provides persistence for application data and is backed by more than 50 migrations.
+- **Platform features** include bounties, builder tools, chat, notifications, referrals, and related supporting infrastructure.
 
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+The feature modules contain their own controllers and services, while shared authentication and persistence concerns support multiple areas of the application. The current graph therefore extends well beyond the original health controller foundation.
 
-### What is not wired yet
+### What is wired
 
-Several common Nest application concerns are absent from the inspected files:
+The inspected application now includes the primary concerns expected from a multi-module API:
 
-- auth modules, guards, JWT, or session handling
-- DTO classes and validation pipes
-- database configuration, repositories, entities, or migrations
-- domain-specific modules and services
-- `ConfigModule` or other environment-driven configuration
-- OpenAPI or Swagger setup
+- authentication modules with JWT guards and strategies
+- DTO classes with request validation
+- Supabase persistence with more than 50 migrations
+- domain modules and services across marketplace, agent management, and payments
+- Stripe and Razorpay payment integrations
+- Activepieces session, provisioning, flow, and capability integrations
+- supporting modules for bounties, builder tools, chat, notifications, and referrals
 
 <Callout kind="info">
 
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
+The module graph now separates HTTP endpoints, domain services, authentication, persistence, and external integrations across feature areas. The health controller remains a small diagnostic route rather than the application's primary behavior.
 
 </Callout>
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+The health endpoint remains the simplest route in the service. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
 
 <CodeGroup tabs="health.controller.ts,Response example">
 
@@ -164,7 +216,7 @@ There is also no health library integration in the inspected files. The endpoint
 
 ## Runtime and build
 
-Local development and runtime execution are defined in `apps/api/package.json`, while Nest and TypeScript build behavior is split across `nest-cli.json`, `tsconfig.json`, and `tsconfig.build.json`. The setup is workable as a foundation, but several paths and module settings do not line up cleanly.
+Local development and runtime execution are defined in `apps/api/package.json`, while Nest and TypeScript build behavior is split across `nest-cli.json`, `tsconfig.json`, and `tsconfig.build.json`. The setup supports the expanded application, but several paths and module settings do not line up cleanly.
 
 <CodeGroup tabs="package.json scripts,package metadata">
 
@@ -192,10 +244,10 @@ Local development and runtime execution are defined in `apps/api/package.json`, 
 
 The service defines four runtime and build scripts:
 
-- **`dev`** — runs `bun --watch src/main.ts`
-- **`build`** — runs `tsc -p tsconfig.build.json`
-- **`start`** — runs `bun dist/main.js`
-- **`start:prod`** — runs `bun .`
+- **`dev`**: runs `bun --watch src/main.ts`
+- **`build`**: runs `tsc -p tsconfig.build.json`
+- **`start`**: runs `bun dist/main.js`
+- **`start:prod`**: runs `bun .`
 
 The `dev` command runs the TypeScript entrypoint directly in Bun watch mode. The `build` command compiles with TypeScript rather than `nest build`.
 
@@ -320,11 +372,11 @@ This is one more place where the current packaging is functional but indirect. B
 
 ## CI integration
 
-The API workflow in `.github/workflows/api.yml` already covers build, versioning, image publishing, release creation, and a placeholder deploy job. It is more complete than the service implementation itself, but several parts are still scaffolding.
+The API workflow in `.github/workflows/api.yml` covers pull request validation, versioning, image publishing, and release-related automation. Production deployment is handled separately by the unified deployment workflow at `.github/workflows/deploy-new-account.yml`.
 
 ### Trigger and build behavior
 
-The workflow runs on pushes to `main` and `dev` for changes under selected paths, and on pull requests targeting those branches. The build section installs dependencies with `pnpm install --frozen-lockfile` and builds the API with `pnpm --filter @repo/api build`.
+The API workflow runs on pull requests targeting `main` and `dev`. The build section installs dependencies with `pnpm install --frozen-lockfile` and builds the API with `pnpm --filter @repo/api build`.
 
 The workflow path filters include `apps/api/**`, `packages/**`, `pnpm-lock.yaml`, `tsconfig.base.json`, and the workflow file itself. The inspected tree does not show a `packages/` directory, so that filter currently looks anticipatory or stale.
 
@@ -332,14 +384,6 @@ The workflow path filters include `apps/api/**`, `packages/**`, `pnpm-lock.yaml`
 
 ```yaml
 on:
-  push:
-    branches: [main, dev]
-    paths:
-      - "apps/api/**"
-      - "packages/**"
-      - "pnpm-lock.yaml"
-      - "tsconfig.base.json"
-      - ".github/workflows/api.yml"
   pull_request:
     branches: [main, dev]
 ```
@@ -366,31 +410,23 @@ The workflow publishes a container image to `ghcr.io/<owner>/gravity-api`. Tags 
 
 On `main`, the workflow also creates a GitHub Release named `API v<version>`. The release body includes the published image reference.
 
-### Deploy step status
+### Deployment workflow
 
-The deploy job exists, but it does not perform a real deployment yet. The inspected workflow only writes a deployment summary, and the actual deploy commands are commented placeholders.
+Production deployment is handled by `.github/workflows/deploy-new-account.yml`, rather than by the API workflow's build and release steps. The unified deployment workflow builds images, pushes them to Amazon ECR, and updates the corresponding ECS services.
 
-<Callout kind="alert">
-
-The CI pipeline includes release and deployment scaffolding, but deployment is not implemented. The deploy job is placeholder-only in the current workflow.
-
-</Callout>
+This separates API image creation and release metadata from the deployment process that promotes container images into the production runtime.
 
 ## Current limitations
 
 <Callout kind="danger">
 
-The inspected API service is a foundation app, not a feature-complete backend. It currently has:
+The API service is now a multi-module backend, but several operational concerns remain:
 
-- no DTOs
-- no auth
-- no persistence or database integration
-- no domain modules or services
-- no environment-based configuration
-- no OpenAPI or Swagger setup
-- no active test step in CI
-- no lint step, even though the workflow job is labeled Build and Lint
+- `main.ts` listens on `3001` while the Dockerfile exposes `3000`
+- the compiled output path may not match the `start` script
+- the API workflow has no active test step
+- the API workflow has no lint step, even though the workflow job is labeled Build and Lint
 
 </Callout>
 
-The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.
+The implementation now supports authentication, DTO validation, Supabase persistence, domain services, external integrations, and multiple product areas. The next layer of operational work should resolve the runtime mismatches and add explicit test and lint execution to CI.

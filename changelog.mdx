@@ -3,65 +3,68 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
-
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
-
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update date="September 2026">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### Platform Expansion: Agent Review Pipeline, Marketplace Reliability, and Production Deployment
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+#### Agent Quality Review
 
-## How to read this changelog
+- Added an agent quality review pipeline that evaluates submitted workflows for structural issues, dataflow problems, reliability, AI-step substance, and output quality.
+- Admins can review detailed findings with severity, evidence, and suggested fixes.
+- Builders receive curated feedback reports with actionable improvement guidance.
+- Builders can provide thumbs-up or thumbs-down feedback on review reports.
+- Quality review is advisory and separate from publish-safety verification.
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+#### Marketplace Workflow Reliability
+
+- Paused approval workflows now stay alive and can be resumed instead of appearing to fail immediately.
+- Paused runs carry a classification for approval, delay, agent, or unknown states.
+- Resource-limit failures for memory, log size, and quota now show readable explanations instead of generic errors.
+- Cloud-authored AI provider configurations are normalized automatically instead of failing with invalid option errors.
+- Unsupported action versions are rejected during preparation with named-step explanations.
+- Empty dynamic option responses now show readable fallback messages instead of JSON parse errors.
+
+#### Activepieces Integration
+
+- Compatibility now adapts to the Activepieces instance version instead of requiring a synchronized Gravity release.
+- Email lookups normalize case and whitespace to match Activepieces storage.
+- File proxying applies only to URLs from the configured Activepieces host.
+
+#### Deployment
+
+- Pushing to main now triggers production deployment to AWS ECS automatically.
+- Service-specific workflows now run build checks on pull requests only.
+- Production uses production-specific AI service, Supabase, Activepieces, and payment configuration.
+
+#### Platform Infrastructure
+
+- Added subscription plans, entitlements, grants, reservations, and renewal processing.
+- Added payout infrastructure supporting Stripe Connect, RazorpayX, and PayPal.
+- Added referral earnings settlement and builder earnings display.
+- Added a notifications system.
+
+</Update>
+
+<Update date="Prior">
+
+### Initial Documentation Baseline
+
+- Created the initial documentation set covering monorepo structure, service boundaries, CI/CD pipelines, configuration reference, data models, and deployment foundations.
+
+</Update>
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+Review the current platform capabilities, workflow tools, marketplace features, and supported integrations.
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+Set up the platform and confirm your first workflow from development through deployment.
 </Card>
 
 </Columns>

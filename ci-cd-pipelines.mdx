@@ -1,74 +1,62 @@
 ---
 title: CI/CD Pipelines
-description: How the repository’s GitHub Actions workflows build, check, version, and publish the web, API, and AI service artifacts.
+description: How GitHub Actions checks services in pull requests and deploys web, API, and AI service images to AWS ECS in production.
 ---
 
 ## Overview
 
-The repository defines three GitHub Actions pipelines, one for each deployable service: web, API, and AI service. Each workflow follows the same high-level sequence: build, compute a version, publish a Docker image to GitHub Container Registry, create a GitHub release on `main`, and write a deployment summary. The workflows are intentionally isolated by path filters so changes in one service do not trigger all pipelines.
+The repository defines four GitHub Actions workflows: three service-specific CI workflows for the web, API, and AI service, plus one unified deployment workflow. The service workflows run on pull requests to build and check the affected service and publish its Docker image. The unified deployment workflow builds all three services and deploys them to AWS ECS when code is pushed to `main`, with support for manual deployments.
 
 ## Workflow inventory
 
 These workflows are the complete CI/CD surface described in the repository today:
 
-- **`.github/workflows/web.yml`** — `Web CI/CD`
-- **`.github/workflows/api.yml`** — `API CI/CD`
-- **`.github/workflows/ai-service.yml`** — `AI Service CI/CD`
+- **`.github/workflows/web.yml`**: `Web CI/CD`
+- **`.github/workflows/api.yml`**: `API CI/CD`
+- **`.github/workflows/ai-service.yml`**: `AI Service CI/CD`
+- **`.github/workflows/deploy-new-account.yml`**: `Unified Deploy (ECS)`. Builds and deploys all three services to AWS ECS when code is pushed to `main`. Also supports manual dispatch.
 
-All three define the same job chain:
+The three service workflows run build checks and Docker publishing for pull requests. The unified deployment workflow handles production image publishing and ECS deployment.
 
 ```mermaid
 graph LR
-  A[build] --> B[version]
-  B --> C[docker]
-  C --> D[release]
-  C --> E[deploy]
-  B --> D
-  B --> E
+  A[Service CI workflows] --> B[Build checks]
+  B --> C[Docker images]
+  D[Unified deployment] --> E[Build all services]
+  E --> F[Push images to ECR]
+  F --> G[Deploy to ECS]
 ```
 
-The dependency structure is the same in each file:
+The service workflows use service-specific build jobs. The unified deployment workflow coordinates builds, image publishing, task definition registration, and ECS service updates.
 
 <CodeGroup tabs="Web,API,AI service">
 
 ```yml
-version:
-  needs: build
+build:
+  runs-on: ubuntu-latest
 docker:
-  needs: version
-release:
-  needs: [version, docker]
-deploy:
-  needs: [version, docker]
+  needs: build
 ```
 
 ```yml
-version:
-  needs: build
+build:
+  runs-on: ubuntu-latest
 docker:
-  needs: version
-release:
-  needs: [version, docker]
-deploy:
-  needs: [version, docker]
+  needs: build
 ```
 
 ```yml
-version:
-  needs: build
+build:
+  runs-on: ubuntu-latest
 docker:
-  needs: version
-release:
-  needs: [version, docker]
-deploy:
-  needs: [version, docker]
+  needs: build
 ```
 
 </CodeGroup>
 
 ## Trigger strategy
 
-All three workflows run on `push` and `pull_request` for the `main` and `dev` branches. Each workflow also applies path filters, which keeps runs scoped to the service that changed and, for web and API, shared package changes that can affect those builds.
+The three service workflows run only for pull requests targeting `main`, `dev`, or `nonprod`. They no longer run on pushes, so they do not perform push-based versioning, release creation, or production deployment.
 
 ### Path filters isolate service runs
 
@@ -102,27 +90,54 @@ paths:
   - ".github/workflows/ai-service.yml"
 ```
 
-### Branch behavior differs between pushes and pull requests
+### Service workflows run only for pull requests
 
-Pull requests trigger the workflows, but the `version` job runs only on push events. That gate matters because `docker`, `release`, and `deploy` all depend on `version`.
+Each service workflow targets the `main`, `dev`, and `nonprod` branches through its pull request trigger.
 
 ```yml
-if: github.event_name == 'push'
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+      - nonprod
 ```
 
-In practice, that means pull requests run the `build` job but do not progress into versioning, image publishing, release creation, or deploy summary steps.
+Pull requests run the affected service's build checks and Docker workflow. Pushes to these branches do not trigger the service-specific workflows.
+
+### Unified deployment runs on production pushes
+
+The deployment workflow runs when code is pushed to `main`. Its production path targets all three services and deploys them to AWS ECS.
+
+```yml
+on:
+  push:
+    branches:
+      - main
+```
+
+The workflow also supports manual dispatch. Manual runs allow operators to select the target environment and the services to deploy.
+
+```yml
+workflow_dispatch:
+  inputs:
+    target_env:
+      description: Deployment environment
+    services:
+      description: Services to deploy
+```
 
 ### Concurrency cancels older runs on the same ref
 
-Each workflow defines a per-service concurrency group and sets `cancel-in-progress: true`. A newer push to the same branch cancels the older in-flight run for that service.
+Each workflow defines a per-service concurrency group and sets `cancel-in-progress: true`. A newer pull request update cancels the older in-flight run for that service.
 
-- **Web** — `web-${{ github.ref }}`
-- **API** — `api-${{ github.ref }}`
-- **AI service** — `ai-service-${{ github.ref }}`
+- **Web**: `web-${{ github.ref }}`
+- **API**: `api-${{ github.ref }}`
+- **AI service**: `ai-service-${{ github.ref }}`
 
 ## Job flow
 
-The pipelines share a common shape, but the work performed inside `build` differs by service. Versioning, Docker publishing, release creation, and deploy summary behavior are otherwise aligned.
+The service workflows share a common shape, but the work performed inside `build` differs by service. They run build checks and Docker publishing for pull requests. Versioning and GitHub release creation no longer run from these workflows because they do not trigger on pushes.
 
 ### Build jobs install dependencies and run service-specific checks
 
@@ -162,78 +177,28 @@ The AI service workflow sets `apps/ai-service` as the working directory, install
   run: uv run ruff check .
 ```
 
-### Versioning runs only on pushes
+### Unified deployment builds and publishes production images
 
-On `main`, each workflow reads a service-specific `VERSION` file, inspects the latest commit message, bumps semantic versioning, writes the new version back to disk, commits the change with `[skip ci]`, and creates a service-prefixed tag.
-
-The bump rules are shared across all three workflows:
+The unified deployment workflow builds the selected services, pushes their Docker images to Amazon Elastic Container Registry, registers updated ECS task definitions, and updates the corresponding ECS services.
 
 ```yml
-if echo "$COMMIT_MSG" | grep -qiE '\[major\]|BREAKING CHANGE'; then
-  MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
-elif echo "$COMMIT_MSG" | grep -qiE '\[minor\]|feat(\(|:)'; then
-  MINOR=$((MINOR + 1)); PATCH=0
-else
-  PATCH=$((PATCH + 1))
-fi
+- name: Build and push image
+  run: docker buildx build --push ...
+
+- name: Register ECS task definition
+  run: aws ecs register-task-definition ...
+
+- name: Force ECS deployment
+  run: aws ecs update-service --force-new-deployment ...
 ```
 
-On `dev`, the workflows do not persist a new base version. They generate a development version string from the current base version, a timestamp, and a short SHA.
+The production deployment targets the `gravity-prod` ECS cluster. The workflow uses the computed image references when registering task definitions and updating the services.
 
-```yml
-TIMESTAMP=$(date +%Y%m%d%H%M%S)
-VERSION="${BASE_VERSION}-dev.${TIMESTAMP}.${SHORT_SHA}"
-```
+### Service workflows no longer version releases
 
-The environment output also differs by branch:
+The service workflows are pull-request-only, so their previous push-based versioning logic does not run. They no longer persist service versions, create service-prefixed Git tags, or create GitHub releases.
 
-- **`main`** produces `production`
-- **`dev`** produces `development`
-
-### Docker jobs publish images to GitHub Container Registry
-
-All three workflows use `docker/build-push-action@v6` with `push: true`. They build from service-specific contexts, authenticate to `ghcr.io`, and use GitHub Actions cache storage.
-
-Shared tag generation is consistent across services:
-
-```yml
-tags: |
-  type=raw,value=${{ needs.version.outputs.version }}
-  type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-  type=raw,value=dev-latest,enable=${{ github.ref == 'refs/heads/dev' }}
-  type=sha,prefix=
-```
-
-Shared cache configuration is also identical:
-
-```yml
-cache-from: type=gha
-cache-to: type=gha,mode=max
-```
-
-### Release and deploy jobs are present in every workflow
-
-The `release` job runs only on `main`. It creates a GitHub release for the computed tag and includes the image reference in the release body.
-
-```yml
-if: github.ref == 'refs/heads/main'
-```
-
-The `deploy` job exists in all three workflows and sets its GitHub Actions environment from the `version` job output. Its active behavior is to write a summary with the environment, version, and image reference.
-
-```yml
-deploy:
-  name: Deploy (${{ needs.version.outputs.environment }})
-  runs-on: ubuntu-latest
-  needs: [version, docker]
-  environment: ${{ needs.version.outputs.environment }}
-```
-
-<Callout kind="info">
-
-The workflows define a deploy stage, but the repository does not contain active deployment commands. Each deploy job currently writes metadata to the workflow summary and leaves real deployment steps as commented examples.
-
-</Callout>
+Production deployment is handled by `deploy-new-account.yml`. That workflow builds and publishes the images needed for the selected deployment instead of relying on version, Docker, release, and deploy jobs from the service-specific workflows.
 
 ## Service-by-service comparison
 
@@ -289,44 +254,56 @@ The workflows are structurally similar, but they differ in tooling, path scope, 
 
 </CodeGroup>
 
-### Release note scope also differs
+### Release note scope no longer applies to service workflows
 
-Web and API releases include changes from the service directory and `packages/`. The AI service release notes scope only `apps/ai-service/`.
-
-- **Web** — `apps/web/ packages/`
-- **API** — `apps/api/ packages/`
-- **AI service** — `apps/ai-service/`
+The service workflows no longer create GitHub releases because they run only on pull requests. The unified deployment workflow handles production image publishing and ECS deployment for all three services.
 
 ## Artifact and registry
 
-Each workflow publishes one container image to GitHub Container Registry under a fixed image name.
+The service workflows build service-specific container images during pull request validation. The unified deployment workflow publishes production images to Amazon Elastic Container Registry before updating ECS.
 
-- **Web** — `ghcr.io/${{ github.repository_owner }}/gravity-web`
-- **API** — `ghcr.io/${{ github.repository_owner }}/gravity-api`
-- **AI service** — `ghcr.io/${{ github.repository_owner }}/gravity-ai-service`
+The service image names remain:
 
-The build contexts match each service directory:
+- **Web**: `ghcr.io/${{ github.repository_owner }}/gravity-web`
+- **API**: `ghcr.io/${{ github.repository_owner }}/gravity-api`
+- **AI service**: `ghcr.io/${{ github.repository_owner }}/gravity-ai-service`
 
-- **Web** — `./apps/web`
-- **API** — `./apps/api`
-- **AI service** — `./apps/ai-service`
+The service build contexts match each service directory:
 
-Tag patterns are also aligned across services:
+- **Web**: `./apps/web`
+- **API**: `./apps/api`
+- **AI service**: `./apps/ai-service`
 
-- **Version tag** — computed version from the `version` job
-- **`latest`** — enabled only on `main`
-- **`dev-latest`** — enabled only on `dev`
-- **SHA tag** — generated from the commit SHA
+The service workflows retain aligned tag patterns for pull request image builds:
 
-Git tags follow a service-prefixed naming convention:
+- **Version tag**: computed version from the service workflow
+- **`latest`**: enabled only on `main`
+- **`dev-latest`**: enabled only on `dev`
+- **SHA tag**: generated from the commit SHA
 
-- **Web** — `web-v<version>`
-- **API** — `api-v<version>`
-- **AI service** — `ai-service-v<version>`
+Production deployment uses the images pushed by the unified deployment workflow to ECR. The deployment workflow then registers ECS task definitions and updates services in the `gravity-prod` cluster.
+
+## Deployment
+
+The unified deployment workflow performs the production deployment when code is pushed to `main`. It can also run through manual dispatch with a selected environment and service set.
+
+The deployment sequence is:
+
+1. Build Docker images for the selected services.
+2. Authenticate to Amazon ECR and push the images.
+3. Register updated ECS task definitions with the new image references.
+4. Update the ECS services in the `gravity-prod` cluster.
+5. Call `aws ecs update-service --force-new-deployment` to start the deployment.
+
+<Callout kind="info">
+
+The deployment workflow performs real AWS ECS deployments. It builds images, pushes them to ECR, registers task definitions, and updates ECS services in the `gravity-prod` cluster.
+
+</Callout>
 
 ## Limitations
 
-Several parts of the pipelines are placeholders or only partially implemented in the current workflow files.
+Several parts of the pipelines are still placeholders or only partially implemented in the current workflow files.
 
 <Callout kind="alert">
 
@@ -335,9 +312,9 @@ Missing or incomplete checks are explicit in the YAML:
 - The web workflow has no test step.
 - The API workflow includes a commented test step and no active lint command, despite the `Build & Lint` job name.
 - The AI service workflow includes a commented test step.
-- Pull requests run the build stage, but the version job is gated to push events.
-- Deploy jobs do not execute a real deployment command.
+- Service workflows run only for pull requests, so versioning and GitHub release creation no longer run from those workflows.
+- The deployment workflow uses the `nonprod` GitHub Actions environment even when the deployment target is production.
 
 </Callout>
 
-These limitations are visible directly in the workflow definitions and should be read as the current behavior of the repository, not as implied future automation.
+These limitations are visible directly in the workflow definitions and should be read as the current behavior of the repository. Production deployment is active through the separate unified deployment workflow.

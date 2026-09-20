@@ -1,27 +1,31 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: Describes the FastAPI AI runtime for chat, agent review and verification, usage metering, guardrails, search, persistence, caching, and deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application that provides conversational AI, workflow quality review, publish-safety verification, usage metering, guardrail checks, and agent search indexing. It integrates with multiple LLM providers, including OpenAI, OpenRouter, and Gemini, and uses Supabase for persistence, Typesense for search, Redis for session caching, and AWS Bedrock for content guardrails.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+The service now includes model orchestration through an LLM router, inference pipelines for chat and agent review, Supabase persistence, usage tracking, guardrail integrations, and connections to multiple external services.
 
 </Callout>
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The service has three primary functional surfaces: conversational runtime, agent verification, and agent review.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+**Conversational runtime** supports chat with intent extraction, agent recommendations, memory, guardrails, and usage tracking. The runtime routes requests through configured LLM providers and uses supporting services for persistence, caching, and content safety.
+
+**Agent verification** is a publish-safety pipeline. It checks whether workflows are safe and eligible to publish, including URL verdicts, description generation, and field validation. Verification is blocking: a workflow that fails required checks is not eligible to publish.
+
+**Agent review** performs advisory quality analysis on submitted workflows. It produces findings about structural issues, dataflow problems, reliability, AI-step substance, and output quality. Review and verification serve different purposes: review recommends improvements, while verification enforces publish-safety requirements.
 
 ## Bootstrap in main.py
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application starts in `apps/ai-service/main.py`. App creation happens during module import, and the bootstrap registers multiple `APIRouter` instances for agent review, agent verification, and credits in addition to the inline `/health` and `/chat` endpoints.
 
 <CodeGroup tabs="main.py,Notes">
 
@@ -40,19 +44,19 @@ def health():
 Grounded bootstrap details:
 
 - app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- /health and /chat are registered as application routes
+- APIRouter instances provide agent review, agent verification, and credits routes
+- middleware and dependency injection are part of the application wiring
+- service wiring connects the runtime to persistence, caching, search, LLM providers, and guardrail services
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path now combines direct application routes with router-based feature areas and shared service wiring. Middleware and dependency injection provide the infrastructure needed for request processing, authentication-related dependencies, usage tracking, external service access, and runtime policy checks.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+`GET /health` remains the simplest route in the service. It returns a plain JSON object with one field.
 
 <CodeGroup tabs="Route,Response">
 
@@ -70,11 +74,11 @@ def health():
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. The service now exposes additional endpoints across chat, agent review, agent verification, credits, guardrails, requested agents, embeddings, and admin pricing.
 
 ## Python environment and dependency management
 
-Python and package management are consistent across local tooling, project metadata, and the lockfile. The service requires Python `>=3.14`, uses uv for dependency resolution, and pins resolved package versions in `uv.lock`.
+Python and package management are consistent across local tooling, project metadata, and the lockfile. The service uses uv for dependency resolution and keeps resolved package versions in `uv.lock`.
 
 <CodeGroup tabs="pyproject.toml,uv.lock,.python-version">
 
@@ -110,18 +114,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "uvicorn" },
 ]
-
-[[package]]
-name = "fastapi"
-version = "0.135.0"
-
-[[package]]
-name = "pydantic"
-version = "2.12.5"
-
-[[package]]
-name = "uvicorn"
-version = "0.41.0"
 ```
 
 ```text
@@ -130,9 +122,16 @@ version = "0.41.0"
 
 </CodeGroup>
 
-The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
+The declared runtime dependencies provide the FastAPI application, data validation, and ASGI serving. The dev dependency group provides formatting, linting, and test tooling, while uv maintains the resolved dependency set.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+Runtime integrations now span several service categories:
+
+- **Persistence:** Supabase stores application data and workflow-related state.
+- **LLM providers:** OpenAI, OpenRouter, and Gemini provide model completion capabilities through the service's LLM routing layer.
+- **Search:** Typesense supports agent search indexing and retrieval.
+- **Caching:** Redis provides session and runtime caching.
+- **Content safety:** AWS Bedrock provides guardrail checks.
+- **Application services:** Chat, review, verification, usage metering, embeddings, and administrative pricing depend on shared service and dependency wiring.
 
 ## Run locally
 
@@ -154,6 +153,8 @@ uv run ruff check .
 </CodeGroup>
 
 If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+
+The application also requires runtime configuration for its external services. Local startup may fail or feature behavior may be unavailable when Supabase, Redis, Typesense, the configured LLM providers, or AWS Bedrock guardrails are not reachable or configured.
 
 Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
 
@@ -183,15 +184,13 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The container now depends on external service connections at runtime. Supabase provides persistence, Redis provides session caching, Typesense provides search indexing, configured LLM providers provide model completions, and AWS Bedrock provides content guardrails. The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup.
 
 ## CI workflow
 
-The GitHub workflow runs when changes affect `apps/ai-service/**` or `.github/workflows/ai-service.yml` on pushes and pull requests targeting `main` or `dev`. Its build job works from `apps/ai-service`, installs uv, installs Python, syncs dependencies, and runs Ruff formatting and lint checks.
+The GitHub workflow runs only for pull requests targeting `main` or `dev` when changes affect `apps/ai-service/**` or `.github/workflows/ai-service.yml`. Its build job works from `apps/ai-service`, installs uv, installs Python, syncs dependencies, and runs Ruff formatting and lint checks.
 
-Publishing happens only on push events. On `main`, the workflow reads `apps/ai-service/VERSION`, bumps the version according to commit message rules, creates a Git tag in the format `ai-service-v<version>`, publishes `ghcr.io/<owner>/gravity-ai-service`, applies the generated version tag and `latest`, and creates a GitHub Release.
-
-On `dev`, the workflow generates a development version using the base version, timestamp, and short SHA. It tags the repository, publishes the same image with the generated version tag and `dev-latest`, and also adds a SHA tag.
+Production deployment is handled by the separate unified deployment workflow. This service workflow no longer publishes production or development images, creates version tags, or creates GitHub Releases from push events.
 
 ## Related docs
 
