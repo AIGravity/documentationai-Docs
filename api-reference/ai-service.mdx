@@ -1,15 +1,15 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Health check, chat interaction, admin pricing, and guardrail endpoints for the FastAPI AI service.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+The FastAPI AI service runs on port 8000 and exposes four documented endpoints: `GET /health`, `POST /chat`, `POST /admin/pricing`, and `POST /internal/guardrail/check`.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`, `src/models/models.py`, and `src/models/admin_pricing.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
 
 </Callout>
 
@@ -45,7 +45,10 @@ curl -X GET http://localhost:8000/health
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
@@ -81,11 +84,29 @@ No authentication dependencies, API key checks, OAuth or JWT configuration, or m
 
 ## Response
 
-A successful request returns a JSON object with a single status field.
+A successful request returns a JSON object with the service status, name, version, and chat availability.
 
 <ResponseField name="status" field-type="string" required="true">
 
-Service health status. The current implementation returns `ok`.
+Service health status. Returns `healthy`.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service name. Returns `Gravity AI Interaction Layer`.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+Service version. Returns `1.0.0`.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Whether the chat LLM service is initialized and available. Returns `true` when a usable LLM API key is configured and `false` otherwise.
 
 </ResponseField>
 
@@ -93,22 +114,481 @@ Service health status. The current implementation returns `ok`.
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
 </Response>
 
+### POST /chat
+
+Sends a user message through the AI interaction layer and returns a structured response with reply text, conversation metadata, and agent suggestions.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/chat`
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+No authentication dependency was found in the route.
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="user_id" param-type="string/UUID" required="true" show-location="false">
+
+User identifier. Must be a valid UUID. Example: `11111111-1111-1111-1111-111111111111`.
+
+</ParamField>
+
+<ParamField body="session_id" param-type="string/UUID" required="true" show-location="false">
+
+Session identifier. Must be a valid UUID. Example: `22222222-2222-2222-2222-222222222222`.
+
+</ParamField>
+
+<ParamField body="message" param-type="string" required="true" show-location="false">
+
+User message text. Length must be between 0 and 4000 characters. Example: `Find me an email automation agent`.
+
+</ParamField>
+
+<ParamField body="selected_tools" param-type="array of strings" required="false" show-location="false">
+
+Pre-selected tool slugs. Defaults to an empty array. Example: `["gmail"]`.
+
+</ParamField>
+
+<ParamField body="submit_tools" param-type="boolean" required="false" show-location="false">
+
+Whether to submit the selected tools. Defaults to `false`.
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="string or null" required="false" show-location="false">
+
+Optional agent identifier. Defaults to `null`.
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"user_id":"11111111-1111-1111-1111-111111111111","session_id":"22222222-2222-2222-2222-222222222222","message":"Find me an email automation agent"}'
+```
+
+```json
+{
+  "user_id": "11111111-1111-1111-1111-111111111111",
+  "session_id": "22222222-2222-2222-2222-222222222222",
+  "message": "Find me an email automation agent",
+  "selected_tools": [
+    "gmail"
+  ],
+  "submit_tools": false,
+  "agent_id": null
+}
+```
+
+</CodeGroup>
+
+#### Response
+
+<ResponseField name="session_id" field-type="string" required="true">
+
+Session identifier.
+
+</ResponseField>
+
+<ResponseField name="reply" field-type="string" required="true">
+
+Generated reply text.
+
+</ResponseField>
+
+<ResponseField name="question" field-type="string" required="false">
+
+Follow-up question text. Defaults to an empty string.
+
+</ResponseField>
+
+<ResponseField name="options" field-type="array of strings" required="false">
+
+Selectable options presented to the user. Defaults to an empty array.
+
+</ResponseField>
+
+<ResponseField name="mode" field-type="string" required="false">
+
+Interaction mode, such as `general_help`, `clarify`, or `handoff`. Defaults to an empty string.
+
+</ResponseField>
+
+<ResponseField name="info_json" field-type="object" required="true">
+
+Structured conversation metadata, including the handoff flag, agent type, platforms, tools, use case, constraints, preferences, and search query.
+
+</ResponseField>
+
+<ResponseField name="ready_to_query" field-type="boolean" required="true">
+
+Whether the interaction is ready for query execution.
+
+</ResponseField>
+
+<ResponseField name="search_query" field-type="string" required="true">
+
+Generated search query.
+
+</ResponseField>
+
+<ResponseField name="memories" field-type="array of strings" required="true">
+
+Retrieved memory entries. Can be empty.
+
+</ResponseField>
+
+<ResponseField name="guardrail_log" field-type="string" required="true">
+
+Guardrail evaluation log.
+
+</ResponseField>
+
+<ResponseField name="redis_history" field-type="array of objects" required="true">
+
+Redis conversation history. Can be empty.
+
+</ResponseField>
+
+<ResponseField name="typesense_payload" field-type="object" required="true">
+
+Typesense search payload.
+
+</ResponseField>
+
+<ResponseField name="top_agents" field-type="array of objects" required="true">
+
+Top suggested agents. Can be empty.
+
+</ResponseField>
+
+<ResponseField name="suggested_tools" field-type="array of strings" required="true">
+
+Suggested tools for the user. Can be empty.
+
+</ResponseField>
+
+<ResponseField name="show_tool_selection" field-type="boolean" required="false">
+
+Whether to show the tool selection UI. Defaults to `false`.
+
+</ResponseField>
+
+<ResponseField name="llm_calls" field-type="integer" required="false">
+
+Number of LLM API calls made. Defaults to `0`.
+
+</ResponseField>
+
+<ResponseField name="execution_id" field-type="string or null" required="false">
+
+Execution identifier for this interaction. Defaults to `null`.
+
+</ResponseField>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "session_id": "22222222-2222-2222-2222-222222222222",
+  "reply": "I found an email automation agent that can connect to Gmail.",
+  "question": "",
+  "options": [],
+  "mode": "general_help",
+  "info_json": {
+    "handoff": false,
+    "agent_type": "email_automation",
+    "platforms": [
+      "gmail"
+    ],
+    "tools": [
+      "gmail"
+    ],
+    "use_case": "email automation",
+    "constraints": [],
+    "preferences": [],
+    "search_query": "email automation agent for Gmail"
+  },
+  "ready_to_query": true,
+  "search_query": "email automation agent for Gmail",
+  "memories": [],
+  "guardrail_log": "Passed",
+  "redis_history": [],
+  "typesense_payload": {
+    "q": "email automation agent for Gmail"
+  },
+  "top_agents": [],
+  "suggested_tools": [
+    "gmail"
+  ],
+  "show_tool_selection": false,
+  "llm_calls": 1,
+  "execution_id": null
+}
+```
+
+</Response>
+
+#### Error responses
+
+- **`503 Service Unavailable`**: Returned when no LLM API key is configured. The response body is `{"detail":"Chat service unavailable - no LLM API key configured"}`.
+- **`422 Unprocessable Entity`**: Returned when the request body fails validation, including missing required fields, an invalid UUID, or a message longer than 4000 characters.
+
+### POST /admin/pricing
+
+Applies a pricing override for a specific LLM provider and model. The `x-admin-token` header must match the server's `ADMIN_API_TOKEN` environment variable.
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/admin/pricing`
+
+</ParamField>
+
+<ParamField header="x-admin-token" param-type="string" required="true">
+
+Admin authentication token matching the `ADMIN_API_TOKEN` environment variable.
+
+</ParamField>
+
+<Callout kind="alert">
+
+This endpoint requires the `x-admin-token` header. If the token is missing or does not match the configured `ADMIN_API_TOKEN`, the server returns `403 Forbidden`.
+
+</Callout>
+
+#### Request body
+
+<ParamField body="provider" param-type="string" required="true" show-location="false">
+
+LLM provider name. Example: `openai`.
+
+</ParamField>
+
+<ParamField body="model_name" param-type="string" required="true" show-location="false">
+
+Model name. Example: `gpt-4o`.
+
+</ParamField>
+
+<ParamField body="input_cost_per_1k" param-type="number or null" required="false" show-location="false">
+
+Input cost per 1K tokens. Defaults to `null`.
+
+</ParamField>
+
+<ParamField body="output_cost_per_1k" param-type="number or null" required="false" show-location="false">
+
+Output cost per 1K tokens. Defaults to `null`.
+
+</ParamField>
+
+<ParamField body="input_cost_per_million" param-type="number or null" required="false" show-location="false">
+
+Input cost per million tokens. Defaults to `null`.
+
+</ParamField>
+
+<ParamField body="output_cost_per_million" param-type="number or null" required="false" show-location="false">
+
+Output cost per million tokens. Defaults to `null`.
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="false" show-location="false">
+
+Source label for the override. Defaults to `admin_override`.
+
+</ParamField>
+
+#### Example request
+
+```bash
+curl -X POST http://localhost:8000/admin/pricing \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: dkai_example_admin_9xmk7q2r" \
+  -d '{"provider":"openai","model_name":"gpt-4o","input_cost_per_million":5.00,"output_cost_per_million":15.00}'
+```
+
+#### Response
+
+<ResponseField name="message" field-type="string" required="true">
+
+Success message. Returns `Pricing override successful`.
+
+</ResponseField>
+
+<ResponseField name="model" field-type="string" required="true">
+
+Model name that was updated.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="integer" required="true">
+
+Version number of the active pricing row. Starts at 1 and increments when an existing active row is replaced.
+
+</ResponseField>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "message": "Pricing override successful",
+  "model": "gpt-4o",
+  "version": 1
+}
+```
+
+</Response>
+
+#### Error responses
+
+- **`403 Forbidden`**: Returned when the `x-admin-token` header is missing or does not match. The response body is `{"detail":"Admin token required"}`.
+- **`422 Unprocessable Entity`**: Returned when required body fields are missing or invalid.
+
+### POST /internal/guardrail/check
+
+Evaluates text content against configured guardrails, such as AWS Bedrock, and returns whether the content is safe.
+
+<Callout kind="info">
+
+This is an internal endpoint intended for service-to-service calls. No explicit header authentication is enforced in the route; callers rely on network-level isolation.
+
+</Callout>
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`POST`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/internal/guardrail/check`
+
+</ParamField>
+
+<ParamField body="auth" param-type="string" required="false" show-location="false">
+
+No explicit authentication is enforced. This is an internal route intended for service-to-service calls.
+
+</ParamField>
+
+#### Request body
+
+<ParamField body="content" param-type="string" required="true" show-location="false">
+
+Text content to evaluate.
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="false" enum="INPUT,OUTPUT" show-location="false">
+
+Source of the content. Must be `INPUT` or `OUTPUT`. Defaults to `INPUT`.
+
+</ParamField>
+
+<ParamField body="context" param-type="object or null" required="false" show-location="false">
+
+Optional context metadata. Defaults to `null`.
+
+</ParamField>
+
+#### Example request
+
+```bash
+curl -X POST http://localhost:8000/internal/guardrail/check \
+  -H "Content-Type: application/json" \
+  -d '{"content":"Text to check","source":"INPUT"}'
+```
+
+#### Response
+
+<ResponseField name="safe" field-type="boolean" required="true">
+
+Whether the content passed guardrail checks.
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="true">
+
+Human-readable reason for the verdict. Examples include `Passed`, `Bedrock Guardrail Intervention`, `Guardrail API error (Fail-Closed)`, and `Guardrail API error (Fail-Open)`.
+
+</ResponseField>
+
+<ResponseField name="tier" field-type="string" required="true">
+
+Guardrail tier that produced the verdict. Possible values are `passthrough`, `bedrock`, `system`, and `system_error`. Cached responses append ` (cached)`.
+
+</ResponseField>
+
+<ResponseField name="output" field-type="string or null" required="false">
+
+Intervening output when blocked; `null` otherwise. Defaults to `null`.
+
+</ResponseField>
+
+<Response tabs="200 OK" show-lines="false">
+
+```json
+{
+  "safe": true,
+  "reason": "Passed",
+  "tier": "bedrock",
+  "output": null
+}
+```
+
+</Response>
+
+#### Error responses
+
+- **`422 Unprocessable Entity`**: Returned when the request body fails validation, including missing `content` or an invalid `source` value.
+
 ## Implementation notes
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+The FastAPI file defines the application with `app = FastAPI()` and registers the documented health, chat, pricing, and guardrail handlers directly. The chat, pricing, and guardrail request and response structures are defined across the service models and pricing modules.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+The service also exposes internal routes for requested agents, embeddings, agent indexing, credits and usage tracking, agent verification with SSE streaming, and agent review. These routes are not documented here because they are internal service-to-service endpoints.
 
 ## Likely error responses
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+The service can return the following responses based on the requested path, method, authentication state, and request payload:
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+- **`404 Not Found`**: Returned for undefined paths or unmatched method and path combinations.
+- **`403 Forbidden`**: Returned by `/admin/pricing` when the admin token is missing or invalid.
+- **`422 Unprocessable Entity`**: Returned by `POST` endpoints when the request body fails validation.
+- **`500 Internal Server Error`**: Possible for unexpected runtime failures.
+- **`503 Service Unavailable`**: Returned by `/chat` when no LLM API key is configured.
