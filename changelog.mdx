@@ -1,69 +1,52 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track new product features, improvements, and bug fixes shipped to Gravity.
 ---
 
-## Overview
+Stay up to date with the latest features, improvements, and fixes shipped to Gravity.
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+## September 2024
 
-<Callout kind="alert">
+### New Features
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+- **Agent quality review pipeline** — Submitted agents now receive an automated workflow-quality review covering data flow, control flow, configuration, reliability, grounding, and output. Builders get specific, actionable feedback instead of a simple accept/reject decision. See [Features](/features).
+- **Admin test runs from the review queue** — Reviewers can execute a submitted agent end-to-end before approving or rejecting it, using a dedicated review workspace with pre-collected builder answers.
+- **Editable builder reports** — Admins can curate which findings to send, adjust severity, edit text inline, and reopen previously sent reports so builders receive human-reviewed feedback with a clear path to resubmit.
+- **Builder feedback on review findings** — Builders can mark individual findings as fair or incorrect and add explanatory notes visible to admins, creating a two-way feedback loop.
+- **Feedback badges on dashboards** — Builder and admin dashboards now show unread feedback and reply badges so new review activity is easier to discover.
+- **Evidence-aware review scores** — Reviews separate evidence into static workflow, runtime execution, and output categories, so reviewers can tell whether a clean result reflects genuine quality or simply an unevaluated axis.
+- **Re-run reviews** — Admins can request a fresh review using stored workflow, run output, and builder brief without re-executing the agent.
 
-</Callout>
+### Updates
 
-## Release history
+- **Version-aware integration compatibility** — Gravity now detects the connected integration engine version and adjusts compatibility behavior automatically, so scheduled agents are less likely to break during upgrades. See [Integrations](/integrations).
+- **Cost-aware AI model selection** — Model selection now checks live pricing and substitutes lower-cost alternatives when a model exceeds a price ceiling, reducing the risk of unexpectedly expensive agent runs.
+- **Long-running automations** — Runs that exceed the gateway timeout now return a pending status instead of failing, with background polling that continues without duplicate execution or billing.
+- **Scheduled trigger diagnostics** — Trigger-enable failures now surface the actual reason, including the problematic app or trigger version, instead of appearing to succeed and then silently never running.
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+### Bug Fixes
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
-
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
-
-## How to read this changelog
-
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Actionable marketplace failure messages** — Agent failures now show a clear verdict, the underlying provider error, a suggested fix, and a collapsible technical response, replacing generic error pages. See [Help Center](/help-center).
+- **Queued and paused runs** — Slow-starting, delayed, and approval-based automations no longer display misleading failure messages. Paused runs now correctly distinguish between approval, delay, and in-progress AI work.
+- **Email provisioning fix** — Accounts whose email differs only by capitalization or trailing whitespace no longer get stuck during provisioning.
+- **File proxy security** — File URL rewriting is now restricted to Gravity's own integration host, preventing third-party URLs from being incorrectly proxied.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+
+Review the current product capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+
+Get started with building and deploying agents.
+
 </Card>
 
 </Columns>
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+For troubleshooting or migration guidance, visit the [Help Center](/help-center).
