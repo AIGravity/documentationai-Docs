@@ -5,52 +5,37 @@ description: Release history and notable changes.
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable product updates. The most recent release is listed first.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update date="September 2026">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New Features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Agent review pipeline** — Admins can now review agent submissions in a dedicated workspace: run submitted agents in a test environment, inspect evidence-based findings by severity, curate and edit findings before sending them to builders, and re-run quality reviews without re-executing the workflow. Builders see a clear submission lifecycle (running checks → in review → published or rejected), can resume stuck submissions, edit and resubmit rejected agents, and respond to admin feedback with thumbs up/down and notes. [Learn more →](/features)
 
-## How to read this changelog
+- **Subscription plans** — Two plans are now available: Free (50 credits/month, $0) and Pro ($20/month, 2,000 credits). Subscriptions support checkout, cancellation, upgrades, downgrades, and per-cycle credit budgets. See the [API reference](/api-reference/nestjs-api) for available endpoints.
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Creator earnings** — Builders can view lifetime and withdrawable earnings, per-agent metrics (earnings, users, runs), connect payout methods, enable auto-withdrawal with a configurable threshold, and see full payout history.
+
+- **Referral program** — Builders can share agent invite links and personal referral codes. Referred users boost the creator's earnings share from 20% to 30%. Referrers earn a percentage of a referred builder's creator earnings for the first year, settled monthly.
+
+- **Runtime version detection** — Gravity now detects the workflow engine's installed version at runtime instead of requiring synchronized releases, reducing breakage when the underlying engine is upgraded independently.
+
+### Updates
+
+- **Clearer workflow run explanations** — Paused runs, trigger failures, and run errors now show human-readable explanations in the UI instead of generic status messages.
+
+- **Improved workflow reliability** — Better handling of paused runs, AI provider response changes, unavailable workflow pieces, and schedule trigger failures.
+
+### Bug Fixes
+
+- **Production AI service endpoint** — The production API was calling a stale, non-production AI service URL, which broke chat, guardrails, and marketplace builder tests. Production now uses its own AI service endpoint.
+
+- **Marketplace errors in non-production** — The marketplace and workflow introspection were returning 500 errors due to a misconfigured database hostname. The deployment now supplies the correct hostname.
+
+</Update>
 
 ## Related resources
 
