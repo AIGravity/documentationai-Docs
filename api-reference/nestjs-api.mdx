@@ -1,105 +1,79 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Complete reference for every NestJS API endpoint — authentication, chat, marketplace, agents, bounties, credits, subscriptions, payouts, and webhooks — with parameters, response shapes, and error codes.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API service listens on port `3001` and enables CORS for `http://localhost:3000`. Swagger UI is available at `GET /api/docs`.
+
+A global validation pipe transforms request values, removes unknown properties, and rejects non-whitelisted properties. Most routes require a Supabase JWT through `SupabaseAuthGuard`. Routes marked public bypass JWT authentication, including webhooks, public marketplace workflow details, leaderboard endpoints, and health checks. Administrative routes require both an authenticated user and admin authorization.
+
+Use a bearer token in the `Authorization` header for authenticated requests.
+
+## Error responses
+
+All normalized errors use the following shape:
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+The `requestId` field is included when the request provides an `x-request-id` value.
 
 </Callout>
 
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
-
-</Callout>
-
-## Endpoint
-
-### GET `/health`
-
-Use this endpoint to verify that the NestJS backend is running and responding.
-
-<ParamField body="method" param-type="string" required="true" show-location="false">
-
-`GET`
-
-</ParamField>
-
-<ParamField body="path" param-type="string" required="true" show-location="false">
-
-`/health`
-
-</ParamField>
-
-<ParamField body="auth" param-type="string" required="true" show-location="false">
-
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
-
-</ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
-
-<CodeGroup tabs="cURL">
-
-```bash
-curl -i http://localhost:3001/health
+```json
+{
+  "statusCode": 400,
+  "error": "BadRequestException",
+  "message": "Request validation failed",
+  "path": "/api/resource",
+  "timestamp": "2026-09-28T12:00:00.000Z",
+  "requestId": "req_7f2a9c"
+}
 ```
 
-</CodeGroup>
+| Code | Meaning |
+|---|---|
+| 400 | Validation failure, malformed input, or missing required values |
+| 401 | Missing or invalid Supabase JWT, webhook signature, or provider credentials |
+| 402 | Payment or credit requirement not satisfied |
+| 403 | Admin, user-type, or ownership restriction |
+| 404 | Missing resource, disabled feature, or subscription not found |
+| 409 | Conflict such as duplicate signup or duplicate state |
+| 422 | Semantically unrunnable workflow, provider or trigger failure, or domain validation failure |
+| 500 | Unexpected server error sanitized to a generic message |
+| 502 | AI-service or provider failure |
+| 503 | AI service or provider unavailable |
 
-## Response
+## Health
 
-A successful request returns a JSON object that identifies the service and reports its status.
+### `GET` `/`
 
-<CodeGroup tabs="JSON">
+Returns the service status without authentication.
+
+<ParamField body="request" param-type="none" required="false" show-location="false">
+
+No request body.
+
+</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Always `ok` for a successful response.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Always `api`.
+
+</ResponseField>
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -i http://localhost:3001/
+```
 
 ```json
 {
@@ -110,32 +84,4950 @@ A successful request returns a JSON object that identifies the service and repor
 
 </CodeGroup>
 
-### Response fields
+Errors: `500`.
+
+### `GET` `/health`
+
+Returns the service status and the time of the health check without authentication.
+
+<ParamField body="request" param-type="none" required="false" show-location="false">
+
+No request body.
+
+</ParamField>
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Always `ok` for a successful response.
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Always `api`.
 
 </ResponseField>
 
-## Likely error responses
+<ResponseField name="timestamp" field-type="string" required="true">
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+Health-check time in ISO 8601 format.
 
-### 404 not found
+</ResponseField>
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+<CodeGroup tabs="cURL,JSON">
 
-### 500 internal server error
+```bash
+curl -i http://localhost:3001/health
+```
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2026-09-28T12:00:00.000Z"
+}
+```
 
-## Notes
+</CodeGroup>
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+Errors: `500`.
+
+## Authentication
+
+### `GET` `/api/auth/check-email`
+
+Checks whether an email address already exists.
+
+<ParamField query="email" param-type="string" required="true">
+
+Email address to check.
+
+</ParamField>
+
+<ResponseField name="exists" field-type="boolean" required="true">
+
+Whether the email is already registered.
+
+</ResponseField>
+
+Errors: `400` for an invalid email and `500`.
+
+### `POST` `/api/auth/signup`
+
+Creates a user, profile, and initial session.
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address for the new account.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+Password for the new account.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true" enum="creator,business">
+
+Account type.
+
+</ParamField>
+
+<ParamField body="profile" param-type="object" required="false">
+
+Profile fields supplied during signup.
+
+</ParamField>
+
+<ParamField body="referralCode" param-type="string" required="false">
+
+Referral code attributed to the signup.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Created user information.
+
+</ResponseField>
+
+<ResponseField name="profile" field-type="object" required="true">
+
+Created profile information.
+
+</ResponseField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Access and refresh session data.
+
+</ResponseField>
+
+Errors: `400`, `409` for duplicate signup, and `500`.
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.test",
+    "password": "ExamplePass_9x7m",
+    "userType": "creator",
+    "profile": {
+      "fullName": "Jane Chen"
+    },
+    "referralCode": "creator-jane"
+  }'
+```
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.test"
+  },
+  "profile": {
+    "userType": "creator",
+    "fullName": "Jane Chen"
+  },
+  "session": {
+    "accessToken": "eyJhbGciOiJIUzI1NiJ9.example",
+    "refreshToken": "rt_example_7xmk2p"
+  }
+}
+```
+
+</CodeGroup>
+
+### `POST` `/api/auth/login`
+
+Authenticates a user with email and password.
+
+<ParamField body="email" param-type="string" required="true">
+
+Account email address.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+Account password.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Authenticated user information.
+
+</ResponseField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Access and refresh session tokens.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.test",
+    "password": "ExamplePass_9x7m"
+  }'
+```
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.test"
+  },
+  "session": {
+    "accessToken": "eyJhbGciOiJIUzI1NiJ9.example",
+    "refreshToken": "rt_example_7xmk2p"
+  }
+}
+```
+
+</CodeGroup>
+
+### `POST` `/api/auth/otp/send`
+
+Sends a one-time password to an email address.
+
+<ParamField body="email" param-type="string" required="true">
+
+Destination email address.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="false">
+
+Optional account type.
+
+</ParamField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Delivery result message.
+
+</ResponseField>
+
+<ResponseField name="isNewUser" field-type="boolean" required="true">
+
+Whether the email is associated with a new user.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `POST` `/api/auth/otp/verify`
+
+Verifies an email one-time password and creates or authenticates the user.
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address that received the OTP.
+
+</ParamField>
+
+<ParamField body="token" param-type="string" required="true">
+
+One-time password.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="false">
+
+Optional account type for a new user.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Authenticated user information.
+
+</ResponseField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Access and refresh session tokens.
+
+</ResponseField>
+
+<ResponseField name="isNewUser" field-type="boolean" required="true">
+
+Whether verification created a new user.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/complete-profile`
+
+Completes the authenticated user's profile.
+
+<ParamField body="fullName" param-type="string" required="true">
+
+Full name.
+
+</ParamField>
+
+<ParamField body="industry" param-type="string" required="true">
+
+Industry.
+
+</ParamField>
+
+<ParamField body="profession" param-type="string" required="true">
+
+Profession.
+
+</ParamField>
+
+<ParamField body="automationsBuilt" param-type="string[]" required="true">
+
+Automations the user has built.
+
+</ParamField>
+
+<ResponseField name="profile" field-type="object" required="true">
+
+Updated profile.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/admin/login`
+
+Authenticates an administrator.
+
+<ParamField body="login" param-type="object" required="true">
+
+Administrator login DTO.
+
+</ParamField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Administrator session.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/forgot-password`
+
+Starts password recovery for an email address.
+
+<ParamField body="email" param-type="string" required="true">
+
+Account email address.
+
+</ParamField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Generic recovery result.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `POST` `/api/auth/update-password`
+
+Updates the password for the authenticated user.
+
+<ParamField body="password" param-type="string" required="true">
+
+New password.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Updated-password result.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/auth/google/url`
+
+Creates a Google OAuth redirect URL.
+
+<ParamField query="userType" param-type="string" required="true">
+
+Account type to associate with the OAuth flow.
+
+</ParamField>
+
+<ResponseField name="url" field-type="string" required="true">
+
+Google OAuth redirect URL.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `POST` `/api/auth/google/callback`
+
+Completes Google OAuth using an authorization code.
+
+<ParamField body="code" param-type="string" required="true">
+
+Google authorization code.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true">
+
+Account type.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Google-authenticated user.
+
+</ResponseField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Session tokens.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/google/id-token`
+
+Authenticates with a Google ID token.
+
+<ParamField body="idToken" param-type="string" required="true">
+
+Google ID token.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true">
+
+Account type.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Google-authenticated user.
+
+</ResponseField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+Session tokens.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/google/sync`
+
+Synchronizes the authenticated Google profile.
+
+<ParamField body="userType" param-type="string" required="true">
+
+Account type.
+
+</ParamField>
+
+<ParamField body="referralCode" param-type="string" required="false">
+
+Referral code.
+
+</ParamField>
+
+<ResponseField name="profile" field-type="object" required="true">
+
+Synchronized profile.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/refresh`
+
+Creates a new access session from a refresh token.
+
+<ParamField body="refreshToken" param-type="string" required="true">
+
+Refresh token.
+
+</ParamField>
+
+<ResponseField name="session" field-type="object" required="true">
+
+New access and session token data.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/auth/logout`
+
+Logs out the authenticated user.
+
+<ResponseField name="result" field-type="object" required="true">
+
+Logout result.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/auth/me`
+
+Returns the current user's profile.
+
+<ResponseField name="user" field-type="object" required="true">
+
+Current user profile.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/auth/me/creator`
+
+Confirms creator access and returns the current user.
+
+<ResponseField name="message" field-type="string" required="true">
+
+Result message.
+
+</ResponseField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Current creator user.
+
+</ResponseField>
+
+Errors: `401` and `403`.
+
+### `GET` `/api/auth/me/business`
+
+Confirms business access and returns the current user.
+
+<ResponseField name="message" field-type="string" required="true">
+
+Result message.
+
+</ResponseField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+Current business user.
+
+</ResponseField>
+
+Errors: `401` and `403`.
+
+## Chat and sessions
+
+These routes are currently guard-less.
+
+### `POST` `/api/chat/message`
+
+Sends a message with session, user, and chat-state data.
+
+<ParamField body="message" param-type="string" required="true">
+
+Chat message.
+
+</ParamField>
+
+<ParamField body="session" param-type="object" required="true">
+
+Chat session data.
+
+</ParamField>
+
+<ParamField body="user" param-type="object" required="false">
+
+User context.
+
+</ParamField>
+
+<ParamField body="chatState" param-type="object" required="false">
+
+Current chat state fields.
+
+</ParamField>
+
+<ResponseField name="response" field-type="object" required="true">
+
+Chat service response.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `GET` `/api/chat/sessions/:userId`
+
+Lists sessions for a user.
+
+<ParamField path="userId" param-type="string" required="true">
+
+User identifier.
+
+</ParamField>
+
+<ResponseField name="sessions" field-type="array" required="true">
+
+User sessions.
+
+</ResponseField>
+
+Errors: `404` and `500`.
+
+### `POST` `/api/chat/sessions/claim`
+
+Claims anonymous sessions for an authenticated user.
+
+<ParamField body="anonUserId" param-type="string" required="true">
+
+Anonymous user identifier.
+
+</ParamField>
+
+<ParamField body="userId" param-type="string" required="true">
+
+Authenticated user identifier.
+
+</ParamField>
+
+<ResponseField name="claimed" field-type="number" required="true">
+
+Number of claimed sessions.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `GET` `/api/chat/sessions/:sessionId/messages`
+
+Lists messages in a session.
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Session identifier.
+
+</ParamField>
+
+<ResponseField name="messages" field-type="array" required="true">
+
+Session messages.
+
+</ResponseField>
+
+Errors: `404` and `500`.
+
+### `DELETE` `/api/chat/sessions/:sessionId`
+
+Deletes a chat session.
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Session identifier.
+
+</ParamField>
+
+<ResponseField name="success" field-type="boolean" required="true">
+
+Whether deletion succeeded.
+
+</ResponseField>
+
+Errors: `404` and `500`.
+
+### `GET` `/api/chat/sessions/:sessionId/flow-state`
+
+Returns the flow state for a session.
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Session identifier.
+
+</ParamField>
+
+<ResponseField name="state" field-type="object or null" required="true">
+
+Stored flow state, or `null`.
+
+</ResponseField>
+
+Errors: `404` and `500`.
+
+### `PUT` `/api/chat/sessions/:sessionId/flow-state`
+
+Stores the flow state for a session.
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Session identifier.
+
+</ParamField>
+
+<ParamField body="state" param-type="object" required="true">
+
+Flow state to store.
+
+</ParamField>
+
+<ResponseField name="success" field-type="boolean" required="true">
+
+Always `true` after a successful update.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `GET` `/api/chat/health`
+
+Returns chat-provider health information.
+
+<ResponseField name="health" field-type="object" required="true">
+
+Chat-provider health result.
+
+</ResponseField>
+
+Errors: `500`.
+
+## Apps and connections
+
+### `GET` `/api/apps/catalog`
+
+Returns the available application catalog. Authentication is optional.
+
+<ResponseField name="apps" field-type="array" required="true">
+
+Available applications.
+
+</ResponseField>
+
+Errors: `500`.
+
+### `GET` `/api/apps/connections`
+
+Lists the authenticated user's application connections.
+
+<ResponseField name="connections" field-type="array" required="true">
+
+Application connections.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `DELETE` `/api/apps/connections`
+
+Disconnects an application connection.
+
+<ParamField body="id" param-type="string" required="true">
+
+ActivePieces connection ID.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Disconnection result, including automatically paused agents when applicable.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/apps/connect/initiate`
+
+Starts an application OAuth or API-key connection.
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Application piece name.
+
+</ParamField>
+
+<ParamField body="forceReconnect" param-type="boolean" required="false">
+
+Whether to force reconnection.
+
+</ParamField>
+
+<ParamField body="reuseExternalId" param-type="string" required="false">
+
+External connection identifier to reuse.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin used to build the connection return URL.
+
+</ParamField>
+
+<ResponseField name="connection" field-type="object" required="true">
+
+OAuth or API-key connection descriptor.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/apps/pending`
+
+Lists pending application selections.
+
+<ResponseField name="apps" field-type="array" required="true">
+
+Pending applications.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/apps/pending`
+
+Stores pending application selections.
+
+<ParamField body="apps" param-type="array" required="true">
+
+Applications with `pieceName`, `displayName`, optional `logoUrl`, and optional `authType`.
+
+</ParamField>
+
+Returns `204 No Content`. Errors: `400`, `401`, and `500`.
+
+### `DELETE` `/api/apps/pending`
+
+Removes one pending application.
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Application piece name.
+
+</ParamField>
+
+Returns `204 No Content`. Errors: `400`, `401`, and `500`.
+
+### `DELETE` `/api/apps/pending/all`
+
+Removes all pending applications.
+
+Returns `204 No Content`. Errors: `401` and `500`.
+
+## ActivePieces session
+
+### `POST` `/api/activepieces/ensure-session`
+
+Creates or reuses an ActivePieces session for the authenticated user.
+
+<ResponseField name="token" field-type="string" required="true">
+
+ActivePieces session token.
+
+</ResponseField>
+
+<ResponseField name="projectId" field-type="string" required="true">
+
+ActivePieces project identifier.
+
+</ResponseField>
+
+<ResponseField name="tokenType" field-type="string" required="true">
+
+Token type.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+## Composio connections
+
+### `POST` `/api/connections/auth/apps`
+
+Extracts applications from a workflow.
+
+<ParamField body="workflow" param-type="object" required="true">
+
+Workflow containing nodes.
+
+</ParamField>
+
+<ResponseField name="apps" field-type="string[]" required="true">
+
+Application identifiers.
+
+</ResponseField>
+
+Errors: `400` and `401`.
+
+### `POST` `/api/connections/auth/initiate`
+
+Starts authentication for an application.
+
+<ParamField body="app" param-type="string" required="true">
+
+Application identifier.
+
+</ParamField>
+
+<ResponseField name="redirectUrl" field-type="string" required="false">
+
+Provider redirect URL.
+
+</ResponseField>
+
+<ResponseField name="connectionStatus" field-type="string" required="false">
+
+Connection status.
+
+</ResponseField>
+
+Errors: `401`. Provider failures return an `error` field with HTTP `200`.
+
+### `POST` `/api/connections/auth/status`
+
+Checks application connection status.
+
+<ParamField body="app" param-type="string" required="true">
+
+Application identifier.
+
+</ParamField>
+
+<ResponseField name="connected" field-type="boolean" required="true">
+
+Whether the application is connected.
+
+</ResponseField>
+
+<ResponseField name="connectionId" field-type="string" required="false">
+
+Connection identifier.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="false">
+
+Provider connection status.
+
+</ResponseField>
+
+Errors: `401`. Provider failures degrade to `{ connected: false }`.
+
+### `GET` `/api/connections/auth/connections`
+
+Lists Composio connections.
+
+<ResponseField name="connections" field-type="array" required="true">
+
+Connections containing `slug`, `status`, and `connectionId`. Status is `connected` or `needs_reconnect`.
+
+</ResponseField>
+
+Errors: `401`. Provider failures degrade to an empty connection list.
+
+### `POST` `/api/connections/auth/disconnect`
+
+Disconnects an application.
+
+<ParamField body="app" param-type="string" required="true">
+
+Application identifier.
+
+</ParamField>
+
+<ResponseField name="disconnected" field-type="boolean" required="true">
+
+Whether disconnection succeeded.
+
+</ResponseField>
+
+Errors: `401`. Provider failures return `disconnected: false` and an `error` field.
+
+## Builder
+
+### `GET` `/api/builder/flows`
+
+Lists ActivePieces flows owned by the authenticated user.
+
+<ResponseField name="flows" field-type="array" required="true">
+
+User-owned flows.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/builder/published`
+
+Lists the authenticated user's published workflows.
+
+<ResponseField name="workflows" field-type="array" required="true">
+
+Published workflows.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/builder/publish`
+
+Publishes an ActivePieces flow.
+
+<ParamField body="flow" param-type="object" required="true">
+
+Flow ID, name, and publication fields.
+
+</ParamField>
+
+<ResponseField name="workflow" field-type="object" required="true">
+
+Published workflow result.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+## Agent publishing and verification
+
+<Callout kind="info">
+
+This group includes review workflows, builder feedback, asynchronous re-review, and sanitized builder-report editing.
+
+</Callout>
+
+### `POST` `/api/agents/publish`
+
+Publishes an agent owned by the authenticated user.
+
+<ParamField body="agent" param-type="object" required="true">
+
+`PublishAgentDto` data.
+
+</ParamField>
+
+<ResponseField name="agent" field-type="object" required="true">
+
+Published agent.
+
+</ResponseField>
+
+Errors: `400`, `401`, `409`, `422`, and `500`.
+
+### `POST` `/api/agents/check-request-alignment`
+
+Checks whether an agent aligns with a request.
+
+<ParamField body="request" param-type="object" required="true">
+
+`CheckRequestAlignmentDto` data.
+
+</ParamField>
+
+<ResponseField name="shouldReject" field-type="boolean" required="true">
+
+Whether the request should be rejected.
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="true">
+
+Alignment explanation.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/agents/check-duplicate`
+
+Checks whether a workflow duplicates an existing agent.
+
+<ParamField body="workflow" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="true">
+
+Workflow source.
+
+</ParamField>
+
+<ParamField body="sourceId" param-type="string" required="false">
+
+Source identifier.
+
+</ParamField>
+
+<ResponseField name="duplicate" field-type="object" required="true">
+
+Duplicate verdict.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/agents/mine`
+
+Lists agents owned by the authenticated user.
+
+<ResponseField name="agents" field-type="array" required="true">
+
+Owned agents.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/agents/mine/:id`
+
+Returns an owned agent by UUID.
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent UUID.
+
+</ParamField>
+
+<ResponseField name="agent" field-type="object" required="true">
+
+Agent detail.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `DELETE` `/api/agents/mine/:id`
+
+Deletes an owned agent.
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent UUID.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Deletion result.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/agents/preview-description`
+
+Generates or polishes an agent description.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField body="field" param-type="string" required="false">
+
+Optional description field.
+
+</ParamField>
+
+<ParamField body="userDraft" param-type="string" required="false">
+
+Optional user-provided draft.
+
+</ParamField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Generated or polished description.
+
+</ResponseField>
+
+Errors: `400` and `401`. AI failures return an empty result.
+
+### `POST` `/api/agents/preview-workflow-steps`
+
+Generates workflow steps.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ResponseField name="steps" field-type="array" required="true">
+
+Generated workflow steps.
+
+</ResponseField>
+
+Errors: `400` and `401`. AI failures return an empty list.
+
+### `POST` `/api/agents/preview-categories`
+
+Suggests categories for a workflow.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true">
+
+Agent name.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="true">
+
+Agent description.
+
+</ParamField>
+
+<ResponseField name="categories" field-type="array" required="true">
+
+Suggested categories.
+
+</ResponseField>
+
+Errors: `400` and `401`. AI failures return an empty list.
+
+### `POST` `/api/agents/preview-fillable-fields`
+
+Generates fillable workflow fields.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ResponseField name="fields" field-type="array" required="true">
+
+Fillable-field list.
+
+</ResponseField>
+
+Errors: `400` and `401`. AI failures return a best-effort result.
+
+### `POST` `/api/agents/validate-setup`
+
+Validates setup fields against workflow intent.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true">
+
+Agent name.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="true">
+
+Agent description.
+
+</ParamField>
+
+<ParamField body="problemSolved" param-type="string" required="true">
+
+Problem solved by the agent.
+
+</ParamField>
+
+<ResponseField name="verdicts" field-type="array" required="true">
+
+Per-field intent-match verdicts.
+
+</ResponseField>
+
+Errors: `400` and `401`. AI failures return an empty list.
+
+### `POST` `/api/agents/review-submission`
+
+Creates a pending review submission.
+
+<ParamField body="submission" param-type="object" required="true">
+
+Source, source ID, title, workflow, and verification fields.
+
+</ParamField>
+
+<ResponseField name="submission" field-type="object" required="true">
+
+Pending-review row.
+
+</ResponseField>
+
+Errors: `400`, `401`, `409`, and `500`.
+
+### `GET` `/api/agents/review-submissions/mine`
+
+Lists the authenticated user's review submissions.
+
+<ResponseField name="submissions" field-type="array" required="true">
+
+User review submissions.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/agents/review-submissions/mine/:id`
+
+Returns an owned review submission.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ResponseField name="submission" field-type="object" required="true">
+
+Review detail.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/agents/review-submissions/mine/:id/feedback`
+
+Stores feedback for a review finding.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ParamField body="findingId" param-type="string" required="true">
+
+Finding identifier.
+
+</ParamField>
+
+<ParamField body="verdict" param-type="string" required="true" enum="up,down">
+
+Feedback verdict.
+
+</ParamField>
+
+<ParamField body="note" param-type="string" required="false">
+
+Optional feedback note.
+
+</ParamField>
+
+<ResponseField name="feedback" field-type="object" required="true">
+
+Saved feedback result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+<Callout kind="info">
+
+This endpoint is new. The `verdict` value is restricted to `up` or `down`.
+
+</Callout>
+
+### `GET` `/api/agents/admin/pending-reviews`
+
+Lists pending review cards for administrators.
+
+<ParamField query="status" param-type="string" required="false">
+
+Review status. Defaults to `pending`.
+
+</ParamField>
+
+<ResponseField name="reviews" field-type="array" required="true">
+
+Pending-review cards.
+
+</ResponseField>
+
+Errors: `401`, `403`, and `500`.
+
+### `GET` `/api/agents/admin/published`
+
+Lists published agents for administrators.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of records.
+
+</ParamField>
+
+<ParamField query="offset" param-type="integer" required="false">
+
+Number of records to skip.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Paged published-agent cards.
+
+</ResponseField>
+
+Errors: `401`, `403`, and `500`.
+
+### `GET` `/api/agents/admin/running-automations`
+
+Lists running automations for administrators.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of records.
+
+</ParamField>
+
+<ParamField query="offset" param-type="integer" required="false">
+
+Number of records to skip.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Paged running-automation cards.
+
+</ResponseField>
+
+Errors: `401`, `403`, and `500`.
+
+### `GET` `/api/agents/admin/published/:id`
+
+Returns administrator detail for a published agent.
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent identifier.
+
+</ParamField>
+
+<ResponseField name="agent" field-type="object" required="true">
+
+Published-agent detail.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `GET` `/api/agents/admin/running-automations/:id`
+
+Returns administrator detail for a running agent.
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent UUID.
+
+</ParamField>
+
+<ResponseField name="agent" field-type="object" required="true">
+
+Running-agent detail.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `GET` `/api/agents/admin/pending-reviews/:id`
+
+Returns full pending-review detail.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ResponseField name="review" field-type="object" required="true">
+
+Pending-review detail.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `GET` `/api/agents/admin/pending-reviews/:id/builder-report/draft`
+
+Returns a builder-safe report draft.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ResponseField name="report" field-type="object" required="true">
+
+Builder-safe report draft.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/agents/admin/pending-reviews/:id/re-review`
+
+Starts an asynchronous re-review using stored evidence.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ResponseField name="accepted" field-type="boolean" required="true">
+
+Whether the asynchronous re-review was accepted.
+
+</ResponseField>
+
+Returns `202 Accepted`. Errors: `401`, `403`, `404`, and `500`.
+
+<Callout kind="info">
+
+This new asynchronous endpoint replays stored evidence instead of requiring a new submission payload.
+
+</Callout>
+
+### `POST` `/api/agents/admin/pending-reviews/:id/builder-report/send`
+
+Sends an edited builder report.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ParamField body="keepIds" param-type="string[]" required="true">
+
+Finding identifiers to retain.
+
+</ParamField>
+
+<ParamField body="edits" param-type="object" required="false">
+
+Edits keyed by finding ID. Editable fields are `severity`, `title`, and `message`.
+
+</ParamField>
+
+<ParamField body="reason" param-type="string" required="false">
+
+Optional reason, truncated to 2,000 characters.
+
+</ParamField>
+
+<ResponseField name="review" field-type="object" required="true">
+
+Updated review and report result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, and `500`.
+
+<Callout kind="info">
+
+The server sanitizes edits and restricts severity to `critical`, `high`, `medium`, or `low`. Builder report responses remove internal routing and reviewer-only fields.
+
+</Callout>
+
+### `POST` `/api/agents/admin/pending-reviews/:id/approve`
+
+Approves and publishes a pending review.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Approved and published result.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/agents/admin/pending-reviews/:id/reject`
+
+Rejects a pending review.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ParamField body="note" param-type="string" required="false">
+
+Optional rejection note.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Rejected review result.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/agents/admin/pending-reviews/:id/test-run/prepare`
+
+Prepares an administrator test run.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ParamField body="draftFlowId" param-type="string" required="false">
+
+Optional draft flow identifier.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin used for connection setup.
+
+</ParamField>
+
+<ResponseField name="run" field-type="object" required="true">
+
+Prepared test-run and connection state.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, `422`, and `500`.
+
+### `POST` `/api/agents/admin/pending-reviews/:id/test-run`
+
+Runs a pending-review workflow.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ParamField body="draftFlowId" param-type="string" required="true">
+
+Draft flow identifier.
+
+</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="true">
+
+Values for workflow fields.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Test-run result or pending-run state.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, `422`, and `500`.
+
+### `POST` `/api/agents/admin/pending-reviews/:id/test-run/result`
+
+Polls a pending-review test run.
+
+<ParamField path="id" param-type="string" required="true">
+
+Review UUID.
+
+</ParamField>
+
+<ParamField body="draftFlowId" param-type="string" required="true">
+
+Draft flow identifier.
+
+</ParamField>
+
+<ParamField body="runId" param-type="string" required="true">
+
+Run identifier.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Polled run result.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/agents/verify-stream`
+
+Streams agent verification gates and the final verification result.
+
+<ParamField body="verification" param-type="object" required="true">
+
+`VerifyAgentDto` data containing name, description, problem solved, tools, workflow, and verification fields.
+
+</ParamField>
+
+<ResponseField name="events" field-type="text/event-stream" required="true">
+
+Server-sent verification events and a final result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `422`, and `500`. Stream failures are emitted as SSE error events.
+
+### `POST` `/api/agents/verify-warmup`
+
+Starts verification warmup.
+
+<ResponseField name="warming" field-type="boolean" required="true">
+
+Always `true` for an accepted warmup request.
+
+</ResponseField>
+
+Returns `202 Accepted`. Errors: `401`.
+
+### `POST` `/api/agents/verify-prewarm`
+
+Prewarms verification for a workflow.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ResponseField name="prewarming" field-type="boolean" required="true">
+
+Always `true` for an accepted prewarm request.
+
+</ResponseField>
+
+Returns `202 Accepted`. Errors: `400` and `401`.
+
+### `POST` `/api/agents/url-verdict`
+
+Checks a URL verdict.
+
+<ParamField body="domain" param-type="string" required="true">
+
+Domain to review.
+
+</ParamField>
+
+<ParamField body="action" param-type="string" required="true">
+
+Requested URL action.
+
+</ParamField>
+
+<ParamField body="reason" param-type="string" required="true">
+
+Reason for the request.
+
+</ParamField>
+
+<ParamField body="reviewer" param-type="string" required="true">
+
+Reviewer identifier.
+
+</ParamField>
+
+<ResponseField name="verdict" field-type="object" required="true">
+
+URL verdict.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/agents/:id/pricing`
+
+Returns pricing for an agent.
+
+<ParamField path="id" param-type="string" required="true">
+
+Agent identifier.
+
+</ParamField>
+
+<ResponseField name="pricing" field-type="object" required="true">
+
+Agent pricing.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+## Marketplace
+
+<Callout kind="info">
+
+Unresolvable piece or action versions return `422` instead of `500`. `QUEUED` is treated as running, `PAUSED` is treated as in progress, and run results include pause-specific metadata. Long-running runs can return pending-run handles.
+
+</Callout>
+
+### `POST` `/api/marketplace/connections`
+
+Creates or reuses a marketplace connection.
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Piece name.
+
+</ParamField>
+
+<ParamField body="pieceVersion" param-type="string" required="true">
+
+Piece version.
+
+</ParamField>
+
+<ParamField body="authType" param-type="string" required="true">
+
+Authentication type.
+
+</ParamField>
+
+<ParamField body="value" param-type="object" required="true">
+
+Authentication value.
+
+</ParamField>
+
+<ParamField body="displayName" param-type="string" required="false">
+
+Connection display name.
+
+</ParamField>
+
+<ParamField body="externalId" param-type="string" required="false">
+
+External connection identifier.
+
+</ParamField>
+
+<ResponseField name="connection" field-type="object" required="true">
+
+Created or reused connection.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/marketplace/workflows`
+
+Lists available marketplace workflows.
+
+<ResponseField name="workflows" field-type="array" required="true">
+
+Available workflows.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/marketplace/builder-fields`
+
+Returns fields required by a marketplace builder.
+
+<ParamField body="agentId" param-type="string" required="false">
+
+Optional agent identifier.
+
+</ParamField>
+
+<ResponseField name="fields" field-type="array" required="true">
+
+Builder fields.
+
+</ResponseField>
+
+<ResponseField name="source" field-type="string" required="true">
+
+Field source.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/marketplace/workflows/:id`
+
+Returns public workflow detail and its consumer-input schema.
+
+<ParamField path="id" param-type="string" required="true">
+
+Workflow UUID.
+
+</ParamField>
+
+<ResponseField name="workflow" field-type="object" required="true">
+
+Workflow detail and consumer-input schema.
+
+</ResponseField>
+
+Errors: `400`, `404`, and `500`.
+
+### `POST` `/api/marketplace/introspect`
+
+Introspects workflow triggers, inputs, and outputs.
+
+<ParamField body="template" param-type="object" required="true">
+
+Workflow template.
+
+</ParamField>
+
+<ResponseField name="triggers" field-type="array" required="true">
+
+Workflow triggers.
+
+</ResponseField>
+
+<ResponseField name="inputs" field-type="array" required="true">
+
+Workflow inputs.
+
+</ResponseField>
+
+<ResponseField name="outputs" field-type="array" required="true">
+
+Workflow outputs.
+
+</ResponseField>
+
+Errors: `400`, `401`, `422`, and `500`.
+
+### `POST` `/api/marketplace/publish`
+
+Publishes a marketplace workflow.
+
+<ParamField body="template" param-type="object" required="true">
+
+Workflow template.
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true">
+
+Workflow name.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="true">
+
+Workflow description.
+
+</ParamField>
+
+<ParamField body="tags" param-type="string[]" required="true">
+
+Workflow tags.
+
+</ParamField>
+
+<ParamField body="categories" param-type="string[]" required="true">
+
+Workflow categories.
+
+</ParamField>
+
+<ParamField body="consumerInputs" param-type="array" required="true">
+
+Consumer-input definitions.
+
+</ParamField>
+
+<ParamField body="publishedId" param-type="string" required="false">
+
+Existing publication identifier.
+
+</ParamField>
+
+<ResponseField name="workflow" field-type="object" required="true">
+
+Published workflow.
+
+</ResponseField>
+
+Errors: `400`, `401`, `409`, `422`, and `500`.
+
+### `POST` `/api/marketplace/run`
+
+Runs a published workflow for a consumer.
+
+<ParamField body="publishedWorkflowId" param-type="string" required="true">
+
+Published workflow identifier.
+
+</ParamField>
+
+<ParamField body="input" param-type="object" required="true">
+
+Workflow input.
+
+</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="false">
+
+Values for fillable fields.
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="false">
+
+Chat session identifier.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin used for connection setup.
+
+</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Run state, which can represent needs-connections, running, paused, succeeded, or failure.
+
+</ResponseField>
+
+<ResponseField name="runId" field-type="string" required="false">
+
+Run identifier for polling.
+
+</ResponseField>
+
+<Callout kind="info">
+
+`sessionId` preserves chat intent. Unresolvable pieces or actions return `422`. `QUEUED` is treated as running, and `PAUSED` is treated as in progress with pause classification.
+
+</Callout>
+
+Errors: `400`, `401`, `402`, `404`, `422`, and `500`.
+
+<CodeGroup tabs="cURL,JSON">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/run \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.example" \
+  -H "Content-Type: application/json" \
+  -H "Referer: http://localhost:3000/marketplace" \
+  -d '{
+    "publishedWorkflowId": "wf_8f31c0a2",
+    "input": {
+      "customerEmail": "jane.chen@acme.test"
+    },
+    "fieldValues": {
+      "workspace": "acme-production"
+    },
+    "sessionId": "sess_31e4c7ab"
+  }'
+```
+
+```json
+{
+  "status": "succeeded",
+  "runId": "run_4d8c21fa",
+  "output": {
+    "message": "Workflow completed"
+  }
+}
+```
+
+</CodeGroup>
+
+### `POST` `/api/marketplace/run-result`
+
+Re-polls a consumer workflow run.
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy identifier.
+
+</ParamField>
+
+<ParamField body="gravityRunId" param-type="string" required="false">
+
+Gravity run identifier for reattachment.
+
+</ParamField>
+
+<ParamField body="apRunId" param-type="string" required="false">
+
+ActivePieces run identifier.
+
+</ParamField>
+
+<ParamField body="startedAfter" param-type="string" required="false">
+
+Timestamp used for stale-run protection.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Re-polled consumer run result.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Use `gravityRunId`, `apRunId`, and `startedAfter` for idempotent reattachment and stale-run protection.
+
+</Callout>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/marketplace/execute`
+
+Executes a consumer copy once.
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy identifier.
+
+</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="false">
+
+Values for fillable fields.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+One-shot execution state.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `422`, and `500`.
+
+### `POST` `/api/marketplace/feedback`
+
+Records marketplace feedback.
+
+<ParamField body="reasons" param-type="string[]" required="true" enum="output_quality,looking_elsewhere,try_alternate,other">
+
+One or more feedback reasons.
+
+</ParamField>
+
+<ParamField body="details" param-type="string" required="false">
+
+Additional feedback.
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="false">
+
+Chat session identifier.
+
+</ParamField>
+
+<ParamField body="workflowId" param-type="string" required="false">
+
+Workflow identifier.
+
+</ParamField>
+
+<ParamField body="agentId" param-type="string" required="false">
+
+Agent identifier.
+
+</ParamField>
+
+<ParamField body="draftId" param-type="string" required="false">
+
+Draft identifier.
+
+</ParamField>
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Whether feedback was stored.
+
+</ResponseField>
+
+<ResponseField name="id" field-type="string" required="true">
+
+Feedback identifier.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/marketplace/draft-events/:id`
+
+Records a draft outcome.
+
+<ParamField path="id" param-type="string" required="true">
+
+Draft UUID.
+
+</ParamField>
+
+<ParamField body="outcome" param-type="string" required="false" enum="executed,retried_with_new_input,rejected">
+
+Draft outcome.
+
+</ParamField>
+
+<ParamField body="changedFields" param-type="string[]" required="true">
+
+Fields changed by the user.
+
+</ParamField>
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Whether the event was recorded.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/marketplace/activate`
+
+Activates a consumer copy or subscription.
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy UUID.
+
+</ParamField>
+
+<ParamField body="scheduleConfig" param-type="object" required="false">
+
+Optional schedule configuration.
+
+</ParamField>
+
+<ResponseField name="subscription" field-type="object" required="true">
+
+Activation or subscription state.
+
+</ResponseField>
+
+Errors: `400`, `401`, `402`, `404`, `422`, and `500`.
+
+### `POST` `/api/marketplace/pause`
+
+Pauses a consumer copy.
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy UUID.
+
+</ParamField>
+
+<ResponseField name="state" field-type="object" required="true">
+
+Paused state.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/marketplace/unsubscribe`
+
+Unsubscribes a consumer copy.
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy UUID.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Unsubscription result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `GET` `/api/marketplace/runs/:consumerCopyId`
+
+Lists recent normalized runs.
+
+<ParamField path="consumerCopyId" param-type="string" required="true">
+
+Consumer copy UUID.
+
+</ParamField>
+
+<ResponseField name="runs" field-type="array" required="true">
+
+Recent normalized runs.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/marketplace/prepare-run`
+
+Prepares a workflow run and resolves connections.
+
+<ParamField body="publishedWorkflowId" param-type="string" required="true">
+
+Published workflow UUID.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Prepared consumer copy and connection state.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `422`, and `500`.
+
+### `POST` `/api/marketplace/workflow-connections`
+
+Resolves connections required by a workflow.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="connections" field-type="object" required="true">
+
+Required connection resolution.
+
+</ResponseField>
+
+Errors: `400`, `401`, `422`, and `500`.
+
+### `POST` `/api/marketplace/property-options`
+
+Returns dynamic property options.
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy identifier.
+
+</ParamField>
+
+<ParamField body="stepName" param-type="string" required="true">
+
+Workflow step name.
+
+</ParamField>
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Piece name.
+
+</ParamField>
+
+<ParamField body="pieceVersion" param-type="string" required="true">
+
+Piece version.
+
+</ParamField>
+
+<ParamField body="actionName" param-type="string" required="true">
+
+Action name.
+
+</ParamField>
+
+<ParamField body="propertyName" param-type="string" required="true">
+
+Property name.
+
+</ParamField>
+
+<ParamField body="propsValue" param-type="object" required="false">
+
+Current property values.
+
+</ParamField>
+
+<ParamField body="searchValue" param-type="string" required="false">
+
+Search text for dynamic options.
+
+</ParamField>
+
+<ParamField body="actionOrTrigger" param-type="string" required="false">
+
+Whether the property belongs to an action or trigger.
+
+</ParamField>
+
+<ResponseField name="options" field-type="array" required="true">
+
+Dynamic property options.
+
+</ResponseField>
+
+<Callout kind="info">
+
+`actionOrTrigger` and `searchValue` are supported parameters for dynamic option lookup.
+
+</Callout>
+
+Errors: `400`, `401`, `404`, `422`, and `500`.
+
+### `POST` `/api/marketplace/test-builder/prepare`
+
+Prepares a builder test.
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField body="draftFlowId" param-type="string" required="false">
+
+Existing draft flow identifier.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Prepared draft test.
+
+</ResponseField>
+
+Errors: `400`, `401`, `422`, and `500`.
+
+### `POST` `/api/marketplace/test-builder/property-options`
+
+Returns dynamic property options for a builder test.
+
+<ParamField body="draftFlowId" param-type="string" required="true">
+
+Draft flow identifier.
+
+</ParamField>
+
+<ParamField body="stepName" param-type="string" required="true">
+
+Workflow step name.
+
+</ParamField>
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Piece name.
+
+</ParamField>
+
+<ParamField body="pieceVersion" param-type="string" required="true">
+
+Piece version.
+
+</ParamField>
+
+<ParamField body="actionName" param-type="string" required="true">
+
+Action name.
+
+</ParamField>
+
+<ParamField body="propertyName" param-type="string" required="true">
+
+Property name.
+
+</ParamField>
+
+<ParamField body="propsValue" param-type="object" required="false">
+
+Current property values.
+
+</ParamField>
+
+<ParamField body="searchValue" param-type="string" required="false">
+
+Search text.
+
+</ParamField>
+
+<ParamField body="actionOrTrigger" param-type="string" required="false">
+
+Action or trigger type.
+
+</ParamField>
+
+<ResponseField name="options" field-type="array" required="true">
+
+Dynamic property options.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `422`, and `500`.
+
+### `POST` `/api/marketplace/test-builder/run`
+
+Runs a builder test.
+
+<ParamField body="draftFlowId" param-type="string" required="true">
+
+Draft flow identifier.
+
+</ParamField>
+
+<ParamField body="workflowJson" param-type="object" required="true">
+
+Workflow JSON.
+
+</ParamField>
+
+<ParamField body="consumerInputs" param-type="array" required="true">
+
+Consumer input values.
+
+</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="false">
+
+Additional field values.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Builder test result or pending-run handle.
+
+</ResponseField>
+
+<Callout kind="info">
+
+`consumerInputs` and `fieldValues` are supported for builder runs. Unresolvable actions return `422` instead of `500`.
+
+</Callout>
+
+Errors: `400`, `401`, `422`, and `500`.
+
+### `POST` `/api/marketplace/test-builder/run-result`
+
+Polls a builder test result.
+
+<ParamField body="draftFlowId" param-type="string" required="true">
+
+Draft flow identifier.
+
+</ParamField>
+
+<ParamField body="runId" param-type="string" required="true">
+
+Run identifier.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Builder test result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/marketplace/scratchpad/run`
+
+Runs a scratchpad workflow.
+
+<ParamField body="template" param-type="object" required="true">
+
+Workflow template.
+
+</ParamField>
+
+<ParamField body="input" param-type="object" required="true">
+
+Scratchpad input.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Scratchpad run result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `422`, and `500`.
+
+## Marketplace files
+
+### `POST` `/api/marketplace/files`
+
+Uploads a marketplace file as a raw binary body.
+
+<ParamField body="file" param-type="binary" required="true">
+
+Raw binary file content.
+
+</ParamField>
+
+<ParamField header="x-filename" param-type="string" required="true">
+
+Original filename.
+
+</ParamField>
+
+<ParamField header="x-file-mimetype" param-type="string" required="true">
+
+File MIME type.
+
+</ParamField>
+
+<ResponseField name="fileId" field-type="string" required="true">
+
+Uploaded file identifier.
+
+</ResponseField>
+
+<ResponseField name="url" field-type="string" required="true">
+
+File URL.
+
+</ResponseField>
+
+Errors: `400` for empty or oversized files, `401`, and `500`.
+
+### `GET` `/api/marketplace/files/:token`
+
+Streams a marketplace file.
+
+<ParamField path="token" param-type="string" required="true">
+
+File access token.
+
+</ParamField>
+
+<ResponseField name="body" field-type="binary" required="true">
+
+Binary stream with `Content-Type`, `Content-Length`, and `Content-Disposition` headers.
+
+</ResponseField>
+
+<Callout kind="info">
+
+The proxy rewrites URLs only when they originate from the configured ActivePieces instance. Third-party URLs are not proxied.
+
+</Callout>
+
+Errors: `404` and `500`.
+
+## OAuth callbacks
+
+### `GET` `/api/marketplace/oauth/callback`
+
+Completes marketplace OAuth and redirects to the safe return URL.
+
+<ParamField query="code" param-type="string" required="true">
+
+Authorization code.
+
+</ParamField>
+
+<ParamField query="state" param-type="string" required="true">
+
+OAuth state.
+
+</ParamField>
+
+<ParamField query="error" param-type="string" required="false">
+
+Provider error code.
+
+</ParamField>
+
+<ParamField query="error_description" param-type="string" required="false">
+
+Provider error description.
+
+</ParamField>
+
+<ResponseField name="redirect" field-type="string" required="true">
+
+HTTP redirect to the safe `returnTo` value, or a custom OAuth HTML popup relay.
+
+</ResponseField>
+
+Errors: `400` and `500`. Provider errors redirect with `oauth_error`.
+
+### `POST` `/api/marketplace/oauth/custom-complete`
+
+Completes a custom OAuth connection.
+
+<ParamField body="authorizationCode" param-type="string" required="true">
+
+Authorization code.
+
+</ParamField>
+
+<ParamField body="credentials" param-type="object" required="true">
+
+Custom OAuth credentials.
+
+</ParamField>
+
+<ResponseField name="connection" field-type="object" required="true">
+
+Completed connection.
+
+</ResponseField>
+
+Errors: `400`, `401`, `422`, and `500`.
+
+## Bounties
+
+### `POST` `/api/bounties/preview`
+
+Validates a bounty before creation.
+
+<ParamField body="bounty" param-type="object" required="true">
+
+Bounty preview DTO with session and user fields.
+
+</ParamField>
+
+<ResponseField name="preview" field-type="object" required="true">
+
+Validated bounty preview.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `422`.
+
+### `POST` `/api/bounties/suggest-intent`
+
+Suggests a one-line bounty intent.
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session identifier.
+
+</ParamField>
+
+<ResponseField name="intent" field-type="string" required="true">
+
+Suggested one-line intent.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/bounties/draft-brief`
+
+Generates a detailed bounty brief.
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session identifier.
+
+</ParamField>
+
+<ResponseField name="brief" field-type="object" required="true">
+
+Generated bounty brief.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/bounties`
+
+Creates a bounty.
+
+<ParamField body="title" param-type="string" required="true">
+
+Bounty title.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="true">
+
+Bounty description.
+
+</ParamField>
+
+<ParamField body="amount" param-type="number" required="true">
+
+Bounty amount.
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true">
+
+Currency code.
+
+</ParamField>
+
+<ParamField body="session" param-type="object" required="true">
+
+Session data.
+
+</ParamField>
+
+<ParamField body="structuredFields" param-type="object" required="true">
+
+Structured bounty fields.
+
+</ParamField>
+
+<ResponseField name="bounty" field-type="object" required="true">
+
+Created bounty.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/bounties/:id/pay/order`
+
+Creates a provider pay-in order.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false">
+
+Country override.
+
+</ParamField>
+
+<ParamField header="geo" param-type="string" required="false">
+
+Geographic request headers.
+
+</ParamField>
+
+<ResponseField name="order" field-type="object" required="true">
+
+Provider pay-in order.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `409`, and `500`.
+
+### `POST` `/api/bounties/:id/pay/verify`
+
+Verifies a bounty payment.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField body="razorpayOrderId" param-type="string" required="false">
+
+Razorpay order identifier.
+
+</ParamField>
+
+<ParamField body="providerOrderId" param-type="string" required="false">
+
+Provider order identifier.
+
+</ParamField>
+
+<ParamField body="payment" param-type="object" required="false">
+
+Payment and signature fields.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Payment verification and activation result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `409`, and `500`.
+
+### `GET` `/api/bounties`
+
+Lists bounties.
+
+<ResponseField name="bounties" field-type="array" required="true">
+
+Bounty list.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/bounties/by-session/:sessionId`
+
+Returns the expiration for a session's bounty.
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Session identifier.
+
+</ParamField>
+
+<ResponseField name="expiresAt" field-type="string or null" required="true">
+
+Expiration time, or `null`.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/bounties/mine/updates`
+
+Returns the authenticated user's bounty updates.
+
+<ResponseField name="updates" field-type="array" required="true">
+
+User update feed.
+
+</ResponseField>
+
+<ResponseField name="totals" field-type="object" required="true">
+
+Update totals and new counts.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/bounties/:id`
+
+Returns bounty detail and the caller's submission.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ResponseField name="bounty" field-type="object" required="true">
+
+Bounty detail containing `mySubmission` when available.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/bounties/:id/submissions`
+
+Submits an agent workflow to a bounty.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField body="submission" param-type="object" required="true">
+
+Workflow JSON, agent name and summary, tools, platforms, note, and builder questions.
+
+</ParamField>
+
+<ResponseField name="submission" field-type="object" required="true">
+
+Submission and review result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `422`, and `500`.
+
+### `GET` `/api/bounties/:id/submissions`
+
+Lists submissions for the bounty owner.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ResponseField name="submissions" field-type="array" required="true">
+
+Owner submission list.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `PATCH` `/api/bounties/:id/submissions/:submissionId/status`
+
+Updates a submission status.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField path="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+</ParamField>
+
+<ParamField body="status" param-type="string" required="true">
+
+New submission status.
+
+</ParamField>
+
+<ResponseField name="submission" field-type="object" required="true">
+
+Updated submission status.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/bounties/:id/submissions/:submissionId/ensure-runnable`
+
+Ensures that a submission has a runnable published workflow.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField path="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+</ParamField>
+
+<ResponseField name="publishedWorkflowId" field-type="string or null" required="true">
+
+Published workflow identifier, or `null`.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, `422`, and `500`.
+
+### `POST` `/api/bounties/:id/submissions/:submissionId/accept`
+
+Accepts and deploys a submission.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField path="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+</ParamField>
+
+<ParamField body="consumerCopyId" param-type="string" required="false">
+
+Consumer copy identifier.
+
+</ParamField>
+
+<ParamField body="scheduleConfig" param-type="object" required="false">
+
+Schedule configuration.
+
+</ParamField>
+
+<ResponseField name="submission" field-type="object" required="true">
+
+Accepted and deployed submission.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, `422`, and `500`.
+
+### `POST` `/api/bounties/:id/award`
+
+Awards a bounty submission.
+
+<ParamField path="id" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ParamField body="submissionId" param-type="string" required="true">
+
+Submission identifier.
+
+</ParamField>
+
+<ResponseField name="payout" field-type="object" required="true">
+
+Created payout.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, `409`, and `500`.
+
+## Automations
+
+### `POST` `/api/automations`
+
+Creates an automation.
+
+<ParamField body="automation" param-type="object" required="true">
+
+Automation DTO.
+
+</ParamField>
+
+<ResponseField name="automation" field-type="object" required="true">
+
+Created automation.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/automations`
+
+Lists the authenticated user's automations.
+
+<ResponseField name="automations" field-type="array" required="true">
+
+User automations.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/automations/:id`
+
+Returns automation detail.
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+</ParamField>
+
+<ResponseField name="automation" field-type="object" required="true">
+
+Automation detail.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/automations/:id/tools/reconnect`
+
+Starts reconnection for an automation tool.
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+</ParamField>
+
+<ParamField body="pieceName" param-type="string" required="true">
+
+Piece name.
+
+</ParamField>
+
+<ParamField header="Referer" param-type="string" required="true">
+
+Request origin.
+
+</ParamField>
+
+<ResponseField name="connection" field-type="object" required="true">
+
+Reconnection or OAuth descriptor.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `PATCH` `/api/automations/:id`
+
+Updates an automation.
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+</ParamField>
+
+<ParamField body="update" param-type="object" required="true">
+
+Automation update DTO.
+
+</ParamField>
+
+<ResponseField name="automation" field-type="object" required="true">
+
+Updated automation.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `DELETE` `/api/automations/:id`
+
+Deletes an automation.
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Deletion result.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/automations/:id/runs`
+
+Lists automation runs.
+
+<ParamField path="id" param-type="string" required="true">
+
+Automation identifier.
+
+</ParamField>
+
+<ResponseField name="runs" field-type="array" required="true">
+
+Automation runs.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+## Requested agents
+
+### `GET` `/api/requested-agents`
+
+Lists requested agents.
+
+<ParamField query="status" param-type="string" required="false">
+
+Request status. Defaults to `open`.
+
+</ParamField>
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Number of records from `1` to `200`.
+
+</ParamField>
+
+<ResponseField name="requests" field-type="array" required="true">
+
+Requested-agent list.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/requested-agents/:id`
+
+Returns requested-agent detail.
+
+<ParamField path="id" param-type="string" required="true">
+
+Requested-agent UUID.
+
+</ParamField>
+
+<ResponseField name="request" field-type="object" required="true">
+
+Requested-agent detail.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `POST` `/api/requested-agents`
+
+Creates or merges an agent request.
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session identifier.
+
+</ParamField>
+
+<ResponseField name="request" field-type="object" required="true">
+
+Created or merged request.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/requested-agents/:id/interest`
+
+Records interest in a requested agent.
+
+<ParamField path="id" param-type="string" required="true">
+
+Requested-agent UUID.
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="false">
+
+Chat session identifier.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Interest result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `GET` `/api/requested-agents/:id/interest-count`
+
+Returns interest count.
+
+<ParamField path="id" param-type="string" required="true">
+
+Requested-agent UUID.
+
+</ParamField>
+
+<ResponseField name="count" field-type="number" required="true">
+
+Interest count.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+## Referrals and builder profiles
+
+### `GET` `/api/referrals/earnings`
+
+Returns referral earnings by month or period.
+
+<ResponseField name="earnings" field-type="array" required="true">
+
+Earnings summary.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/referrals/links`
+
+Creates a referral share link.
+
+<ParamField body="link" param-type="object" required="true">
+
+Share-link DTO containing an agent or workflow identifier.
+
+</ParamField>
+
+<ResponseField name="link" field-type="object" required="true">
+
+Share-link view and code.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `GET` `/api/referrals/links/:code`
+
+Resolves a referral share link.
+
+<ParamField path="code" param-type="string" required="true">
+
+Share-link code.
+
+</ParamField>
+
+<ResponseField name="link" field-type="object" required="true">
+
+Resolved share-link and agent view with click attribution.
+
+</ResponseField>
+
+Errors: `404` and `500`.
+
+### `POST` `/api/referrals/attribute`
+
+Attributes a referral visit.
+
+<ParamField body="code" param-type="string" required="true">
+
+Share-link code.
+
+</ParamField>
+
+<ParamField body="linkSeenAt" param-type="string" required="true">
+
+Time the link was viewed.
+
+</ParamField>
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Always `true` for a successful attribution.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, and `500`.
+
+### `GET` `/api/builders/me`
+
+Returns the authenticated builder profile and balance.
+
+<ResponseField name="profile" field-type="object" required="true">
+
+Builder profile.
+
+</ResponseField>
+
+<ResponseField name="balance" field-type="object" required="true">
+
+Builder balance.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `PATCH` `/api/builders/me`
+
+Updates the authenticated builder profile.
+
+<ParamField body="currency" param-type="string" required="false">
+
+Builder currency.
+
+</ParamField>
+
+<ResponseField name="profile" field-type="object" required="true">
+
+Updated builder profile.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `GET` `/api/builders/me/referral`
+
+Returns the builder referral summary.
+
+<ResponseField name="referralCode" field-type="string" required="true">
+
+Referral code.
+
+</ResponseField>
+
+<ResponseField name="url" field-type="string" required="true">
+
+Referral URL.
+
+</ResponseField>
+
+<ResponseField name="pendingCount" field-type="number" required="true">
+
+Pending referral count.
+
+</ResponseField>
+
+<ResponseField name="creditedCount" field-type="number" required="true">
+
+Credited referral count.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/earnings/balance`
+
+Returns the authenticated user's earnings balance.
+
+<ResponseField name="balance" field-type="object" required="true">
+
+Earnings balance.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+## Credits
+
+### `GET` `/api/credits/packages`
+
+Lists available credit packages.
+
+<ResponseField name="packages" field-type="array" required="true">
+
+Credit packages.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/credits/balance`
+
+Returns the authenticated user's credit balance.
+
+<ResponseField name="balance" field-type="object" required="true">
+
+Credit balance.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/credits/orders`
+
+Lists credit orders.
+
+<ResponseField name="orders" field-type="array" required="true">
+
+Credit orders.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/credits/charges`
+
+Lists credit charges.
+
+<ResponseField name="charges" field-type="array" required="true">
+
+Credit charges.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/credits/orders`
+
+Creates a credit purchase order.
+
+<ParamField body="packageId" param-type="string" required="true">
+
+Credit package identifier.
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true">
+
+Currency code.
+
+</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false">
+
+Country override.
+
+</ParamField>
+
+<ResponseField name="order" field-type="object" required="true">
+
+Provider order or checkout.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, `409`, and `500`.
+
+### `POST` `/api/credits/orders/custom`
+
+Creates a custom credit purchase order.
+
+<ParamField body="amountUsdMinor" param-type="integer" required="true">
+
+Amount in USD minor units.
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true">
+
+Currency code.
+
+</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false">
+
+Country override.
+
+</ParamField>
+
+<ResponseField name="order" field-type="object" required="true">
+
+Provider order or checkout.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, `409`, and `500`.
+
+### `POST` `/api/credits/orders/verify`
+
+Verifies a credit purchase.
+
+<ParamField body="razorpayOrderId" param-type="string" required="false">
+
+Razorpay order identifier.
+
+</ParamField>
+
+<ParamField body="providerOrderId" param-type="string" required="false">
+
+Provider order identifier.
+
+</ParamField>
+
+<ParamField body="payment" param-type="object" required="false">
+
+Payment and signature fields.
+
+</ParamField>
+
+<ResponseField name="order" field-type="object" required="true">
+
+Verified order.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `409`, and `500`.
+
+## Subscriptions and billing
+
+### `GET` `/api/billing/plans`
+
+Lists billing plans.
+
+<ResponseField name="plans" field-type="array" required="true">
+
+Billing plans.
+
+</ResponseField>
+
+Errors: `401`, `404` when the billing flag is off, and `500`.
+
+### `GET` `/api/subscriptions/plans`
+
+Lists subscription plans.
+
+<ResponseField name="plans" field-type="array" required="true">
+
+Subscription plans.
+
+</ResponseField>
+
+Errors: `401`, `404` when the billing flag is off, and `500`.
+
+### `GET` `/api/subscriptions/current`
+
+Returns the current subscription.
+
+<ResponseField name="status" field-type="string" required="true">
+
+Subscription status.
+
+</ResponseField>
+
+<ResponseField name="plan" field-type="object" required="true">
+
+Current plan.
+
+</ResponseField>
+
+<ResponseField name="renewsAt" field-type="string" required="false">
+
+Renewal time.
+
+</ResponseField>
+
+<ResponseField name="cancelAtPeriodEnd" field-type="boolean" required="true">
+
+Whether cancellation occurs at period end.
+
+</ResponseField>
+
+Errors: `401`, `404` with `NO_ACTIVE_SUBSCRIPTION`, and `500`.
+
+### `GET` `/api/subscriptions/entitlement`
+
+Returns the current credit entitlement.
+
+<ResponseField name="ledgerCredits" field-type="number" required="true">
+
+Ledger credits.
+
+</ResponseField>
+
+<ResponseField name="outstandingHolds" field-type="number" required="true">
+
+Outstanding holds.
+
+</ResponseField>
+
+<ResponseField name="safetyNet" field-type="number" required="true">
+
+Safety-net amount.
+
+</ResponseField>
+
+<ResponseField name="spendableCredits" field-type="number" required="true">
+
+Spendable credits.
+
+</ResponseField>
+
+<ResponseField name="activeBudget" field-type="number" required="true">
+
+Active budget.
+
+</ResponseField>
+
+<ResponseField name="reservedBudget" field-type="number" required="true">
+
+Reserved budget.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/subscriptions/history`
+
+Lists subscription history.
+
+<ResponseField name="history" field-type="array" required="true">
+
+Entries containing `plan`, `status`, `startedAt`, and `canceledAt`.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/subscriptions/checkout`
+
+Creates a subscription checkout session.
+
+<ParamField body="planId" param-type="string" required="true">
+
+Plan identifier.
+
+</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false">
+
+Country override.
+
+</ParamField>
+
+<ParamField header="geo" param-type="string" required="false">
+
+Geographic request headers.
+
+</ParamField>
+
+<ResponseField name="checkoutUrl" field-type="string" required="true">
+
+Provider checkout URL.
+
+</ResponseField>
+
+<ResponseField name="providerSessionId" field-type="string" required="true">
+
+Provider session identifier.
+
+</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">
+
+Checkout expiration time.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, `404`, `409`, and `500`.
+
+### `POST` `/api/subscriptions/cancel`
+
+Cancels the current subscription.
+
+<ResponseField name="status" field-type="string" required="true">
+
+Updated subscription status.
+
+</ResponseField>
+
+<ResponseField name="effectiveDate" field-type="string" required="true">
+
+Effective cancellation date.
+
+</ResponseField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Cancellation result message.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `409`, and `500`.
+
+### `POST` `/api/subscriptions/:planId`
+
+Subscribes the authenticated user to a plan.
+
+<ParamField path="planId" param-type="string" required="true">
+
+Plan identifier.
+
+</ParamField>
+
+<ResponseField name="subscriptionId" field-type="string" required="true">
+
+Subscription identifier.
+
+</ResponseField>
+
+<ResponseField name="plan" field-type="object" required="true">
+
+Selected plan.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Subscription status.
+
+</ResponseField>
+
+<ResponseField name="cycleId" field-type="string" required="true">
+
+Billing cycle identifier.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, including `PAID_PLAN_REQUIRES_CHECKOUT`, `401`, `404`, including `PLAN_NOT_FOUND`, `409`, and `500`.
+
+## Payout accounts and payouts
+
+### `GET` `/api/payout-accounts/region`
+
+Determines the payout region from geographic headers.
+
+<ParamField header="geo" param-type="string" required="false">
+
+Geographic request headers.
+
+</ParamField>
+
+<ResponseField name="region" field-type="string" required="true">
+
+`IN` or `INTL`.
+
+</ResponseField>
+
+<ResponseField name="country" field-type="string" required="true">
+
+Detected country.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/payout-accounts`
+
+Lists payout accounts with bank numbers redacted to the last four digits.
+
+<ResponseField name="accounts" field-type="array" required="true">
+
+Payout accounts.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/payout-accounts/connect-paypal`
+
+Connects a PayPal payout account.
+
+<ParamField body="email" param-type="string" required="true">
+
+PayPal email address.
+
+</ParamField>
+
+<ParamField body="countryCode" param-type="string" required="false">
+
+Country code.
+
+</ParamField>
+
+<ResponseField name="account" field-type="object" required="true">
+
+Connected payout account.
+
+</ResponseField>
+
+Errors: `400`, `401`, `409`, and `500`.
+
+### `POST` `/api/payout-accounts/connect-stripe`
+
+Starts Stripe payout onboarding.
+
+<ParamField body="countryCode" param-type="string" required="false">
+
+Country code.
+
+</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">
+
+Stripe onboarding result or URL.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/payout-accounts`
+
+Creates a payout account.
+
+<ParamField body="account" param-type="object" required="true">
+
+Account kind, bank, UPI, PayPal, country, and default fields.
+
+</ParamField>
+
+<ResponseField name="account" field-type="object" required="true">
+
+Created payout account.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, `409`, and `500`.
+
+### `PATCH` `/api/payout-accounts/:id`
+
+Updates a payout account.
+
+<ParamField path="id" param-type="string" required="true">
+
+Account identifier.
+
+</ParamField>
+
+<ParamField body="fields" param-type="object" required="true">
+
+Patchable account fields.
+
+</ParamField>
+
+<ResponseField name="account" field-type="object" required="true">
+
+Updated account.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, and `500`.
+
+### `DELETE` `/api/payout-accounts/:id`
+
+Deletes a payout account.
+
+<ParamField path="id" param-type="string" required="true">
+
+Account identifier.
+
+</ParamField>
+
+<ResponseField name="success" field-type="boolean" required="true">
+
+Always `true` after deletion.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/payouts`
+
+Creates a payout for the authenticated recipient.
+
+<ParamField body="amount" param-type="number" required="true">
+
+Payout amount.
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true">
+
+Currency code.
+
+</ParamField>
+
+<ParamField body="note" param-type="string" required="false">
+
+Payout note.
+
+</ParamField>
+
+<ParamField body="accountId" param-type="string" required="true">
+
+Payout account identifier.
+
+</ParamField>
+
+<ResponseField name="payout" field-type="object" required="true">
+
+Created payout.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, `402`, `409`, and `500`.
+
+### `POST` `/api/payouts/admin`
+
+Creates a payout for a target user.
+
+<ParamField body="amount" param-type="number" required="true">
+
+Payout amount.
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true">
+
+Currency code.
+
+</ParamField>
+
+<ParamField body="accountId" param-type="string" required="true">
+
+Payout account identifier.
+
+</ParamField>
+
+<ParamField body="userId" param-type="string" required="true">
+
+Target user identifier.
+
+</ParamField>
+
+<ResponseField name="payout" field-type="object" required="true">
+
+Created payout.
+
+</ResponseField>
+
+Returns `201 Created`. Errors: `400`, `401`, `403`, `402`, `409`, and `500`.
+
+### `GET` `/api/payouts`
+
+Lists the authenticated user's payouts.
+
+<ResponseField name="payouts" field-type="array" required="true">
+
+Payout list.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/payouts/fx-rate`
+
+Returns a foreign-exchange rate.
+
+<ParamField query="target" param-type="string" required="false">
+
+Target currency. Defaults to `INR`.
+
+</ParamField>
+
+<ResponseField name="target" field-type="string" required="true">
+
+Target currency.
+
+</ResponseField>
+
+<ResponseField name="rate" field-type="number" required="true">
+
+Exchange rate.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/payouts/sync`
+
+Synchronizes payout statuses.
+
+<ResponseField name="payouts" field-type="array" required="true">
+
+Synchronized payouts.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/payouts/:id/refresh`
+
+Refreshes a payout.
+
+<ParamField path="id" param-type="string" required="true">
+
+Payout identifier.
+
+</ParamField>
+
+<ResponseField name="payout" field-type="object" required="true">
+
+Updated payout.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/payouts/:id`
+
+Returns payout detail and events.
+
+<ParamField path="id" param-type="string" required="true">
+
+Payout identifier.
+
+</ParamField>
+
+<ResponseField name="payout" field-type="object" required="true">
+
+Payout detail with events.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+## Telemetry and leaderboard
+
+### `GET` `/api/telemetry/loading-durations`
+
+Returns recorded loading durations.
+
+<ResponseField name="durations" field-type="object" required="true">
+
+Loading duration data.
+
+</ResponseField>
+
+Errors: `500`.
+
+### `POST` `/api/telemetry/loading-durations`
+
+Records a loading duration.
+
+<ParamField body="opKey" param-type="string" required="true">
+
+Operation key.
+
+</ParamField>
+
+<ParamField body="durationMs" param-type="number" required="true">
+
+Duration in milliseconds.
+
+</ParamField>
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Always `true` after recording.
+
+</ResponseField>
+
+Errors: `400` and `500`.
+
+### `GET` `/api/leaderboard/builders`
+
+Returns the public builder leaderboard.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Number of records from `1` to `200`. Defaults to `100`.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Leaderboard items.
+
+</ResponseField>
+
+<ResponseField name="total" field-type="number" required="true">
+
+Total item count.
+
+</ResponseField>
+
+Errors: `500`.
+
+### `GET` `/api/leaderboard/workflows`
+
+Returns the public workflow leaderboard.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Number of records from `1` to `200`. Defaults to `100`.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Leaderboard items.
+
+</ResponseField>
+
+<ResponseField name="total" field-type="number" required="true">
+
+Total item count.
+
+</ResponseField>
+
+Errors: `500`.
+
+### `GET` `/api/leaderboard/results`
+
+Returns public leaderboard results for a season.
+
+<ParamField query="season" param-type="string" required="false">
+
+Season identifier. Defaults to `season-01`.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Leaderboard items.
+
+</ResponseField>
+
+<ResponseField name="total" field-type="number" required="true">
+
+Total item count.
+
+</ResponseField>
+
+Errors: `500`.
+
+## Admin billing
+
+All endpoints in this group require an admin JWT.
+
+### `GET` `/api/admin/billing/overview`
+
+Returns billing overview metrics.
+
+<ParamField query="excludeTest" param-type="boolean" required="false">
+
+Whether to exclude test data.
+
+</ParamField>
+
+<ResponseField name="metrics" field-type="object" required="true">
+
+Billing overview metrics.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/admin/billing/top-workflows`
+
+Ranks workflows by billing activity.
+
+<ParamField query="range" param-type="string" required="false" enum="today,7d,30d,all">
+
+Reporting range.
+
+</ParamField>
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Page size.
+
+</ParamField>
+
+<ParamField query="offset" param-type="integer" required="false">
+
+Records to skip.
+
+</ParamField>
+
+<ParamField query="excludeTest" param-type="boolean" required="false">
+
+Whether to exclude test data.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Paged workflow ranking.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/admin/billing/top-creators`
+
+Ranks creators by billing activity.
+
+Uses the same `range`, `limit`, `offset`, and `excludeTest` query parameters as the top-workflows endpoint.
+
+<ResponseField name="items" field-type="array" required="true">
+
+Paged creator ranking.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/admin/billing/leakage`
+
+Returns billing leakage metrics.
+
+<ParamField query="excludeTest" param-type="boolean" required="false">
+
+Whether to exclude test data.
+
+</ParamField>
+
+<ResponseField name="metrics" field-type="object" required="true">
+
+Leakage metrics.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/admin/billing/users/search`
+
+Searches users for billing administration.
+
+<ParamField query="q" param-type="string" required="true">
+
+Search query.
+
+</ParamField>
+
+<ResponseField name="users" field-type="array" required="true">
+
+Matching users.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/admin/billing/users/:id`
+
+Returns billing detail for a user.
+
+<ParamField path="id" param-type="string" required="true">
+
+User UUID.
+
+</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">
+
+User billing detail.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, and `500`.
+
+## Candidate assignments
+
+### `GET` `/api/assignments/mine`
+
+Returns the authenticated user's assignment slug.
+
+<ResponseField name="slug" field-type="string or null" required="true">
+
+Assignment slug, or `null`.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `GET` `/api/assignments/:slug`
+
+Resolves or lazily creates an assignment.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ResponseField name="assignment" field-type="object" required="true">
+
+Resolved assignment.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/assignments/:slug/pool`
+
+Returns the candidate bounty pool.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ResponseField name="pool" field-type="array" required="true">
+
+Candidate bounty pool.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `GET` `/api/assignments/:slug/tasks/:taskId`
+
+Returns a task brief.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ParamField path="taskId" param-type="string" required="true">
+
+Task identifier.
+
+</ParamField>
+
+<ResponseField name="task" field-type="object" required="true">
+
+Task brief.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `GET` `/api/assignments/:slug/selection`
+
+Returns the selected task.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ResponseField name="selection" field-type="object or null" required="true">
+
+Selected task, or `null`.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/assignments/:slug/select`
+
+Selects a bounty for an assignment.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ParamField body="bountyId" param-type="string" required="true">
+
+Bounty identifier.
+
+</ParamField>
+
+<ResponseField name="selection" field-type="object" required="true">
+
+Selection result.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `409`, and `500`.
+
+### `GET` `/api/assignments/:slug/submissions`
+
+Lists candidate submissions.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ResponseField name="submissions" field-type="array" required="true">
+
+Candidate submissions.
+
+</ResponseField>
+
+Errors: `401`, `404`, and `500`.
+
+### `POST` `/api/assignments/:slug/submissions`
+
+Stores and scores a candidate submission.
+
+<ParamField path="slug" param-type="string" required="true">
+
+Assignment slug.
+
+</ParamField>
+
+<ParamField body="submission" param-type="object" required="true">
+
+Candidate submission DTO.
+
+</ParamField>
+
+<ResponseField name="submission" field-type="object" required="true">
+
+Scored and stored submission.
+
+</ResponseField>
+
+Errors: `400`, `401`, `404`, `422`, and `500`.
+
+### `GET` `/api/admin/candidates/submissions`
+
+Lists candidate submissions for administrators.
+
+<ParamField query="status" param-type="string" required="false" enum="pending,approved,rejected">
+
+Submission status.
+
+</ParamField>
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Page size.
+
+</ParamField>
+
+<ParamField query="offset" param-type="integer" required="false">
+
+Records to skip.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Paged candidate cards.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, and `500`.
+
+### `GET` `/api/admin/candidates/submissions/:id`
+
+Returns candidate detail.
+
+<ParamField path="id" param-type="string" required="true">
+
+Candidate submission UUID.
+
+</ParamField>
+
+<ResponseField name="candidate" field-type="object" required="true">
+
+Candidate detail.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/admin/candidates/submissions/:id/approve`
+
+Approves a candidate submission.
+
+<ParamField path="id" param-type="string" required="true">
+
+Candidate submission UUID.
+
+</ParamField>
+
+<ParamField body="note" param-type="string" required="false">
+
+Optional approval note.
+
+</ParamField>
+
+<ResponseField name="candidate" field-type="object" required="true">
+
+Updated candidate.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+### `POST` `/api/admin/candidates/submissions/:id/reject`
+
+Rejects a candidate submission.
+
+<ParamField path="id" param-type="string" required="true">
+
+Candidate submission UUID.
+
+</ParamField>
+
+<ParamField body="note" param-type="string" required="false">
+
+Optional rejection note.
+
+</ParamField>
+
+<ResponseField name="candidate" field-type="object" required="true">
+
+Updated candidate.
+
+</ResponseField>
+
+Errors: `401`, `403`, `404`, and `500`.
+
+## Admin referral partners
+
+### `GET` `/api/admin/referral-partners`
+
+Lists referral partners.
+
+<ResponseField name="partners" field-type="array" required="true">
+
+Referral partners.
+
+</ResponseField>
+
+Errors: `401`, `403`, and `500`.
+
+### `POST` `/api/admin/referral-partners`
+
+Creates a referral partner.
+
+<ParamField body="partner" param-type="object" required="true">
+
+Partner creation DTO.
+
+</ParamField>
+
+<ResponseField name="partner" field-type="object" required="true">
+
+Created partner.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `409`, and `500`.
+
+### `PATCH` `/api/admin/referral-partners/:id`
+
+Updates a referral partner.
+
+<ParamField path="id" param-type="string" required="true">
+
+Partner UUID.
+
+</ParamField>
+
+<ParamField body="fields" param-type="object" required="true">
+
+Partner update fields.
+
+</ParamField>
+
+<ResponseField name="partner" field-type="object" required="true">
+
+Updated partner.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, and `500`.
+
+### `PATCH` `/api/admin/referral-partners/:id/revoke`
+
+Revokes a referral partner.
+
+<ParamField path="id" param-type="string" required="true">
+
+Partner UUID.
+
+</ParamField>
+
+<ResponseField name="partner" field-type="object" required="true">
+
+Revoked partner.
+
+</ResponseField>
+
+Errors: `400`, `401`, `403`, `404`, and `500`.
+
+## Webhooks
+
+<Callout kind="info">
+
+Webhook routes are public and authenticate with provider signatures instead of Supabase JWTs. Preserve the raw request body when calculating signatures.
+
+</Callout>
+
+### `POST` `/api/webhooks/razorpay`
+
+Processes a Razorpay webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="x-razorpay-signature" param-type="string" required="true">
+
+Razorpay signature.
+
+</ParamField>
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Always `true` for an accepted webhook.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/webhooks/stripe`
+
+Processes a Stripe webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="stripe-signature" param-type="string" required="true">
+
+Stripe signature.
+
+</ParamField>
+
+<ResponseField name="ok" field-type="boolean" required="true">
+
+Always `true` for an accepted webhook.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/subscriptions/webhook/razorpay`
+
+Processes a Razorpay subscription webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="x-razorpay-signature" param-type="string" required="true">
+
+Razorpay signature.
+
+</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Webhook processing status.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/subscriptions/webhook/stripe`
+
+Processes a Stripe subscription webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="stripe-signature" param-type="string" required="true">
+
+Stripe signature.
+
+</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">
+
+Webhook processing status.
+
+</ResponseField>
+
+Errors: `400`, `401`, and `500`.
+
+### `POST` `/api/webhooks/paypal`
+
+Processes a PayPal webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="paypal-signature" param-type="string" required="true">
+
+PayPal signature headers.
+
+</ParamField>
+
+<ResponseField name="received" field-type="boolean" required="true">
+
+Always `true` for an accepted webhook.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/webhooks/razorpayx`
+
+Processes a RazorpayX webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="razorpayx-signature" param-type="string" required="true">
+
+RazorpayX signature headers.
+
+</ParamField>
+
+<ResponseField name="received" field-type="boolean" required="true">
+
+Always `true` for an accepted webhook.
+
+</ResponseField>
+
+Errors: `401` and `500`.
+
+### `POST` `/api/webhooks/stripe-connect`
+
+Processes a Stripe Connect webhook.
+
+<ParamField body="rawBody" param-type="binary" required="true">
+
+Raw provider payload.
+
+</ParamField>
+
+<ParamField header="stripe-signature" param-type="string" required="true">
+
+Stripe signature.
+
+</ParamField>
+
+<ResponseField name="received" field-type="boolean" required="true">
+
+Always `true` for an accepted webhook.
+
+</ResponseField>
+
+Errors: `401` and `500`.

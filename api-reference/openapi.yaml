@@ -1,13 +1,9 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
+  version: 2.0.0
   title: AIGravity Core API Service
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
-
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
-
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    OpenAPI specification for the AIGravity NestJS API service. Covers authentication, chat, marketplace, agents, bounties, credits, subscriptions, payouts, and webhooks. The AI service is a separate FastAPI application documented on the AI Service reference page.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -16,18 +12,60 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:3001
     description: API service local development server
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Authentication
+    description: User authentication, sessions, and identity operations
+  - name: Chat
+    description: Chat messaging and chat service health operations
+  - name: Apps and Connections
+    description: Application catalog and connection management operations
+  - name: Agents
+    description: Agent publishing, verification, and review operations
+  - name: Marketplace
+    description: Marketplace workflow publishing, execution, and run operations
+  - name: Bounties
+    description: Bounty creation, retrieval, and award operations
+  - name: Automations
+    description: Automation creation and management operations
+  - name: Credits
+    description: Credit balance and credit purchase operations
+  - name: Subscriptions
+    description: Subscription status, checkout, and cancellation operations
+  - name: Payouts
+    description: Payout creation and retrieval operations
+  - name: Webhooks
+    description: Payment provider webhook operations
 paths:
+  /:
+    get:
+      tags:
+        - Health
+      summary: Get API service status
+      description: Returns the current availability status of the API service.
+      operationId: getRootHealth
+      security: []
+      responses:
+        '200':
+          description: API service is reachable and healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                service: api
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /health:
     get:
       tags:
         - Health
-      summary: Get API service health
-      description: Returns a simple health response for the AIGravity/core API service.
+      summary: Get detailed API service health
+      description: Returns the API service health status with the time at which the response was generated.
       operationId: getHealth
       security: []
       responses:
@@ -39,6 +77,1258 @@ paths:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+                service: api
+                timestamp: '2024-01-01T00:00:00Z'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in a user
+      description: Authenticates a user with an email address and password and returns the user identity and session tokens.
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: User authenticated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Create a user account
+      description: Registers a new user account and returns the created user, profile, and session.
+      operationId: signup
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: User account created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - user
+                  - profile
+                  - session
+                properties:
+                  user:
+                    type: object
+                    additionalProperties: true
+                  profile:
+                    type: object
+                    additionalProperties: true
+                  session:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh an authentication session
+      description: Exchanges a refresh token for a new authentication session.
+      operationId: refreshAuthSession
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+                  description: Refresh token issued during authentication.
+      responses:
+        '200':
+          description: Session refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - session
+                properties:
+                  session:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out the current user
+      description: Invalidates the authenticated user's current session.
+      operationId: logout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    type: object
+                    additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get the current user
+      description: Returns the user associated with the supplied bearer token.
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - user
+                properties:
+                  user:
+                    type: object
+                    additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/chat/message:
+    post:
+      tags:
+        - Chat
+      summary: Send a chat message
+      description: Sends a message within a chat session and returns the generated response.
+      operationId: sendChatMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessageRequest'
+      responses:
+        '200':
+          description: Chat response generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - response
+                properties:
+                  response:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/chat/health:
+    get:
+      tags:
+        - Chat
+      summary: Get chat service health
+      description: Returns the health information for the chat service.
+      operationId: getChatHealth
+      security: []
+      responses:
+        '200':
+          description: Chat service health retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - health
+                properties:
+                  health:
+                    type: object
+                    additionalProperties: true
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/apps/catalog:
+    get:
+      tags:
+        - Apps and Connections
+      summary: List available applications
+      description: Returns the catalog of applications that can be used by workflows and connections.
+      operationId: listAppsCatalog
+      responses:
+        '200':
+          description: Application catalog retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - apps
+                properties:
+                  apps:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/apps/connect/initiate:
+    post:
+      tags:
+        - Apps and Connections
+      summary: Initiate an application connection
+      description: Starts the process of connecting the authenticated user to an application.
+      operationId: initiateAppConnection
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+              properties:
+                pieceName:
+                  type: string
+                forceReconnect:
+                  type: boolean
+                  default: false
+                reuseExternalId:
+                  type: string
+      responses:
+        '200':
+          description: Connection initiation details returned
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - connection
+                properties:
+                  connection:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/publish:
+    post:
+      tags:
+        - Agents
+      summary: Publish an agent
+      description: Publishes an agent after validating its definition and publication details.
+      operationId: publishAgent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: PublishAgentDto containing the agent publication details.
+              additionalProperties: true
+      responses:
+        '201':
+          description: Agent published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - agent
+                properties:
+                  agent:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/review-submissions/mine/{id}/feedback:
+    post:
+      tags:
+        - Agents
+      summary: Submit builder review feedback
+      description: New endpoint that records feedback from a builder on a review finding for the builder's submission.
+      operationId: submitBuilderReviewFeedback
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the review submission.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuilderFeedbackRequest'
+      responses:
+        '200':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - feedback
+                properties:
+                  feedback:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/admin/pending-reviews/{id}/re-review:
+    post:
+      tags:
+        - Agents
+      summary: Request an asynchronous agent re-review
+      description: Requests an asynchronous re-review of a pending agent review. Processing is accepted for background execution.
+      operationId: requestAgentRereview
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the pending review.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Re-review request accepted for asynchronous processing
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - accepted
+                properties:
+                  accepted:
+                    type: boolean
+                    enum:
+                      - true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/admin/pending-reviews/{id}/builder-report/send:
+    post:
+      tags:
+        - Agents
+      summary: Send a builder review report
+      description: Sends a builder report for a pending review. Edits are restricted to severity, title, and message; severity is restricted to critical, high, medium, or low; and reason is truncated to 2000 characters.
+      operationId: sendBuilderReport
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the pending review.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuilderReportSendRequest'
+      responses:
+        '200':
+          description: Builder report sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - review
+                properties:
+                  review:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/agents/verify-stream:
+    post:
+      tags:
+        - Agents
+      summary: Verify an agent using a stream
+      description: Validates an agent and streams verification progress and results using server-sent events.
+      operationId: verifyAgentStream
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: VerifyAgentDto containing the agent verification details.
+              additionalProperties: true
+      responses:
+        '200':
+          description: Agent verification event stream
+          content:
+            text/event-stream: {}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/run:
+    post:
+      tags:
+        - Marketplace
+      summary: Run a published marketplace workflow
+      description: Starts a marketplace workflow run. sessionId preserves chat intent; unresolvable pieces return 422. QUEUED is treated as running, and PAUSED is treated as in-progress.
+      operationId: runMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MarketplaceRunRequest'
+      responses:
+        '200':
+          description: Workflow run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketplaceRunResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/run-result:
+    post:
+      tags:
+        - Marketplace
+      summary: Retrieve a marketplace run result
+      description: Retrieves the result of a marketplace workflow run using the supplied consumer and optional provider run identifiers.
+      operationId: getMarketplaceRunResult
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+                gravityRunId:
+                  type: string
+                apRunId:
+                  type: string
+                startedAfter:
+                  type: string
+                  format: date-time
+      responses:
+        '200':
+          description: Run result retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/execute:
+    post:
+      tags:
+        - Marketplace
+      summary: Execute a marketplace workflow
+      description: Executes a marketplace workflow using the supplied consumer copy and optional field values.
+      operationId: executeMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+                fieldValues:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Workflow execution started or completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/publish:
+    post:
+      tags:
+        - Marketplace
+      summary: Publish a marketplace workflow
+      description: Publishes a workflow to the marketplace after validating its definition and publication details.
+      operationId: publishMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: PublishPasteDto containing the workflow publication details.
+              additionalProperties: true
+      responses:
+        '201':
+          description: Workflow published successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - workflow
+                properties:
+                  workflow:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/workflows/{id}:
+    get:
+      tags:
+        - Marketplace
+      summary: Get a public marketplace workflow
+      description: Returns a publicly accessible marketplace workflow by UUID.
+      operationId: getMarketplaceWorkflow
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the marketplace workflow.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workflow retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - workflow
+                properties:
+                  workflow:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/test-builder/run:
+    post:
+      tags:
+        - Marketplace
+      summary: Run a workflow builder test
+      description: Runs a workflow draft for testing. consumerInputs and fieldValues are supported for builder tests; unresolvable actions return 422.
+      operationId: runMarketplaceBuilderTest
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - draftFlowId
+                - workflowJson
+                - consumerInputs
+              properties:
+                draftFlowId:
+                  type: string
+                workflowJson:
+                  type: object
+                  additionalProperties: true
+                consumerInputs:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties: true
+                fieldValues:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Builder test result
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - result
+                properties:
+                  result:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties:
+    post:
+      tags:
+        - Bounties
+      summary: Create a bounty
+      description: Creates a bounty with the specified title, description, amount, currency, and session context.
+      operationId: createBounty
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BountiesCreateRequest'
+      responses:
+        '201':
+          description: Bounty created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - bounty
+                properties:
+                  bounty:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}:
+    get:
+      tags:
+        - Bounties
+      summary: Get a bounty
+      description: Returns a bounty by identifier for an authenticated user.
+      operationId: getBounty
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identifier of the bounty.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bounty retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - bounty
+                properties:
+                  bounty:
+                    type: object
+                    additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/bounties/{id}/award:
+    post:
+      tags:
+        - Bounties
+      summary: Award a bounty
+      description: Awards a bounty to the specified submission and creates the associated payout.
+      operationId: awardBounty
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identifier of the bounty.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - submissionId
+              properties:
+                submissionId:
+                  type: string
+      responses:
+        '200':
+          description: Bounty awarded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - payout
+                properties:
+                  payout:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/automations:
+    post:
+      tags:
+        - Automations
+      summary: Create an automation
+      description: Creates an automation from the supplied automation definition.
+      operationId: createAutomation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Automation creation data.
+              additionalProperties: true
+      responses:
+        '201':
+          description: Automation created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - automation
+                properties:
+                  automation:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Automations
+      summary: List automations
+      description: Returns the automations belonging to the authenticated user.
+      operationId: listAutomations
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Automations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - automations
+                properties:
+                  automations:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/credits/balance:
+    get:
+      tags:
+        - Credits
+      summary: Get credit balance
+      description: Returns the authenticated user's current credit balance.
+      operationId: getCreditBalance
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Credit balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - balance
+                properties:
+                  balance:
+                    type: object
+                    additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/credits/orders:
+    post:
+      tags:
+        - Credits
+      summary: Create a credit order
+      description: Creates an order for purchasing a credit package.
+      operationId: createCreditOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditsOrderRequest'
+      responses:
+        '201':
+          description: Credit order created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - order
+                properties:
+                  order:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/subscriptions/current:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get the current subscription
+      description: Returns the authenticated user's current subscription status, plan, renewal time, and cancellation state.
+      operationId: getCurrentSubscription
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current subscription retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - plan
+                  - cancelAtPeriodEnd
+                properties:
+                  status:
+                    type: string
+                  plan:
+                    type: object
+                    additionalProperties: true
+                  renewsAt:
+                    type: string
+                    format: date-time
+                  cancelAtPeriodEnd:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/subscriptions/checkout:
+    post:
+      tags:
+        - Subscriptions
+      summary: Create a subscription checkout
+      description: Creates a checkout session for the selected subscription plan.
+      operationId: createSubscriptionCheckout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCheckoutRequest'
+      responses:
+        '201':
+          description: Subscription checkout created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - checkoutUrl
+                  - providerSessionId
+                  - expiresAt
+                properties:
+                  checkoutUrl:
+                    type: string
+                    format: uri
+                  providerSessionId:
+                    type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/subscriptions/cancel:
+    post:
+      tags:
+        - Subscriptions
+      summary: Cancel a subscription
+      description: Cancels the authenticated user's subscription according to the applicable billing rules.
+      operationId: cancelSubscription
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Subscription cancellation processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - effectiveDate
+                  - message
+                properties:
+                  status:
+                    type: string
+                  effectiveDate:
+                    type: string
+                    format: date-time
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/payouts:
+    post:
+      tags:
+        - Payouts
+      summary: Create a payout
+      description: Creates a payout request for the specified amount and payout account.
+      operationId: createPayout
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutCreateRequest'
+      responses:
+        '201':
+          description: Payout created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - payout
+                properties:
+                  payout:
+                    type: object
+                    additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/payouts/{id}:
+    get:
+      tags:
+        - Payouts
+      summary: Get a payout
+      description: Returns a payout by identifier for an authenticated user.
+      operationId: getPayout
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Identifier of the payout.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payout retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - payout
+                properties:
+                  payout:
+                    type: object
+                    additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/webhooks/razorpay:
+    post:
+      tags:
+        - Webhooks
+      summary: Receive a Razorpay webhook
+      description: Receives and validates a raw Razorpay webhook payload.
+      operationId: receiveRazorpayWebhook
+      security: []
+      parameters:
+        - name: x-razorpay-signature
+          in: header
+          required: true
+          description: Signature used to validate the Razorpay webhook payload.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: {}
+      responses:
+        '200':
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                properties:
+                  ok:
+                    type: boolean
+                    enum:
+                      - true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/webhooks/stripe:
+    post:
+      tags:
+        - Webhooks
+      summary: Receive a Stripe webhook
+      description: Receives and validates a raw Stripe webhook payload.
+      operationId: receiveStripeWebhook
+      security: []
+      parameters:
+        - name: stripe-signature
+          in: header
+          required: true
+          description: Signature used to validate the Stripe webhook payload.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream: {}
+      responses:
+        '200':
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                properties:
+                  ok:
+                    type: boolean
+                    enum:
+                      - true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
 components:
@@ -49,20 +1339,293 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication is required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Request conflicts with the current resource state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: Request is syntactically valid but cannot be processed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PaymentRequired:
+      description: Payment or sufficient account credits are required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Authenticated user is not permitted to perform this operation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadGateway:
+      description: Upstream service returned an invalid response
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ServiceUnavailable:
+      description: Service is temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
     HealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
-      additionalProperties: true
-      example:
-        status: ok
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          description: Current service status.
+          example: ok
+        service:
+          type: string
+          description: Service identifier.
+          example: api
+        timestamp:
+          type: string
+          format: date-time
+          description: Time at which the health response was generated.
     Error:
       type: object
-      description: Generic error response.
       required:
+        - statusCode
+        - error
         - message
+        - path
+        - timestamp
       properties:
+        statusCode:
+          type: integer
+          format: int32
+          description: HTTP status code.
+        error:
+          type: string
+          description: Short error name.
         message:
           type: string
           description: Human-readable error message.
-          example: Internal server error
+        path:
+          type: string
+          description: Request path that generated the error.
+        timestamp:
+          type: string
+          format: date-time
+          description: Time at which the error occurred.
+        requestId:
+          type: string
+          description: Optional identifier for tracing the request.
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      type: object
+      required:
+        - user
+        - session
+      properties:
+        user:
+          type: object
+          additionalProperties: true
+        session:
+          type: object
+          required:
+            - accessToken
+            - refreshToken
+          properties:
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+    SignupRequest:
+      type: object
+      required:
+        - email
+        - password
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        userType:
+          type: string
+          enum:
+            - creator
+            - business
+    ChatMessageRequest:
+      type: object
+      required:
+        - message
+        - session
+      properties:
+        message:
+          type: string
+        session:
+          type: object
+          additionalProperties: true
+        user:
+          type: object
+          additionalProperties: true
+    MarketplaceRunRequest:
+      type: object
+      required:
+        - publishedWorkflowId
+        - input
+      properties:
+        publishedWorkflowId:
+          type: string
+        input:
+          type: object
+          additionalProperties: true
+        fieldValues:
+          type: object
+          additionalProperties: true
+        sessionId:
+          type: string
+    MarketplaceRunResult:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - needs-connections
+            - running
+            - paused
+            - succeeded
+            - failure
+        runId:
+          type: string
+    BuilderFeedbackRequest:
+      type: object
+      required:
+        - findingId
+        - verdict
+      properties:
+        findingId:
+          type: string
+        verdict:
+          type: string
+          enum:
+            - up
+            - down
+        note:
+          type: string
+    BuilderReportSendRequest:
+      type: object
+      required:
+        - keepIds
+      properties:
+        keepIds:
+          type: array
+          items:
+            type: string
+        edits:
+          type: object
+          description: Edits restricted to severity, title, and message.
+          additionalProperties: true
+        reason:
+          type: string
+          maxLength: 2000
+    BountiesCreateRequest:
+      type: object
+      required:
+        - title
+        - description
+        - amount
+        - currency
+        - session
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        session:
+          type: object
+          additionalProperties: true
+    PayoutCreateRequest:
+      type: object
+      required:
+        - amount
+        - currency
+        - accountId
+      properties:
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+        note:
+          type: string
+        accountId:
+          type: string
+    CreditsOrderRequest:
+      type: object
+      required:
+        - packageId
+        - currency
+      properties:
+        packageId:
+          type: string
+        currency:
+          type: string
+        countryOverride:
+          type: string
+    SubscriptionCheckoutRequest:
+      type: object
+      required:
+        - planId
+      properties:
+        planId:
+          type: string
+        countryOverride:
+          type: string
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

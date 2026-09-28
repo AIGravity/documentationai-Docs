@@ -1,114 +1,1326 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Complete reference for every FastAPI AI service endpoint — chat, guardrail, requested agents, embeddings, credit usage, verification, and agent review — with parameters, response shapes, and error codes.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+The AI service is a FastAPI application running on port 8001. It provides chat, guardrail, agent, embedding, credit, verification, and review endpoints.
 
-<Callout kind="info">
+The service has no global authentication middleware. Some routes enforce explicit credentials, such as the `x-admin-token` header required by `/admin/pricing`. Internal routes under `/internal/*` rely on network-level protection.
 
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+Pydantic models validate request bodies. Invalid bodies return `422 Unprocessable Entity`.
 
-</Callout>
+## Error responses
 
-## Endpoint
+| Code | Meaning |
+|---|---|
+| 422 | Pydantic validation failure or invalid request body |
+| 500 | Unhandled processing failure |
+| 502 | AI or provider failure, such as embedding or generation failure |
+| 503 | Service or provider unavailable, such as missing API keys |
 
-### GET /health
+## Health
 
-Use this endpoint to verify that the AI service is running and able to respond to requests.
+### `GET` `/health`
 
-<ParamField body="method" param-type="string" required="true" show-location="false">
+Check whether the AI service is running and whether chat dependencies are available.
 
-`GET`
+No authentication is required.
 
-</ParamField>
+<ResponseField name="status" field-type="string" required="true">
 
-<ParamField body="path" param-type="string" required="true" show-location="false">
+Health status. The service returns `healthy` when the health check succeeds.
 
-`/health`
+</ResponseField>
 
-</ParamField>
+<ResponseField name="service" field-type="string" required="true">
 
-<ParamField body="auth" param-type="string" required="false" show-location="false">
+Service identifier.
 
-No authentication requirement was found in the FastAPI route implementation.
+</ResponseField>
 
-</ParamField>
+<ResponseField name="version" field-type="string" required="true">
+
+Running service version.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Whether the chat capability is available.
+
+</ResponseField>
 
 <CodeGroup tabs="cURL,JSON response">
 
 ```bash
-curl -X GET http://localhost:8000/health
+curl http://localhost:8001/health
 ```
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "ai-service",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
 </CodeGroup>
 
-## Request details
+A `500 Internal Server Error` response indicates an infrastructure failure while checking service health.
 
-This endpoint does not accept any request inputs beyond the request method and path.
+## Chat
 
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
+### `POST` `/chat`
 
-None. The route path is static and does not define any path parameters.
+Send a user message through the AI service and receive an interaction response with routing, tool, memory, and execution metadata.
 
-</ParamField>
+<ParamField body="user_id" param-type="UUID" required="true">
 
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. No query parameters are defined in the route handler.
+User who owns the chat interaction.
 
 </ParamField>
 
-<ParamField body="request body" param-type="none" required="false" show-location="false">
+<ParamField body="session_id" param-type="UUID" required="true">
 
-None. Send the request without a body.
+Chat session that contains the interaction.
 
 </ParamField>
 
-<Callout kind="info">
+<ParamField body="message" param-type="string" required="true">
 
-No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
+User message. The value must contain between 0 and 4000 characters.
 
-</Callout>
+</ParamField>
 
-## Response
+<ParamField body="selected_tools" param-type="string[]" required="true">
 
-A successful request returns a JSON object with a single status field.
+Tools selected for the interaction.
 
-<ResponseField name="status" field-type="string" required="true">
+</ParamField>
 
-Service health status. The current implementation returns `ok`.
+<ParamField body="submit_tools" param-type="boolean" required="true">
+
+Whether the selected tools should be submitted for execution.
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="UUID" required="false">
+
+Agent to use for the interaction. If omitted, the service determines the applicable agent.
+
+</ParamField>
+
+<ResponseField name="session_id" field-type="UUID" required="true">
+
+Session associated with the interaction.
 
 </ResponseField>
 
-<Response tabs="200 OK" show-lines="false">
+<ResponseField name="reply" field-type="string" required="true">
+
+Assistant response text.
+
+</ResponseField>
+
+<ResponseField name="question" field-type="string" required="false">
+
+Follow-up question generated for the interaction, when applicable.
+
+</ResponseField>
+
+<ResponseField name="options" field-type="array" required="false">
+
+Options associated with a follow-up question or interaction decision.
+
+</ResponseField>
+
+<ResponseField name="mode" field-type="string" required="true">
+
+Interaction mode selected by the service.
+
+</ResponseField>
+
+<ResponseField name="ready_to_query" field-type="boolean" required="true">
+
+Whether the interaction has enough information to query or execute the next operation.
+
+</ResponseField>
+
+<ResponseField name="suggested_tools" field-type="array" required="false">
+
+Tools suggested for the interaction.
+
+</ResponseField>
+
+<ResponseField name="execution_id" field-type="string" required="true">
+
+Identifier for the execution row created for this interaction.
+
+</ResponseField>
+
+The response can also include `info_json`, `search_query`, `memories`, `guardrail_log`, `redis_history`, `typesense_payload`, `top_agents`, `show_tool_selection`, and `llm_calls`.
+
+The service creates an execution row for each request and finalizes it as completed or failed.
+
+<CodeGroup tabs="cURL,JSON response">
+
+```bash
+curl -X POST http://localhost:8001/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_id": "7d9f5b7e-1c2a-4b8d-9e31-6f4a2c8b10d5",
+    "session_id": "b4a2f6c1-8e73-4d90-9f12-3c7b5a1e6d44",
+    "message": "Summarize the latest customer feedback",
+    "selected_tools": ["customer_feedback"],
+    "submit_tools": true
+  }'
+```
 
 ```json
 {
-  "status": "ok"
+  "session_id": "b4a2f6c1-8e73-4d90-9f12-3c7b5a1e6d44",
+  "reply": "The latest customer feedback highlights faster setup and clearer reporting as the most requested improvements.",
+  "question": null,
+  "options": [],
+  "mode": "answer",
+  "info_json": null,
+  "ready_to_query": true,
+  "search_query": null,
+  "memories": [],
+  "guardrail_log": [],
+  "redis_history": [],
+  "typesense_payload": null,
+  "top_agents": [],
+  "suggested_tools": [],
+  "show_tool_selection": false,
+  "llm_calls": [],
+  "execution_id": "exec_8f4c2a91"
 }
 ```
 
-</Response>
+</CodeGroup>
 
-## Implementation notes
+Errors include `422` for Pydantic validation failures, `503` when no LLM key or service is available, and `500` for unhandled processing failures.
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+## Internal guardrail and pricing
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+### `POST` `/internal/guardrail/check`
 
-## Likely error responses
+Evaluate content against the AI service guardrail.
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+<ParamField body="content" param-type="string" required="true">
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+Content to evaluate.
+
+</ParamField>
+
+<ParamField body="source" param-type="string" required="true" enum="INPUT,OUTPUT">
+
+Content source. Use `INPUT` for user content and `OUTPUT` for generated content.
+
+</ParamField>
+
+<ParamField body="context" param-type="object" required="false">
+
+Optional context used during evaluation.
+
+</ParamField>
+
+<ResponseField name="safe" field-type="boolean" required="true">
+
+Whether the content passed the guardrail.
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="true">
+
+Reason for the guardrail result.
+
+</ResponseField>
+
+<ResponseField name="tier" field-type="string" required="true">
+
+Guardrail tier used for the evaluation.
+
+</ResponseField>
+
+<ResponseField name="output" field-type="string" required="false">
+
+Optional processed or evaluated output.
+
+</ResponseField>
+
+Errors include `422` for invalid input and `500` for unhandled processing failures.
+
+### `POST` `/admin/pricing`
+
+Create a provider or model pricing override.
+
+<Callout kind="info">
+
+Send the administrator token in the `x-admin-token` header. The value must match the configured `ADMIN_API_TOKEN`.
+
+</Callout>
+
+<ParamField header="x-admin-token" param-type="string" required="true">
+
+Administrator token used to authorize the pricing override.
+
+</ParamField>
+
+<ParamField body="provider" param-type="string" required="true">
+
+Provider whose pricing should be overridden.
+
+</ParamField>
+
+<ParamField body="model" param-type="string" required="true">
+
+Model whose pricing should be overridden.
+
+</ParamField>
+
+<ParamField body="pricing" param-type="object" required="true">
+
+Pricing override fields for the provider and model.
+
+</ParamField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Operation result. A successful request returns `Pricing override successful`.
+
+</ResponseField>
+
+<ResponseField name="model" field-type="string" required="true">
+
+Model whose pricing was updated.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+Pricing configuration version.
+
+</ResponseField>
+
+Errors include `403` for a missing or incorrect administrator token, `422` for invalid input, and `500` for unhandled processing failures.
+
+## Requested agents
+
+### `POST` `/internal/requested-agents`
+
+Create or merge a requested-agent record for a user session.
+
+<ParamField body="user_id" param-type="UUID" required="true">
+
+User submitting or contributing to the request.
+
+</ParamField>
+
+<ParamField body="session_id" param-type="UUID" required="true">
+
+Session associated with the request.
+
+</ParamField>
+
+<ResponseField name="request_id" field-type="string" required="true">
+
+Requested-agent identifier.
+
+</ResponseField>
+
+<ResponseField name="merged" field-type="boolean" required="true">
+
+Whether the request was merged into an existing request.
+
+</ResponseField>
+
+<ResponseField name="title" field-type="string" required="true">
+
+Requested-agent title.
+
+</ResponseField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Requested-agent description.
+
+</ResponseField>
+
+<ResponseField name="request_count" field-type="integer" required="true">
+
+Number of requests merged into the record.
+
+</ResponseField>
+
+Errors include `400` for a service error, `501` when the operation is not implemented, `422` for invalid input, and `500` for unhandled failures.
+
+### `GET` `/internal/requested-agents`
+
+List requested agents.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of requests to return. The default is `50`.
+
+</ParamField>
+
+<ParamField query="status" param-type="string" required="false">
+
+Status filter. The default is `open`.
+
+</ParamField>
+
+<ResponseField name="requests" field-type="array" required="true">
+
+Requested-agent records matching the query.
+
+</ResponseField>
+
+Errors include `422` for invalid query parameters and `500` for unhandled failures.
+
+### `GET` `/internal/requested-agents/{request_id}`
+
+Retrieve one requested-agent record.
+
+<ParamField path="request_id" param-type="string" required="true">
+
+Requested-agent identifier.
+
+</ParamField>
+
+The response contains the requested-agent view, including its ID, title, description, request count, category, status, information, fulfillment data, and timestamps.
+
+Errors include `404` when the request does not exist, `422` for an invalid identifier, and `500` for unhandled failures.
+
+### `POST` `/internal/requested-agents/{request_id}/interest`
+
+Register user interest in a requested agent.
+
+<ParamField path="request_id" param-type="string" required="true">
+
+Requested-agent identifier.
+
+</ParamField>
+
+<ParamField body="user_id" param-type="UUID" required="true">
+
+User registering interest.
+
+</ParamField>
+
+<ParamField body="session_id" param-type="UUID" required="false">
+
+Session associated with the interest signal.
+
+</ParamField>
+
+<ResponseField name="request_id" field-type="string" required="true">
+
+Requested-agent identifier.
+
+</ResponseField>
+
+<ResponseField name="request_count" field-type="integer" required="true">
+
+Updated interest count.
+
+</ResponseField>
+
+<ResponseField name="new_interest" field-type="boolean" required="true">
+
+Whether this request created a new interest signal.
+
+</ResponseField>
+
+Errors include `404` when the request does not exist, `422` for invalid input, and `500` for unhandled failures.
+
+### `GET` `/internal/requested-agents/{request_id}/interest-count`
+
+Retrieve the interest count for a requested agent.
+
+<ParamField path="request_id" param-type="string" required="true">
+
+Requested-agent identifier.
+
+</ParamField>
+
+<ResponseField name="count" field-type="integer" required="true">
+
+Number of recorded interest signals.
+
+</ResponseField>
+
+Errors include `422` for an invalid identifier and `500` for unhandled failures.
+
+### `POST` `/internal/requested-agents/{request_id}/mark-built`
+
+Mark a requested agent as fulfilled.
+
+<ParamField path="request_id" param-type="string" required="true">
+
+Requested-agent identifier.
+
+</ParamField>
+
+<ParamField body="fulfilled_by_agent_id" param-type="UUID" required="true">
+
+Agent that fulfills the request.
+
+</ParamField>
+
+The response contains the updated requested-agent view.
+
+Errors include `404` when the request does not exist, `422` for invalid input, and `500` for unhandled failures.
+
+## Agent indexing and embeddings
+
+### `POST` `/internal/embed`
+
+Generate an embedding for text.
+
+<ParamField body="text" param-type="string" required="true">
+
+Text to embed. The value must contain between 1 and 20000 characters.
+
+</ParamField>
+
+<ResponseField name="embedding" field-type="number[]" required="true">
+
+Generated embedding vector.
+
+</ResponseField>
+
+<ResponseField name="dims" field-type="integer" required="true">
+
+Number of dimensions in the embedding vector.
+
+</ResponseField>
+
+<Callout kind="info">
+
+A missing `GEMINI_API_KEY` returns `503 Service Unavailable`. An embedding or provider failure returns `502 Bad Gateway`.
+
+</Callout>
+
+Errors include `422` for invalid text, `503` when the embedding provider is unavailable, and `502` for provider failures.
+
+### `POST` `/internal/agents/index`
+
+Index an agent for search or retrieval.
+
+<ParamField body="id" param-type="string" required="true">
+
+Agent identifier.
+
+</ParamField>
+
+<ParamField body="template" param-type="object" required="true">
+
+Agent template to index.
+
+</ParamField>
+
+<ResponseField name="indexed" field-type="boolean" required="true">
+
+Whether indexing succeeded.
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="false">
+
+Operational error description when `indexed` is `false`.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Operational failures intentionally return HTTP `200` with `indexed: false`. They do not return `500`.
+
+</Callout>
+
+The only HTTP error documented for this endpoint is `422` for request validation. Operational failures are represented in the response body.
+
+### `DELETE` `/internal/agents/{agent_id}`
+
+Remove an agent from the index.
+
+<ParamField path="agent_id" param-type="string" required="true">
+
+Agent identifier.
+
+</ParamField>
+
+<ResponseField name="deleted" field-type="boolean" required="true">
+
+Whether deletion succeeded.
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="false">
+
+Operational error description when `deleted` is `false`.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Operational failures intentionally return HTTP `200` with `deleted: false`. They do not return `500`.
+
+</Callout>
+
+The only HTTP error documented for this endpoint is `422` for request validation. Operational failures are represented in the response body.
+
+## Credit and LLM usage
+
+### `GET` `/credits/executions/{execution_id}/usage`
+
+Retrieve aggregate cost, credit, and token usage for an execution.
+
+<ParamField path="execution_id" param-type="string" required="true">
+
+Execution identifier.
+
+</ParamField>
+
+The response contains aggregate execution cost, credits, and token usage.
+
+Errors include `500` for unhandled processing failures.
+
+### `GET` `/credits/executions/{execution_id}/breakdown`
+
+Retrieve per-call usage and totals for an execution.
+
+<ParamField path="execution_id" param-type="UUID" required="true">
+
+Execution identifier.
+
+</ParamField>
+
+<ResponseField name="execution_id" field-type="UUID" required="true">
+
+Execution identifier.
+
+</ResponseField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Per-call usage records.
+
+</ResponseField>
+
+<ResponseField name="totals" field-type="object" required="true">
+
+Aggregate totals containing `cost_usd`, `credits_used`, and `total_tokens`.
+
+</ResponseField>
+
+Errors include `422` for an invalid UUID and `500` for unhandled failures.
+
+### `POST` `/credits/internal/workflow-llm-event`
+
+Record usage for a workflow LLM event.
+
+<ParamField body="provider" param-type="string" required="true">
+
+LLM provider.
+
+</ParamField>
+
+<ParamField body="model" param-type="string" required="true">
+
+Model used for the event.
+
+</ParamField>
+
+<ParamField body="operation" param-type="string" required="true">
+
+Operation performed by the model.
+
+</ParamField>
+
+<ParamField body="input_tokens" param-type="integer" required="true">
+
+Number of input tokens.
+
+</ParamField>
+
+<ParamField body="output_tokens" param-type="integer" required="true">
+
+Number of output tokens.
+
+</ParamField>
+
+<ParamField body="total_tokens" param-type="integer" required="false">
+
+Total token count when supplied by the caller.
+
+</ParamField>
+
+<ParamField body="cost_usd" param-type="number" required="false">
+
+Exact provider cost in US dollars, when available.
+
+</ParamField>
+
+<ParamField body="user_id" param-type="UUID" required="false">
+
+User associated with the event.
+
+</ParamField>
+
+<ParamField body="project_id" param-type="string" required="false">
+
+Project associated with the event.
+
+</ParamField>
+
+<ParamField body="workflow_run_id" param-type="string" required="false">
+
+Workflow run associated with the event.
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="UUID" required="false">
+
+Agent associated with the event.
+
+</ParamField>
+
+<ResponseField name="id" field-type="string" required="true">
+
+Recorded LLM event identifier.
+
+</ResponseField>
+
+<ResponseField name="cost_usd" field-type="number" required="true">
+
+Calculated or supplied cost in US dollars.
+
+</ResponseField>
+
+<ResponseField name="credits_used" field-type="number" required="true">
+
+Credits consumed by the event.
+
+</ResponseField>
+
+<ResponseField name="total_tokens" field-type="integer" required="true">
+
+Total tokens recorded for the event.
+
+</ResponseField>
+
+<ResponseField name="cost_source" field-type="string" required="true">
+
+Indicates whether the cost came from an exact provider value or estimated token pricing.
+
+</ResponseField>
+
+<Callout kind="info">
+
+The `cost_source` field distinguishes exact provider cost from estimated token pricing.
+
+</Callout>
+
+Errors include `422` for invalid input and `500` for unhandled failures.
+
+### `GET` `/credits/internal/workflow-llm-calls`
+
+List recorded workflow LLM calls.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of call records to return. The default is `50`.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Per-call usage rows.
+
+</ResponseField>
+
+Errors include `422` for invalid query parameters and `500` for unhandled failures.
+
+### `GET` `/credits/internal/workflow-runs`
+
+List aggregated workflow runs.
+
+<ParamField query="limit" param-type="integer" required="false">
+
+Maximum number of workflow runs to return. The default is `50`.
+
+</ParamField>
+
+<ResponseField name="items" field-type="array" required="true">
+
+Aggregated workflow-run objects. Each object includes nested `calls`.
+
+</ResponseField>
+
+Errors include `422` for invalid query parameters and `500` for unhandled failures.
+
+### `GET` `/credits/internal/workflow-runs/{workflow_run_id}/usage`
+
+Retrieve aggregate usage for one workflow run.
+
+<ParamField path="workflow_run_id" param-type="string" required="true">
+
+Workflow-run identifier.
+
+</ParamField>
+
+The response contains one aggregated run object with totals, project and user information, models, timestamps, and nested calls.
+
+Errors include `500` for unhandled processing failures.
+
+## Verification
+
+<Callout kind="info">
+
+The verification group includes generation endpoints for categories, fillable fields, setup checks, workflow steps, and request alignment. These endpoints were added or formalized recently. Some verification endpoints fail open: evaluator errors return empty or permissive results instead of `500` responses.
+
+</Callout>
+
+### `POST` `/verification/warmup`
+
+Warm verification components before processing requests.
+
+No request body is required.
+
+<ResponseField name="warmed" field-type="boolean" required="true">
+
+Whether warmup completed.
+
+</ResponseField>
+
+<ResponseField name="elapsed_ms" field-type="number" required="true">
+
+Warmup duration in milliseconds.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="object" required="true">
+
+Status details for individual warmup components.
+
+</ResponseField>
+
+Warmup component failures are represented inside `status` and do not produce an HTTP error response.
+
+### `GET` `/verification/guardrail-health`
+
+Retrieve cached guardrail health or run a live probe.
+
+<ParamField query="run" param-type="boolean" required="false">
+
+Whether to run a live guardrail probe.
+
+</ParamField>
+
+The response contains the cached health result. Before the first check, it can return a status of `never_run` with a message. A live request returns a probe summary.
+
+A `500` response indicates a live probe failure.
+
+### `POST` `/verification/url-verdict`
+
+Record a URL verification verdict.
+
+<ParamField body="domain" param-type="string" required="true">
+
+Domain being reviewed.
+
+</ParamField>
+
+<ParamField body="action" param-type="string" required="true">
+
+Action associated with the verdict.
+
+</ParamField>
+
+<ParamField body="reason" param-type="string" required="true">
+
+Reason for the verdict.
+
+</ParamField>
+
+<ParamField body="reviewer" param-type="string" required="true">
+
+Reviewer that recorded the verdict.
+
+</ParamField>
+
+The response is a `UrlVerdictResponse` containing the recorded, already-covered, or invalid status.
+
+Errors include `422` for an invalid verdict and `500` for unhandled failures.
+
+### `POST` `/verification/generate-description`
+
+Generate a description from workflow data.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition used to generate the description.
+
+</ParamField>
+
+<ParamField body="field" param-type="string" required="false">
+
+Field being described.
+
+</ParamField>
+
+<ParamField body="user_draft" param-type="string" required="false">
+
+Existing user draft to refine or complete.
+
+</ParamField>
+
+<ResponseField name="description" field-type="string" required="true">
+
+Generated description.
+
+</ResponseField>
+
+<Callout kind="info">
+
+LLM generation failures return `502 Bad Gateway` with the message `Description generation failed`.
+
+</Callout>
+
+Errors include `422` for invalid input and `502` for description generation failure.
+
+### `POST` `/verification/generate-workflow-steps`
+
+Generate workflow steps from a workflow definition.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition used to generate steps.
+
+</ParamField>
+
+<ResponseField name="steps" field-type="array" required="true">
+
+Generated workflow steps.
+
+</ResponseField>
+
+Errors include `422` for invalid input and `502` for workflow step generation failure.
+
+### `POST` `/verification/generate-categories`
+
+Generate categories for a workflow.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition used to generate categories.
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="false">
+
+Workflow name.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="false">
+
+Workflow description.
+
+</ParamField>
+
+<ResponseField name="categories" field-type="array" required="true">
+
+Generated categories.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Generator failures fail open and return HTTP `200` with `categories: []`.
+
+</Callout>
+
+The endpoint returns `422` for invalid input. Generator failures return `200` with an empty category list.
+
+### `POST` `/verification/generate-fillable-fields`
+
+Generate fields that can be filled from workflow data.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition used to generate fillable fields.
+
+</ParamField>
+
+<ResponseField name="fields" field-type="array" required="true">
+
+Generated fillable fields.
+
+</ResponseField>
+
+Errors include `422` for invalid input and `502` for fillable-field generation failure.
+
+### `POST` `/verification/check-setup-fields`
+
+Evaluate whether setup fields are complete and valid.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition to evaluate.
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true">
+
+Workflow name.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="true">
+
+Workflow description.
+
+</ParamField>
+
+<ParamField body="problem_solved" param-type="string" required="true">
+
+Problem the workflow solves.
+
+</ParamField>
+
+<ResponseField name="fields" field-type="array" required="true">
+
+Per-field setup verdicts.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Evaluator failures fail open and return HTTP `200` with `fields: []`.
+
+</Callout>
+
+The endpoint returns `422` for invalid input. Evaluator failures return `200` with an empty field list.
+
+### `POST` `/verification/judge-request-alignment`
+
+Evaluate whether a requested agent aligns with a workflow.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition used for alignment evaluation.
+
+</ParamField>
+
+<ParamField body="request_title" param-type="string" required="true">
+
+Requested-agent title.
+
+</ParamField>
+
+<ParamField body="request_description" param-type="string" required="true">
+
+Requested-agent description.
+
+</ParamField>
+
+<ParamField body="platforms" param-type="array" required="true">
+
+Platforms associated with the request.
+
+</ParamField>
+
+<ParamField body="tools" param-type="array" required="true">
+
+Tools associated with the request.
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="UUID" required="false">
+
+Agent being evaluated, when available.
+
+</ParamField>
+
+<ResponseField name="relevant" field-type="boolean" required="true">
+
+Whether the request aligns with the workflow.
+
+</ResponseField>
+
+<ResponseField name="confidence" field-type="number" required="true">
+
+Evaluator confidence score.
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="true">
+
+Reason for the alignment result.
+
+</ResponseField>
+
+<ResponseField name="should_reject" field-type="boolean" required="true">
+
+Whether the request should be rejected.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Evaluator failures fail open with `relevant: true`, `confidence: 0`, and `should_reject: false`.
+
+</Callout>
+
+The endpoint returns `422` for invalid input. Evaluator failures return `200` with the fallback values.
+
+### `POST` `/verification/prewarm`
+
+Prewarm verification data for a workflow.
+
+<ParamField body="workflow_json" param-type="object" required="true">
+
+Workflow definition to prewarm.
+
+</ParamField>
+
+<ParamField body="workflow_content_hash" param-type="string" required="false">
+
+Content hash used to identify cached workflow data.
+
+</ParamField>
+
+<ParamField body="allowed_hosts" param-type="array" required="false">
+
+Hosts allowed during verification.
+
+</ParamField>
+
+<ResponseField name="cached" field-type="boolean" required="true">
+
+Whether prewarm data was available from cache.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="object" required="false">
+
+Prewarm status details.
+
+</ResponseField>
+
+<ResponseField name="reason" field-type="string" required="false">
+
+Reason when prewarming does not complete normally.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Runtime failures return HTTP `200` with `cached: false` and a `reason` value.
+
+</Callout>
+
+The endpoint returns `422` for invalid input. Runtime failures are represented in the response body.
+
+### `POST` `/verification/verify-ap-stream`
+
+Verify an agent through a stream of gate events.
+
+<ParamField body="agent_id" param-type="UUID" required="true">
+
+Agent being verified.
+
+</ParamField>
+
+<ParamField body="workflow" param-type="object" required="true">
+
+Workflow definition to verify.
+
+</ParamField>
+
+<ParamField body="listing_copy" param-type="object" required="true">
+
+Agent listing content being reviewed.
+
+</ParamField>
+
+<ParamField body="allowed_hosts" param-type="array" required="false">
+
+Hosts allowed during verification.
+
+</ParamField>
+
+<ParamField body="content_hash" param-type="string" required="true">
+
+Content hash used to identify the submitted content.
+
+</ParamField>
+
+The endpoint returns a server-sent event stream. Gate events contain `id`, `status`, `message`, `items`, and `issues`. The terminal event contains `type: "done"`, `agent_id`, and `passed`. Runtime failures produce an event with `type: "error"` and `message`.
+
+<ResponseField name="id" field-type="string" required="false">
+
+Gate event identifier.
+
+</ResponseField>
+
+<ResponseField name="status" field-type="string" required="false">
+
+Current gate status.
+
+</ResponseField>
+
+<ResponseField name="message" field-type="string" required="false">
+
+Human-readable event or error message.
+
+</ResponseField>
+
+<ResponseField name="items" field-type="array" required="false">
+
+Results produced by the current gate.
+
+</ResponseField>
+
+<ResponseField name="issues" field-type="array" required="false">
+
+Issues identified by the current gate.
+
+</ResponseField>
+
+<ResponseField name="type" field-type="string" required="false">
+
+Terminal event type, such as `done` or `error`.
+
+</ResponseField>
+
+<ResponseField name="agent_id" field-type="UUID" required="false">
+
+Agent identifier in the terminal event.
+
+</ResponseField>
+
+<ResponseField name="passed" field-type="boolean" required="false">
+
+Whether all verification gates passed.
+
+</ResponseField>
+
+Errors include `422` for request validation. Runtime failures are emitted as SSE error events.
+
+## Agent review
+
+### `POST` `/agent-review/analyze`
+
+Analyze an agent submission using its evidence graph, runtime outputs, and optional requirement brief.
+
+<ParamField body="submission_id" param-type="string" required="true">
+
+Submission identifier.
+
+</ParamField>
+
+<ParamField body="nodes" param-type="array" required="true">
+
+Evidence graph nodes required for structural review.
+
+</ParamField>
+
+<ParamField body="step_outputs" param-type="array" required="false">
+
+Runtime step outputs used for output review.
+
+</ParamField>
+
+<ParamField body="brief_slots" param-type="array" required="false">
+
+Requirement slots used for requirement coverage review.
+
+</ParamField>
+
+<ParamField body="brief_source" param-type="string" required="false">
+
+Source of the requirement brief.
+
+</ParamField>
+
+<ResponseField name="reviewer_version" field-type="string" required="true">
+
+Reviewer version. The current value is `agent_review/1.2.0`.
+
+</ResponseField>
+
+<ResponseField name="submission_id" field-type="string" required="true">
+
+Submission identifier.
+
+</ResponseField>
+
+<ResponseField name="findings" field-type="array" required="true">
+
+Deduplicated review findings.
+
+</ResponseField>
+
+<ResponseField name="counts" field-type="object" required="true">
+
+Finding counts grouped by severity or category.
+
+</ResponseField>
+
+<ResponseField name="routing" field-type="object" required="true">
+
+Review routing decisions.
+
+</ResponseField>
+
+<ResponseField name="not_checked" field-type="array" required="true">
+
+Review areas that were not evaluated.
+
+</ResponseField>
+
+<ResponseField name="evaluated_runtime" field-type="boolean" required="true">
+
+Whether runtime evidence was evaluated.
+
+</ResponseField>
+
+<ResponseField name="evaluated_output" field-type="boolean" required="true">
+
+Whether output evidence was evaluated.
+
+</ResponseField>
+
+<ResponseField name="coverage" field-type="object" required="false">
+
+Requirement coverage results when brief slots were supplied and the judge was enabled.
+
+</ResponseField>
+
+<ResponseField name="evidence_scores" field-type="array" required="false">
+
+Scores assigned to evidence items.
+
+</ResponseField>
+
+<ResponseField name="penalty_by_severity" field-type="object" required="false">
+
+Penalty totals grouped by finding severity.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Structural review runs without an LLM. Output review runs only when `step_outputs` are supplied and the judge is enabled. Requirement coverage runs only when `brief_slots` are supplied and the judge is enabled. Provider outages do not become findings; the response reports the affected tier as not evaluated. The current reviewer version is `agent_review/1.2.0`.
+
+</Callout>
+
+Errors include `422` for a missing, invalid, or unusable evidence graph and `500` for uncaught processing failures.
