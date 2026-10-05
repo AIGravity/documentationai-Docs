@@ -5,23 +5,30 @@ description: How the FastAPI-based AI service currently starts, manages dependen
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is now a full-featured FastAPI application with 30 endpoints covering verification, agent review, chat interactions, embeddings, requested agents, credits, and administration.
 
-<Callout kind="alert">
+The service exposes the AI interaction layer through several API areas:
 
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
+- **Verification:** 11 endpoints under `/verification`
+- **Agent review:** 1 endpoint under `/agent-review`
+- **Credits:** 6 endpoints under `/credits`
+- **Internal operations:** Guardrail checks, requested agents, embeddings, and agent lookup
+- **Administration:** Pricing updates through `/admin/pricing`
+- **Chat:** Model-backed interactions through `POST /chat`
 
-</Callout>
+The service continues to run on port `8001`.
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The service coordinates AI interactions and supporting workflows through a FastAPI application. Its endpoint surface includes chat requests, verification flows, agent review, credit management, embeddings, requested-agent discovery, agent lookup, guardrail checks, and administrative pricing updates.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service also reports whether chat is available based on LLM configuration. Requests without an available LLM API key receive a `503` response, while invalid request payloads receive FastAPI's standard `422` validation response.
+
+The full endpoint and schema details are available on the [AI Service API reference](/api-reference/ai-service).
 
 ## Bootstrap in main.py
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and the application registers the feature routers for verification, agent review, and credits alongside the service-level endpoints.
 
 <CodeGroup tabs="main.py,Notes">
 
@@ -30,47 +37,118 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
+app.include_router(verification_router, prefix="/verification")
+app.include_router(agent_review_router, prefix="/agent-review")
+app.include_router(credits_router, prefix="/credits")
+
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "healthy",
+        "service": "Gravity AI Interaction Layer",
+        "version": "1.0.0",
+        "chat_available": chat_available,
+    }
 ```
 
 ```text
-Grounded bootstrap details:
+Bootstrap details:
 
 - app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- the verification router is mounted at /verification
+- the agent review router is mounted at /agent-review
+- the credits router is mounted at /credits
+- service-level endpoints include /health and /chat
+- internal endpoints support guardrails, requested agents, embeddings, and agent lookup
+- the admin pricing endpoint is mounted at /admin/pricing
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The application now separates major feature areas into three routers while retaining service-level, internal, and administrative endpoints in the application surface. The router structure keeps verification, review, and credit workflows grouped independently from chat and internal AI operations.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
+`GET /health` reports the service status, identity, version, and whether chat requests can reach an LLM provider.
 
 <CodeGroup tabs="Route,Response">
 
 ```python
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "healthy",
+        "service": "Gravity AI Interaction Layer",
+        "version": "1.0.0",
+        "chat_available": True,
+    }
 ```
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
 </CodeGroup>
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+The `chat_available` field is a boolean. It indicates whether the service has the configuration required to process chat requests through an LLM provider.
+
+## Chat endpoint
+
+`POST /chat` accepts a user message and session context, then returns an interaction response containing an execution identifier. The request can optionally select an agent and tools.
+
+<CodeGroup tabs="Request,Response">
+
+```json
+{
+  "user_id": "usr_a1b2c3d4",
+  "session_id": "sess_7f8e9d0a",
+  "message": "Summarize the latest account activity.",
+  "agent_id": "agent_account_assistant",
+  "selected_tools": [
+    "account_activity"
+  ],
+  "submit_tools": true
+}
+```
+
+```json
+{
+  "execution_id": "exec_4c7d8e9f",
+  "status": "completed"
+}
+```
+
+</CodeGroup>
+
+The request requires `user_id`, `session_id`, and `message`. `agent_id`, `selected_tools`, and `submit_tools` are optional fields used to control agent and tool selection.
+
+If the service does not have an LLM API key, the endpoint returns `503 Service Unavailable` instead of attempting to process the request. FastAPI returns `422 Unprocessable Entity` when the request body fails `ChatRequest` validation.
+
+## Feature routers and internal endpoints
+
+The service groups its primary workflows into three routers:
+
+- **`/verification`:** 11 endpoints for verification workflows
+- **`/agent-review`:** 1 endpoint for agent review
+- **`/credits`:** 6 endpoints for credit operations
+
+Internal endpoints support the AI interaction flow without exposing those operations as public feature routers:
+
+- **`/internal/guardrail/check`:** Evaluates a request against guardrail rules.
+- **`/internal/requested-agents`:** Provides six endpoints for requested-agent workflows.
+- **`/internal/embed`:** Generates embeddings.
+- **`/internal/agents/index`:** Indexes agent data.
+- **`/internal/agents/{agent_id}`:** Provides three agent-specific operations.
+
+The administrative endpoint `POST /admin/pricing` updates pricing data and requires an `x-admin-token` header.
+
+For request fields, response schemas, authentication details, and status codes, use the [AI Service API reference](/api-reference/ai-service).
 
 ## Python environment and dependency management
 
@@ -132,8 +210,6 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
-
 ## Run locally
 
 The repository does not include a substantive local guide for this service, so the usable commands are implied by the CI workflow and Docker runtime command. Run these commands from `apps/ai-service`.
@@ -153,7 +229,7 @@ uv run ruff check .
 
 </CodeGroup>
 
-If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns a response with `"status": "healthy"` and a boolean `chat_available` field.
 
 Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
 
@@ -195,7 +271,8 @@ On `dev`, the workflow generates a development version using the base version, t
 
 ## Related docs
 
-<Columns cols={3}>
+<Columns cols={4}>
+  <Card title="AI Service API reference" href="/api-reference/ai-service" icon="code" cta="Open doc" />
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />

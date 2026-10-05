@@ -1,13 +1,11 @@
 openapi: '3.0.0'
 info:
-  version: 1.0.0
-  title: AIGravity Core API Service
+  version: 2.0.0
+  title: AIGravity Core API
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    API specification for the AIGravity core monorepo covering the NestJS API service and the FastAPI AI service.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
-
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    Public health endpoints are available without authentication. Other authenticated operations use bearer token authentication where applicable.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -16,33 +14,3037 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
-    description: API service local development server
+  - url: http://localhost:3001
+    description: NestJS API service
+  - url: http://localhost:8001
+    description: AI service
 tags:
   - name: Health
-    description: Service health and readiness operations for the API service
+    description: Service health and readiness operations
+  - name: Authentication
+    description: User authentication and account operations
+  - name: Chat
+    description: Chat and conversation operations
+  - name: Apps
+    description: Application and integration operations
+  - name: Connections
+    description: Connection authentication operations
+  - name: Builder
+    description: Workflow builder operations
+  - name: Agents
+    description: Agent management operations
+  - name: Admin
+    description: Administrative operations
+  - name: Marketplace
+    description: Marketplace operations
+  - name: Automations
+    description: Automation management operations
+  - name: Bounties
+    description: Bounty management operations
 paths:
-  /health:
+  /:
     get:
       tags:
         - Health
-      summary: Get API service health
-      description: Returns a simple health response for the AIGravity/core API service.
-      operationId: getHealth
+      description: Returns the API service status.
+      operationId: getRootHealth
       security: []
       responses:
         '200':
-          description: API service is reachable and healthy
+          description: API service is healthy
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: ok
+  /health:
+    get:
+      tags:
+        - Health
+      description: Returns the API service health status and timestamp.
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: API service health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthTimestampResponse'
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      description: Registers a new user account.
+      operationId: registerUser
+      security: []
+      responses:
+        '201':
+          description: User registered
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      description: Authenticates a user and creates a session.
+      operationId: loginUser
+      security: []
+      responses:
+        '200':
+          description: User authenticated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      description: Ends the current user session.
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User logged out
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      description: Refreshes an authentication session.
+      operationId: refreshAuthSession
+      security: []
+      responses:
+        '200':
+          description: Session refreshed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/verify-email:
+    post:
+      tags:
+        - Authentication
+      description: Verifies a user's email address.
+      operationId: verifyEmail
+      security: []
+      responses:
+        '200':
+          description: Email verified
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/resend-verification:
+    post:
+      tags:
+        - Authentication
+      description: Resends an email verification message.
+      operationId: resendEmailVerification
+      security: []
+      responses:
+        '200':
+          description: Verification message sent
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/forgot-password:
+    post:
+      tags:
+        - Authentication
+      description: Requests a password reset.
+      operationId: requestPasswordReset
+      security: []
+      responses:
+        '200':
+          description: Password reset requested
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/reset-password:
+    post:
+      tags:
+        - Authentication
+      description: Resets a user's password.
+      operationId: resetPassword
+      security: []
+      responses:
+        '200':
+          description: Password reset
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      description: Returns the authenticated user.
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/profile:
+    patch:
+      tags:
+        - Authentication
+      description: Updates the authenticated user's profile.
+      operationId: updateUserProfile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Profile updated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/change-password:
+    post:
+      tags:
+        - Authentication
+      description: Changes the authenticated user's password.
+      operationId: changePassword
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Password changed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/google:
+    get:
+      tags:
+        - Authentication
+      description: Starts Google authentication.
+      operationId: startGoogleAuthentication
+      security: []
+      responses:
+        '302':
+          description: Redirect to Google
+  /api/auth/github:
+    get:
+      tags:
+        - Authentication
+      description: Starts GitHub authentication.
+      operationId: startGithubAuthentication
+      security: []
+      responses:
+        '302':
+          description: Redirect to GitHub
+  /api/auth/callback:
+    get:
+      tags:
+        - Authentication
+      description: Handles an OAuth authentication callback.
+      operationId: handleAuthCallback
+      security: []
+      responses:
+        '302':
+          description: Authentication callback handled
+  /api/auth/sessions:
+    get:
+      tags:
+        - Authentication
+      description: Lists the authenticated user's sessions.
+      operationId: listAuthSessions
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Sessions listed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/sessions/{id}:
+    delete:
+      tags:
+        - Authentication
+      description: Revokes an authentication session.
+      operationId: revokeAuthSession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Session identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/auth/onboarding:
+    post:
+      tags:
+        - Authentication
+      description: Completes authenticated user onboarding.
+      operationId: completeOnboarding
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Onboarding completed
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/deactivate:
+    post:
+      tags:
+        - Authentication
+      description: Deactivates the authenticated user's account.
+      operationId: deactivateAccount
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Account deactivated
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/chat:
+    post:
+      tags:
+        - Chat
+      description: Creates a chat message.
+      operationId: createChatMessage
+      security: []
+      responses:
+        '200':
+          description: Chat message created
+  /api/chat/stream:
+    post:
+      tags:
+        - Chat
+      description: Streams a chat response.
+      operationId: streamChatResponse
+      security: []
+      responses:
+        '200':
+          description: Chat response stream
+  /api/chat/sessions:
+    get:
+      tags:
+        - Chat
+      description: Lists chat sessions.
+      operationId: listChatSessions
+      security: []
+      responses:
+        '200':
+          description: Chat sessions
+  /api/chat/sessions/{id}:
+    get:
+      tags:
+        - Chat
+      description: Returns a chat session.
+      operationId: getChatSession
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Chat session identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chat session
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/chat/sessions/{id}/messages:
+    get:
+      tags:
+        - Chat
+      description: Lists messages in a chat session.
+      operationId: listChatMessages
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Chat session identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chat messages
+  /api/chat/sessions/{id}/title:
+    patch:
+      tags:
+        - Chat
+      description: Updates a chat session title.
+      operationId: updateChatSessionTitle
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Chat session identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Chat title updated
+  /api/chat/feedback:
+    post:
+      tags:
+        - Chat
+      description: Submits feedback for a chat response.
+      operationId: submitChatFeedback
+      security: []
+      responses:
+        '200':
+          description: Feedback submitted
+  /api/chat/cancel:
+    post:
+      tags:
+        - Chat
+      description: Cancels an active chat response.
+      operationId: cancelChatResponse
+      security: []
+      responses:
+        '200':
+          description: Chat response cancelled
+  /api/apps:
+    get:
+      tags:
+        - Apps
+      description: Lists available apps.
+      operationId: listApps
+      responses:
+        '200':
+          description: Apps listed
+    post:
+      tags:
+        - Apps
+      description: Creates an app.
+      operationId: createApp
+      responses:
+        '201':
+          description: App created
+  /api/apps/{id}:
+    get:
+      tags:
+        - Apps
+      description: Returns an app.
+      operationId: getApp
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: App identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: App details
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Apps
+      description: Updates an app.
+      operationId: updateApp
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: App identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: App updated
+    delete:
+      tags:
+        - Apps
+      description: Deletes an app.
+      operationId: deleteApp
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: App identifier.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: App deleted
+  /api/apps/install:
+    post:
+      tags:
+        - Apps
+      description: Installs an app.
+      operationId: installApp
+      responses:
+        '200':
+          description: App installed
+  /api/apps/uninstall:
+    post:
+      tags:
+        - Apps
+      description: Uninstalls an app.
+      operationId: uninstallApp
+      responses:
+        '200':
+          description: App uninstalled
+  /api/apps/sync:
+    post:
+      tags:
+        - Apps
+      description: Synchronizes app metadata.
+      operationId: syncApps
+      responses:
+        '200':
+          description: Apps synchronized
+  /api/apps/catalog:
+    get:
+      tags:
+        - Apps
+      description: Returns the app catalog.
+      operationId: getAppCatalog
+      responses:
+        '200':
+          description: App catalog
+  /api/activepieces/ensure-session:
+    post:
+      tags:
+        - Apps
+      description: Ensures an Activepieces session exists.
+      operationId: ensureActivepiecesSession
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Activepieces session
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - token
+                  - projectId
+                  - tokenType
+                properties:
+                  token:
+                    type: string
+                  projectId:
+                    type: string
+                  tokenType:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/connections/auth:
+    get:
+      tags:
+        - Connections
+      description: Lists connection authentication methods.
+      operationId: listConnectionAuthMethods
+      responses:
+        '200':
+          description: Connection authentication methods
+  /api/connections/auth/start:
+    post:
+      tags:
+        - Connections
+      description: Starts connection authentication.
+      operationId: startConnectionAuth
+      responses:
+        '200':
+          description: Connection authentication started
+  /api/connections/auth/callback:
+    get:
+      tags:
+        - Connections
+      description: Handles a connection authentication callback.
+      operationId: handleConnectionAuthCallback
+      responses:
+        '302':
+          description: Connection authentication completed
+  /api/connections/auth/complete:
+    post:
+      tags:
+        - Connections
+      description: Completes connection authentication.
+      operationId: completeConnectionAuth
+      responses:
+        '200':
+          description: Connection authenticated
+  /api/connections/auth/revoke:
+    post:
+      tags:
+        - Connections
+      description: Revokes connection authentication.
+      operationId: revokeConnectionAuth
+      responses:
+        '200':
+          description: Connection authentication revoked
+  /api/builder:
+    get:
+      tags:
+        - Builder
+      description: Returns builder metadata.
+      operationId: getBuilderMetadata
+      responses:
+        '200':
+          description: Builder metadata
+  /api/builder/validate:
+    post:
+      tags:
+        - Builder
+      description: Validates a builder workflow.
+      operationId: validateBuilderWorkflow
+      responses:
+        '200':
+          description: Workflow validation result
+  /api/builder/execute:
+    post:
+      tags:
+        - Builder
+      description: Executes a builder workflow.
+      operationId: executeBuilderWorkflow
+      responses:
+        '200':
+          description: Workflow execution result
+  /api/builder/connections:
+    get:
+      tags:
+        - Builder
+      description: Lists builder connections.
+      operationId: listBuilderConnections
+      responses:
+        '200':
+          description: Builder connections
+  /api/builder/connections/available:
+    get:
+      tags:
+        - Builder
+      description: Lists available builder connections.
+      operationId: listAvailableBuilderConnections
+      responses:
+        '200':
+          description: Available builder connections
+  /api/builder/connections/test:
+    post:
+      tags:
+        - Builder
+      description: Tests a builder connection.
+      operationId: testBuilderConnection
+      responses:
+        '200':
+          description: Connection test result
+  /api/builder/connections/{id}:
+    delete:
+      tags:
+        - Builder
+      description: Deletes a builder connection.
+      operationId: deleteBuilderConnection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Connection identifier.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Builder connection deleted
+  /api/builders:
+    get:
+      tags:
+        - Builder
+      description: Lists builder profiles.
+      operationId: listBuilderProfiles
+      responses:
+        '200':
+          description: Builder profiles
+  /api/builders/{id}:
+    get:
+      tags:
+        - Builder
+      description: Returns a builder profile.
+      operationId: getBuilderProfile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Builder profile identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Builder profile
+  /api/builders/{id}/publish:
+    post:
+      tags:
+        - Builder
+      description: Publishes a builder profile.
+      operationId: publishBuilderProfile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Builder profile identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Builder profile published
+  /api/agents:
+    get:
+      tags:
+        - Agents
+      description: Lists agents.
+      operationId: listAgents
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agents listed
+    post:
+      tags:
+        - Agents
+      description: Creates an agent.
+      operationId: createAgent
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: Agent created
+  /api/agents/{id}:
+    get:
+      tags:
+        - Agents
+      description: Returns an agent.
+      operationId: getAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent details
+    patch:
+      tags:
+        - Agents
+      description: Updates an agent.
+      operationId: updateAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent updated
+    delete:
+      tags:
+        - Agents
+      description: Deletes an agent.
+      operationId: deleteAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Agent deleted
+  /api/agents/{id}/runs:
+    get:
+      tags:
+        - Agents
+      description: Lists agent runs.
+      operationId: listAgentRuns
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent runs
+  /api/agents/{id}/run:
+    post:
+      tags:
+        - Agents
+      description: Runs an agent.
+      operationId: runAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent run started
+  /api/agents/{id}/publish:
+    post:
+      tags:
+        - Agents
+      description: Publishes an agent.
+      operationId: publishAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent published
+  /api/agents/{id}/duplicate:
+    post:
+      tags:
+        - Agents
+      description: Duplicates an agent.
+      operationId: duplicateAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Agent duplicated
+  /api/agents/{id}/archive:
+    post:
+      tags:
+        - Agents
+      description: Archives an agent.
+      operationId: archiveAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent archived
+  /api/agents/{id}/restore:
+    post:
+      tags:
+        - Agents
+      description: Restores an archived agent.
+      operationId: restoreAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent restored
+  /api/agents/{id}/tools:
+    get:
+      tags:
+        - Agents
+      description: Lists tools configured for an agent.
+      operationId: listAgentTools
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent tools
+  /api/agents/{id}/tools/{toolId}:
+    delete:
+      tags:
+        - Agents
+      description: Removes a tool from an agent.
+      operationId: removeAgentTool
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+        - name: toolId
+          in: path
+          required: true
+          description: Tool identifier.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Agent tool removed
+  /api/agents/{id}/versions:
+    get:
+      tags:
+        - Agents
+      description: Lists versions of an agent.
+      operationId: listAgentVersions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent versions
+  /api/agents/{id}/versions/{versionId}:
+    get:
+      tags:
+        - Agents
+      description: Returns an agent version.
+      operationId: getAgentVersion
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+        - name: versionId
+          in: path
+          required: true
+          description: Version identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent version
+  /api/agents/{id}/test:
+    post:
+      tags:
+        - Agents
+      description: Tests an agent.
+      operationId: testAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent test result
+  /api/agents/{id}/feedback:
+    post:
+      tags:
+        - Agents
+      description: Submits agent feedback.
+      operationId: submitAgentFeedback
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent feedback submitted
+  /api/agents/{id}/export:
+    get:
+      tags:
+        - Agents
+      description: Exports an agent.
+      operationId: exportAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent export
+  /api/agents/{id}/import:
+    post:
+      tags:
+        - Agents
+      description: Imports agent configuration.
+      operationId: importAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent imported
+  /api/agents/{id}/share:
+    post:
+      tags:
+        - Agents
+      description: Shares an agent.
+      operationId: shareAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent shared
+  /api/agents/{id}/unshare:
+    post:
+      tags:
+        - Agents
+      description: Removes agent sharing.
+      operationId: unshareAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent unshared
+  /api/agents/{id}/logs:
+    get:
+      tags:
+        - Agents
+      description: Lists agent logs.
+      operationId: listAgentLogs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent logs
+  /api/agents/{id}/schedule:
+    post:
+      tags:
+        - Agents
+      description: Schedules an agent.
+      operationId: scheduleAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent scheduled
+  /api/agents/admin:
+    get:
+      tags:
+        - Admin
+      description: Lists agents for administrative users.
+      operationId: adminListAgents
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Administrative agent list
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/{id}:
+    get:
+      tags:
+        - Admin
+      description: Returns an agent for administrative users.
+      operationId: adminGetAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Administrative agent details
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/agents/admin/{id}/approve:
+    post:
+      tags:
+        - Admin
+      description: Approves an agent.
+      operationId: adminApproveAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent approved
+  /api/agents/admin/{id}/reject:
+    post:
+      tags:
+        - Admin
+      description: Rejects an agent.
+      operationId: adminRejectAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent rejected
+  /api/agents/admin/{id}/suspend:
+    post:
+      tags:
+        - Admin
+      description: Suspends an agent.
+      operationId: adminSuspendAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent suspended
+  /api/agents/admin/{id}/restore:
+    post:
+      tags:
+        - Admin
+      description: Restores a suspended agent.
+      operationId: adminRestoreAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent restored
+  /api/agents/admin/{id}/delete:
+    delete:
+      tags:
+        - Admin
+      description: Deletes an agent administratively.
+      operationId: adminDeleteAgent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Agent deleted
+  /api/agents/admin/{id}/audit:
+    get:
+      tags:
+        - Admin
+      description: Returns an agent audit log.
+      operationId: adminGetAgentAudit
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Agent identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent audit log
+  /api/agents/admin/users:
+    get:
+      tags:
+        - Admin
+      description: Lists users with agent access.
+      operationId: adminListAgentUsers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent users
+  /api/agents/admin/users/{id}:
+    get:
+      tags:
+        - Admin
+      description: Returns an agent user.
+      operationId: adminGetAgentUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent user
+  /api/agents/admin/users/{id}/suspend:
+    post:
+      tags:
+        - Admin
+      description: Suspends an agent user.
+      operationId: adminSuspendAgentUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent user suspended
+  /api/agents/admin/users/{id}/restore:
+    post:
+      tags:
+        - Admin
+      description: Restores an agent user.
+      operationId: adminRestoreAgentUser
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent user restored
+  /api/agents/admin/metrics:
+    get:
+      tags:
+        - Admin
+      description: Returns agent administration metrics.
+      operationId: adminGetAgentMetrics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent metrics
+  /api/agents/admin/settings:
+    get:
+      tags:
+        - Admin
+      description: Returns agent administration settings.
+      operationId: adminGetAgentSettings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent administration settings
+    patch:
+      tags:
+        - Admin
+      description: Updates agent administration settings.
+      operationId: adminUpdateAgentSettings
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Agent administration settings updated
+  /api/marketplace/connections:
+    post:
+      tags:
+        - Marketplace
+      description: Creates a marketplace application connection.
+      operationId: createMarketplaceConnection
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+              properties:
+                pieceName:
+                  type: string
+                pieceVersion:
+                  type: string
+                authType:
+                  type: string
+                displayName:
+                  type: string
+                value:
+                  type: object
+                externalId:
+                  type: string
+      responses:
+        '200':
+          description: Connection created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/workflows:
+    get:
+      tags:
+        - Marketplace
+      description: Lists published marketplace workflows.
+      operationId: listMarketplaceWorkflows
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Published workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/builder-fields:
+    post:
+      tags:
+        - Marketplace
+      description: Returns builder fields for an agent.
+      operationId: getMarketplaceBuilderFields
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - agentId
+              properties:
+                agentId:
+                  type: string
+      responses:
+        '200':
+          description: Builder fields
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - fields
+                  - source
+                properties:
+                  fields:
+                    type: array
+                    items:
+                      type: object
+                  source:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/workflows/{id}:
+    get:
+      tags:
+        - Marketplace
+      description: Returns a published workflow.
+      operationId: getMarketplaceWorkflow
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Workflow identifier.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workflow detail
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/introspect:
+    post:
+      tags:
+        - Marketplace
+      description: Introspects a marketplace workflow template.
+      operationId: introspectMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template
+              properties:
+                template:
+                  type: object
+      responses:
+        '200':
+          description: Workflow introspection result
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/publish:
+    post:
+      tags:
+        - Marketplace
+      description: Publishes a workflow to the marketplace.
+      operationId: publishMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - template
+              properties:
+                name:
+                  type: string
+                template:
+                  type: object
+                tags:
+                  type: array
+                  items:
+                    type: string
+                inputs:
+                  type: array
+                  items:
+                    type: object
+                publishedWorkflowId:
+                  type: string
+      responses:
+        '200':
+          description: Workflow published
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/run:
+    post:
+      tags:
+        - Marketplace
+      description: Runs a published marketplace workflow.
+      operationId: runMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - publishedWorkflowId
+              properties:
+                publishedWorkflowId:
+                  type: string
+                input:
+                  type: object
+                fieldValues:
+                  type: object
+                sessionId:
+                  type: string
+                idempotencyKey:
+                  type: string
+      responses:
+        '200':
+          description: Workflow run result
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/run-result:
+    post:
+      tags:
+        - Marketplace
+      description: Retrieves the result of a marketplace workflow run.
+      operationId: getMarketplaceRunResult
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+                gravityRunId:
+                  type: string
+                apRunId:
+                  type: string
+                startedAfter:
+                  type: string
+      responses:
+        '200':
+          description: Run result
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/execute:
+    post:
+      tags:
+        - Marketplace
+      description: Executes a marketplace workflow copy.
+      operationId: executeMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+                fieldValues:
+                  type: object
+      responses:
+        '200':
+          description: Workflow executed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/feedback:
+    post:
+      tags:
+        - Marketplace
+      description: Submits marketplace feedback.
+      operationId: submitMarketplaceFeedback
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - reasons
+              properties:
+                reasons:
+                  type: array
+                  items:
+                    type: string
+                details:
+                  type: string
+                sessionId:
+                  type: string
+                workflowId:
+                  type: string
+                agentId:
+                  type: string
+                draftId:
+                  type: string
+      responses:
+        '200':
+          description: Feedback submitted
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                  - id
+                properties:
+                  ok:
+                    type: boolean
+                  id:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/marketplace/draft-events/{id}:
+    post:
+      tags:
+        - Marketplace
+      description: Records an event for a marketplace draft.
+      operationId: createMarketplaceDraftEvent
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Draft identifier.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                outcome:
+                  type: string
+                changedFields:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Draft event recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - ok
+                properties:
+                  ok:
+                    type: boolean
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/activate:
+    post:
+      tags:
+        - Marketplace
+      description: Activates a marketplace workflow copy.
+      operationId: activateMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+                scheduleConfig:
+                  type: object
+      responses:
+        '200':
+          description: Workflow activated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/pause:
+    post:
+      tags:
+        - Marketplace
+      description: Pauses a marketplace workflow copy.
+      operationId: pauseMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+      responses:
+        '200':
+          description: Workflow paused
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/unsubscribe:
+    post:
+      tags:
+        - Marketplace
+      description: Unsubscribes from a marketplace workflow.
+      operationId: unsubscribeMarketplaceWorkflow
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+      responses:
+        '200':
+          description: Subscription cancelled
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/runs/{consumerCopyId}:
+    get:
+      tags:
+        - Marketplace
+      description: Lists runs for a marketplace workflow copy.
+      operationId: listMarketplaceRuns
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: consumerCopyId
+          in: path
+          required: true
+          description: Consumer copy identifier.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workflow runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/prepare-run:
+    post:
+      tags:
+        - Marketplace
+      description: Prepares a marketplace workflow run.
+      operationId: prepareMarketplaceRun
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - publishedWorkflowId
+              properties:
+                publishedWorkflowId:
+                  type: string
+      responses:
+        '200':
+          description: Run prepared
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/workflow-connections:
+    post:
+      tags:
+        - Marketplace
+      description: Returns connections required by a workflow.
+      operationId: getMarketplaceWorkflowConnections
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - workflowJson
+              properties:
+                workflowJson:
+                  type: object
+      responses:
+        '200':
+          description: Workflow connections
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/property-options:
+    post:
+      tags:
+        - Marketplace
+      description: Returns dynamic property options for a marketplace workflow.
+      operationId: getMarketplacePropertyOptions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                consumerCopyId:
+                  type: string
+                stepName:
+                  type: string
+                pieceName:
+                  type: string
+                pieceVersion:
+                  type: string
+                actionName:
+                  type: string
+                propertyName:
+                  type: string
+                propsValue:
+                  type: object
+                searchValue:
+                  type: string
+                actionOrTrigger:
+                  type: string
+      responses:
+        '200':
+          description: Property options
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/test-builder/prepare:
+    post:
+      tags:
+        - Marketplace
+      description: Prepares a marketplace builder test.
+      operationId: prepareMarketplaceBuilderTest
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowJson:
+                  type: object
+                draftFlowId:
+                  type: string
+      responses:
+        '200':
+          description: Builder test prepared
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/test-builder/property-options:
+    post:
+      tags:
+        - Marketplace
+      description: Returns property options for a builder test.
+      operationId: getMarketplaceBuilderPropertyOptions
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                draftFlowId:
+                  type: string
+                stepName:
+                  type: string
+                pieceName:
+                  type: string
+                pieceVersion:
+                  type: string
+                actionName:
+                  type: string
+                propertyName:
+                  type: string
+                propsValue:
+                  type: object
+                searchValue:
+                  type: string
+      responses:
+        '200':
+          description: Property options
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/test-builder/run:
+    post:
+      tags:
+        - Marketplace
+      description: Runs a marketplace builder test.
+      operationId: runMarketplaceBuilderTest
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                draftFlowId:
+                  type: string
+                workflowJson:
+                  type: object
+                consumerInputs:
+                  type: object
+                fieldValues:
+                  type: object
+      responses:
+        '200':
+          description: Builder test started
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/test-builder/run-result:
+    post:
+      tags:
+        - Marketplace
+      description: Retrieves a marketplace builder test result.
+      operationId: getMarketplaceBuilderTestResult
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - draftFlowId
+                - runId
+              properties:
+                draftFlowId:
+                  type: string
+                runId:
+                  type: string
+      responses:
+        '200':
+          description: Builder test result
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/marketplace/scratchpad/run:
+    post:
+      tags:
+        - Marketplace
+      description: Runs a workflow in the marketplace scratchpad.
+      operationId: runMarketplaceScratchpad
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - template
+              properties:
+                template:
+                  type: object
+                input:
+                  type: object
+      responses:
+        '200':
+          description: Scratchpad run result
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/files:
+    post:
+      tags:
+        - Marketplace
+      description: Uploads a marketplace file.
+      operationId: uploadMarketplaceFile
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: x-filename
+          in: header
+          required: true
+          description: Original file name.
+          schema:
+            type: string
+        - name: x-file-mimetype
+          in: header
+          required: true
+          description: File MIME type.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: File uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - fileId
+                  - url
+                properties:
+                  fileId:
+                    type: string
+                  url:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/files/{token}:
+    get:
+      tags:
+        - Marketplace
+      description: Downloads a marketplace file by token.
+      operationId: downloadMarketplaceFile
+      security: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: File access token.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File content
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/marketplace/oauth/callback:
+    get:
+      tags:
+        - Marketplace
+      description: Handles the marketplace OAuth callback.
+      operationId: marketplaceOauthCallback
+      security: []
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: OAuth authorization code.
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: OAuth state value.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect after OAuth completion
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/marketplace/oauth/cloud-complete:
+    post:
+      tags:
+        - Marketplace
+      description: Completes cloud OAuth authentication.
+      operationId: completeMarketplaceCloudOauth
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - stateJwt
+              properties:
+                code:
+                  type: string
+                stateJwt:
+                  type: string
+      responses:
+        '200':
+          description: Cloud OAuth completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - pieceName
+                  - externalId
+                properties:
+                  pieceName:
+                    type: string
+                  externalId:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/oauth/custom-start:
+    post:
+      tags:
+        - Marketplace
+      description: Starts custom marketplace OAuth.
+      operationId: startMarketplaceCustomOauth
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+                - clientId
+              properties:
+                pieceName:
+                  type: string
+                clientId:
+                  type: string
+                returnTo:
+                  type: string
+                reuseExternalId:
+                  type: string
+      responses:
+        '200':
+          description: Custom OAuth started
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - authorizationUrl
+                  - stateJwt
+                  - pieceDisplayName
+                properties:
+                  authorizationUrl:
+                    type: string
+                  stateJwt:
+                    type: string
+                  pieceDisplayName:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/marketplace/oauth/custom-complete:
+    post:
+      tags:
+        - Marketplace
+      description: Completes custom marketplace OAuth.
+      operationId: completeMarketplaceCustomOauth
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - stateJwt
+              properties:
+                code:
+                  type: string
+                stateJwt:
+                  type: string
+                clientSecret:
+                  type: string
+      responses:
+        '200':
+          description: Custom OAuth completed
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - pieceName
+                  - externalId
+                properties:
+                  pieceName:
+                    type: string
+                  externalId:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/automations:
+    post:
+      tags:
+        - Automations
+      description: Creates an automation.
+      operationId: createAutomation
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                workflow:
+                  type: object
+                agentData:
+                  type: object
+                connectedTools:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        '201':
+          description: Automation created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags:
+        - Automations
+      description: Lists the authenticated user's automations.
+      operationId: listAutomations
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Automations
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - automations
+                properties:
+                  automations:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/automations/{id}:
+    get:
+      tags:
+        - Automations
+      description: Returns an automation.
+      operationId: getAutomation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Automation identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Automation detail
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Automations
+      description: Updates an automation.
+      operationId: updateAutomation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Automation identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Automation updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Automations
+      description: Deletes an automation.
+      operationId: deleteAutomation
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Automation identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Automation deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/automations/{id}/tools/reconnect:
+    post:
+      tags:
+        - Automations
+      description: Reconnects an automation tool.
+      operationId: reconnectAutomationTool
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Automation identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pieceName
+              properties:
+                pieceName:
+                  type: string
+      responses:
+        '200':
+          description: Tool reconnected
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/automations/{id}/runs:
+    get:
+      tags:
+        - Automations
+      description: Lists runs for an automation.
+      operationId: listAutomationRuns
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Automation identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Automation runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/preview:
+    post:
+      tags:
+        - Bounties
+      description: Previews a bounty draft.
+      operationId: previewBounty
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                session:
+                  type: object
+                bountyDraft:
+                  type: object
+      responses:
+        '200':
+          description: Bounty preview
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/suggest-intent:
+    post:
+      tags:
+        - Bounties
+      description: Suggests bounty intent from a session.
+      operationId: suggestBountyIntent
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        '200':
+          description: Suggested bounty intent
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/draft-brief:
+    post:
+      tags:
+        - Bounties
+      description: Creates a draft bounty brief.
+      operationId: createBountyDraftBrief
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sessionId
+              properties:
+                sessionId:
+                  type: string
+      responses:
+        '200':
+          description: Draft bounty brief
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties:
+    post:
+      tags:
+        - Bounties
+      description: Creates a bounty.
+      operationId: createBounty
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - amount
+                - currency
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                amount:
+                  type: number
+                currency:
+                  type: string
+                session:
+                  type: object
+                bountyFields:
+                  type: object
+      responses:
+        '201':
+          description: Bounty created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    get:
+      tags:
+        - Bounties
+      description: Lists bounties.
+      operationId: listBounties
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Bounty list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/{id}/pay/order:
+    post:
+      tags:
+        - Bounties
+      description: Creates a payment order for a bounty.
+      operationId: createBountyPaymentOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                countryOverride:
+                  type: string
+      responses:
+        '201':
+          description: Payment order created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/{id}/pay/verify:
+    post:
+      tags:
+        - Bounties
+      description: Verifies a bounty payment.
+      operationId: verifyBountyPayment
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                razorpayOrderId:
+                  type: string
+                providerOrderId:
+                  type: string
+                paymentId:
+                  type: string
+                signature:
+                  type: string
+      responses:
+        '200':
+          description: Payment verified
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/by-session/{sessionId}:
+    get:
+      tags:
+        - Bounties
+      description: Returns the bounty associated with a session.
+      operationId: getBountyBySession
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          description: Session identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session bounty expiration
+          content:
+            application/json:
+              schema:
+                type: object
+                nullable: true
+                properties:
+                  expiresAt:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/mine/updates:
+    get:
+      tags:
+        - Bounties
+      description: Lists updates for the authenticated user's bounties.
+      operationId: listMyBountyUpdates
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Bounty updates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/bounties/{id}:
+    get:
+      tags:
+        - Bounties
+      description: Returns bounty details.
+      operationId: getBounty
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bounty detail
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/submissions:
+    post:
+      tags:
+        - Bounties
+      description: Submits work for a bounty.
+      operationId: createBountySubmission
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                workflowJson:
+                  type: object
+                agentName:
+                  type: string
+                summary:
+                  type: string
+                tools:
+                  type: array
+                  items:
+                    type: string
+                platforms:
+                  type: array
+                  items:
+                    type: string
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Submission created
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    get:
+      tags:
+        - Bounties
+      description: Lists submissions for a bounty.
+      operationId: listBountySubmissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Bounty submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/submissions/{submissionId}/status:
+    patch:
+      tags:
+        - Bounties
+      description: Updates the status of a bounty submission.
+      operationId: updateBountySubmissionStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Submission status updated
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/submissions/{submissionId}/ensure-runnable:
+    post:
+      tags:
+        - Bounties
+      description: Ensures a bounty submission is runnable.
+      operationId: ensureBountySubmissionRunnable
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Runnable workflow
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  publishedWorkflowId:
+                    type: string
+                    nullable: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/submissions/{submissionId}/accept:
+    post:
+      tags:
+        - Bounties
+      description: Accepts a bounty submission.
+      operationId: acceptBountySubmission
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+        - name: submissionId
+          in: path
+          required: true
+          description: Submission identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                consumerCopyId:
+                  type: string
+                scheduleConfig:
+                  type: object
+      responses:
+        '200':
+          description: Submission accepted
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/bounties/{id}/award:
+    post:
+      tags:
+        - Bounties
+      description: Awards a bounty to a submission.
+      operationId: awardBounty
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Bounty identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - submissionId
+              properties:
+                submissionId:
+                  type: string
+                payoutFields:
+                  type: object
+      responses:
+        '200':
+          description: Bounty awarded
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - payout
+                properties:
+                  payout:
+                    type: object
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
   responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication required or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Access forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalServerError:
       description: Unexpected server error
       content:
@@ -52,17 +3054,45 @@ components:
   schemas:
     HealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
-      additionalProperties: true
-      example:
-        status: ok
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+    HealthTimestampResponse:
+      type: object
+      required:
+        - status
+        - service
+        - timestamp
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
     Error:
       type: object
-      description: Generic error response.
       required:
+        - statusCode
+        - error
         - message
+        - path
+        - timestamp
       properties:
+        statusCode:
+          type: integer
+        error:
+          type: string
         message:
           type: string
-          description: Human-readable error message.
-          example: Internal server error
+        path:
+          type: string
+        timestamp:
+          type: string
+          format: date-time

@@ -1,23 +1,31 @@
 ---
 title: AI Service
-description: API reference for the FastAPI AI service health endpoint implemented in the AIGravity core repository.
+description: Reference for every FastAPI AI service endpoint including health, chat, verification, agent review, requested agents, embeddings, and credit usage.
 ---
 
 ## Overview
 
-This page documents the FastAPI AI service route currently implemented in the AIGravity core repository. Based on code analysis of `apps/ai-service/main.py`, the service exposes one endpoint today: `GET /health`.
+The AI service is a FastAPI application that listens on port `8001`. It exposes 30 endpoints across health and chat, internal operations, requested agents, embedding and indexing, verification, agent review, and credits.
 
-<Callout kind="info">
+Use the service URL that matches your deployment environment. The local development URL is `http://localhost:8001`.
 
-Implementation details on this page were derived from code analysis of `apps/ai-service/main.py`. Direct repository file reads for code files were not available through the docs repository tool for this task.
+## Error format
 
-</Callout>
+FastAPI errors use a JSON object with a `detail` field.
 
-## Endpoint
+```json
+{
+  "detail": "Request could not be processed"
+}
+```
+
+FastAPI returns `422 Unprocessable Entity` when request validation fails. Validation errors can include additional structured details in the `detail` field.
+
+## Health
 
 ### GET /health
 
-Use this endpoint to verify that the AI service is running and able to respond to requests.
+Check whether the AI service is running and whether chat has access to a configured LLM API key.
 
 <ParamField body="method" param-type="string" required="true" show-location="false">
 
@@ -31,61 +39,50 @@ Use this endpoint to verify that the AI service is running and able to respond t
 
 </ParamField>
 
-<ParamField body="auth" param-type="string" required="false" show-location="false">
+<ParamField body="authentication" param-type="string" required="false" show-location="false">
 
-No authentication requirement was found in the FastAPI route implementation.
+This endpoint does not require authentication.
 
 </ParamField>
 
-<CodeGroup tabs="cURL,JSON response">
+<CodeGroup tabs="cURL,Python">
 
 ```bash
-curl -X GET http://localhost:8000/health
+curl --request GET \
+  --url http://localhost:8001/health
 ```
 
-```json
-{
-  "status": "ok"
-}
+```python
+import requests
+
+response = requests.get("http://localhost:8001/health", timeout=10)
+response.raise_for_status()
+print(response.json())
 ```
 
 </CodeGroup>
 
-## Request details
-
-This endpoint does not accept any request inputs beyond the request method and path.
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route path is static and does not define any path parameters.
-
-</ParamField>
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. No query parameters are defined in the route handler.
-
-</ParamField>
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. Send the request without a body.
-
-</ParamField>
-
-<Callout kind="info">
-
-No authentication dependencies, API key checks, OAuth or JWT configuration, or middleware-based auth were found in `apps/ai-service/main.py`.
-
-</Callout>
-
-## Response
-
-A successful request returns a JSON object with a single status field.
-
 <ResponseField name="status" field-type="string" required="true">
 
-Service health status. The current implementation returns `ok`.
+Service health status. The value is `healthy` when the health handler responds successfully.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service identifier. The value is `Gravity AI Interaction Layer`.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+AI service version. The current value is `1.0.0`.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Whether the service initialized a usable LLM configuration. The value is `true` when an LLM API key is configured and `false` otherwise.
 
 </ResponseField>
 
@@ -93,22 +90,280 @@ Service health status. The current implementation returns `ok`.
 
 ```json
 {
-  "status": "ok"
+  "status": "healthy",
+  "service": "Gravity AI Interaction Layer",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
 </Response>
 
-## Implementation notes
+<Callout kind="info">
 
-The FastAPI file defines the application with `app = FastAPI()` and registers the `GET /health` handler directly. No response model is defined for the route, and no custom exception handling appears in the file.
+`chat_available` is dynamic. A healthy response does not guarantee that chat requests are available. Check this field before presenting chat functionality as available.
 
-Scope is intentionally limited to routes confirmed in code today. No other AI service endpoints were found in the analyzed codebase.
+</Callout>
 
-## Likely error responses
+## Chat
 
-The current implementation is minimal, so likely error behavior is limited to framework defaults and unexpected runtime failures.
+### POST /chat
 
-- **`404 Not Found`** — Returned when you request a path that is not defined.
-- **`404 Not Found`** — Returned when you use a path or method combination that does not match the implemented route, based on the available code analysis.
-- **`500 Internal Server Error`** — Possible only if the service encounters an unexpected runtime failure while handling the request.
+Send a message to the AI interaction layer and receive an execution result.
+
+<ParamField body="user_id" param-type="string" required="true">
+
+Identifier of the user making the request.
+
+</ParamField>
+
+<ParamField body="session_id" param-type="string" required="true">
+
+Identifier of the conversation or interaction session.
+
+</ParamField>
+
+<ParamField body="message" param-type="string" required="true">
+
+Message to send to the AI service.
+
+</ParamField>
+
+<ParamField body="agent_id" param-type="string" required="false">
+
+Optional identifier of the agent that should process the message.
+
+</ParamField>
+
+<ParamField body="selected_tools" param-type="array of string" required="false">
+
+Optional list of tools selected for the interaction.
+
+</ParamField>
+
+<ParamField body="submit_tools" param-type="array of string" required="false">
+
+Optional list of tools submitted with the interaction.
+
+</ParamField>
+
+<Request tabs="cURL">
+
+```bash
+curl --request POST \
+  --url http://localhost:8001/chat \
+  --header "Content-Type: application/json" \
+  --data '{
+    "user_id": "usr_a1b2c3d4",
+    "session_id": "sess_7f8e9d0a",
+    "message": "Summarize the latest workflow activity",
+    "agent_id": "agent_workflow",
+    "selected_tools": ["workflow_search"],
+    "submit_tools": ["workflow_search"]
+  }'
+```
+
+</Request>
+
+<Response tabs="200 OK,503 Service Unavailable" show-lines="false">
+
+```json
+{
+  "execution_id": "exec_84c1f7a2"
+}
+```
+
+```json
+{
+  "detail": "Chat service unavailable — no LLM API key configured"
+}
+```
+
+</Response>
+
+<Callout kind="alert">
+
+The service returns `503 Service Unavailable` with detail `Chat service unavailable — no LLM API key configured` when no usable LLM API key is configured.
+
+</Callout>
+
+## Internal endpoints
+
+These endpoints support service administration and internal request processing.
+
+<Expandable title="Guardrail check and admin pricing">
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/internal/guardrail/check` | Check a request against the AI service guardrail. |
+| `POST` | `/admin/pricing` | Update or administer pricing data. Requires the `x-admin-token` header. |
+
+<Callout kind="alert">
+
+`POST /admin/pricing` returns `403 Forbidden` when the `x-admin-token` header is missing or invalid.
+
+</Callout>
+
+</Expandable>
+
+## Requested agents
+
+The requested-agent group contains six endpoints under `/internal/requested-agents`. These endpoints manage requested-agent operations used by the AI service.
+
+<Expandable title="Requested-agent endpoint inventory">
+
+| Method | Path group | Endpoints |
+| --- | --- | ---: |
+| Various | `/internal/requested-agents` | 6 |
+
+Use the route definitions in the deployed service to determine the operation-specific request and response schemas for this group. Requests that do not satisfy their FastAPI schema return `422 Unprocessable Entity`.
+
+</Expandable>
+
+## Embedding and indexing
+
+The embedding and indexing group contains three endpoints for creating embeddings, indexing agents, and removing indexed agents.
+
+<Expandable title="Embedding and indexing endpoints">
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/internal/embed` | Create an embedding for internal indexing workflows. |
+| `POST` | `/internal/agents/index` | Index an agent for retrieval or discovery. |
+| `DELETE` | `/internal/agents/{agent_id}` | Remove an indexed agent by identifier. |
+
+<ParamField path="agent_id" param-type="string" required="true">
+
+Identifier of the indexed agent to remove.
+
+</ParamField>
+
+</Expandable>
+
+## Verification
+
+The verification group contains 11 endpoints under `/verification`. These endpoints warm verification services, evaluate URLs and requests, generate agent configuration data, and stream verification results.
+
+<Expandable title="Verification endpoint inventory">
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/verification/warmup` | Warm verification dependencies. |
+| `GET` or `POST` | `/verification/guardrail-health` | Check verification guardrail health. |
+| `POST` | `/verification/url-verdict` | Evaluate a URL and return a verdict. |
+| `POST` | `/verification/generate-description` | Generate an agent description. |
+| `POST` | `/verification/generate-workflow-steps` | Generate workflow steps. |
+| `POST` | `/verification/generate-categories` | Generate categories. |
+| `POST` | `/verification/generate-fillable-fields` | Generate fillable fields. |
+| `POST` | `/verification/check-setup-fields` | Check setup fields. |
+| `POST` | `/verification/judge-request-alignment` | Judge whether a request aligns with the intended agent behavior. |
+| `POST` | `/verification/prewarm` | Prewarm verification dependencies. |
+| `POST` | `/verification/verify-ap-stream` | Stream agent-platform verification results as server-sent events. |
+
+</Expandable>
+
+### POST /verification/verify-ap-stream
+
+This endpoint returns server-sent events with the `text/event-stream` media type.
+
+<Request tabs="cURL">
+
+```bash
+curl --request POST \
+  --url http://localhost:8001/verification/verify-ap-stream \
+  --header "Accept: text/event-stream" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "agent_id": "agent_workflow",
+    "request": "Create a workflow that summarizes workflow activity"
+  }'
+```
+
+</Request>
+
+<Response tabs="200 OK" show-lines="false">
+
+```text
+event: verification
+data: {"status":"complete","agent_id":"agent_workflow"}
+
+event: done
+data: {}
+```
+
+</Response>
+
+<Callout kind="info">
+
+`/verification/verify-ap-stream` returns `text/event-stream`, not a single JSON response. Several verification endpoints fail open on AI or provider errors and return empty results instead of propagating an error response.
+
+</Callout>
+
+## Agent review
+
+### POST /agent-review/analyze
+
+Analyze an agent configuration and, when available, its step outputs.
+
+<Expandable title="Agent review behavior">
+
+The agent review endpoint performs one structural analysis pass and an optional output analysis pass.
+
+- Structural analysis runs without a model.
+- Output analysis runs only when `step_outputs` are present in the request.
+- Provider outages do not become review findings.
+
+</Expandable>
+
+<Request tabs="cURL">
+
+```bash
+curl --request POST \
+  --url http://localhost:8001/agent-review/analyze \
+  --header "Content-Type: application/json" \
+  --data '{
+    "agent_id": "agent_workflow",
+    "configuration": {
+      "name": "Workflow activity reviewer",
+      "description": "Reviews workflow activity and summarizes recent changes"
+    },
+    "step_outputs": [
+      {
+        "step": "workflow_search",
+        "output": "Three workflows changed in the last seven days"
+      }
+    ]
+  }'
+```
+
+</Request>
+
+## Credits
+
+The credits group contains six endpoints under `/credits`. These endpoints manage credit usage and credit-related service operations.
+
+<Expandable title="Credits endpoint inventory">
+
+| Method | Path group | Endpoints |
+| --- | --- | ---: |
+| Various | `/credits` | 6 |
+
+Credit requests use FastAPI validation. Invalid or incomplete request bodies return `422 Unprocessable Entity`, and service errors use the standard `detail` response shape.
+
+</Expandable>
+
+## Common responses
+
+| Status | Meaning |
+| --- | --- |
+| `200 OK` | The request completed successfully. |
+| `403 Forbidden` | The request lacks valid administrative authorization, including an invalid or missing `x-admin-token` for admin pricing. |
+| `404 Not Found` | The requested route or method is not defined. |
+| `422 Unprocessable Entity` | The request does not match the endpoint's FastAPI validation schema. |
+| `503 Service Unavailable` | A required service dependency is unavailable, including chat without an LLM API key. |
+
+<Callout kind="info">
+
+AI and provider failures do not have identical behavior across endpoint groups. Chat returns `503` when no LLM API key is configured, while several verification endpoints fail open with empty results.
+
+</Callout>

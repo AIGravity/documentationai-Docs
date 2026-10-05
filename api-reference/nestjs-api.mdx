@@ -1,29 +1,193 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Reference for every NestJS API endpoint including authentication, chat, agents, marketplace, automations, bounties, payments, and admin operations.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+Use the NestJS API on port `3001` to authenticate users, manage apps and connections, run chats and agents, configure automations, access marketplace resources, manage bounties, and process credits, payouts, subscriptions, and provider webhooks.
+
+Swagger is available at `/api/docs`. Controllers define the `/api` prefix themselves, so the API does not apply a separate global prefix.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+The endpoint summaries below provide route groups, authentication requirements, and common status codes. Use the OpenAPI specification at `/api/docs` for complete request parameters, schemas, and response definitions.
 
 </Callout>
 
-<Callout kind="alert">
+## Authentication
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+Most protected routes require a Supabase access token in the `Authorization` header. The `SupabaseAuthGuard` validates the bearer JWT before the controller handles the request.
+
+<CodeGroup tabs="cURL,JavaScript">
+
+```bash
+curl -i http://localhost:3001/api/apps \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+```
+
+```javascript
+const response = await fetch("http://localhost:3001/api/apps", {
+  headers: {
+    Authorization: "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example"
+  }
+});
+
+const apps = await response.json();
+console.log(apps);
+```
+
+</CodeGroup>
+
+`@Public()` bypasses the Supabase authentication guard for routes that must be reachable without a user JWT. Public routes can still apply their own authentication, such as webhook signature verification.
+
+<Callout kind="info">
+
+Routes protected by `AdminGuard` require both a valid Supabase JWT and the `admin` role. A missing or invalid token returns `401 Unauthorized`; an authenticated user without the required role returns `403 Forbidden`.
 
 </Callout>
 
-## Endpoint
+### Authentication parameters
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Bearer JWT for routes protected by `SupabaseAuthGuard`. Use the format `Bearer token`.
+
+</ParamField>
+
+<ParamField body="role" param-type="string" required="false" show-location="false">
+
+The authenticated user's role is read from the validated identity for routes protected by `AdminGuard`. The required administrator role is `admin`.
+
+</ParamField>
+
+## Error response format
+
+The API uses one normalized error shape for client errors and server errors.
+
+```json
+{
+  "statusCode": 401,
+  "error": "Unauthorized",
+  "message": "Invalid or missing bearer token",
+  "path": "/api/apps",
+  "timestamp": "2026-10-05T12:34:56.789Z"
+}
+```
+
+<ResponseField name="statusCode" field-type="integer" required="true">
+
+HTTP status code for the error.
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="true">
+
+HTTP error name, such as `Unauthorized`, `Forbidden`, `Bad Request`, or `Internal Server Error`.
+
+</ResponseField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Human-readable explanation of the failure. Validation failures may contain multiple messages.
+
+</ResponseField>
+
+<ResponseField name="path" field-type="string" required="true">
+
+Request path that produced the error.
+
+</ResponseField>
+
+<ResponseField name="timestamp" field-type="string" required="true">
+
+ISO 8601 timestamp generated when the error is handled.
+
+</ResponseField>
+
+<Callout kind="info">
+
+Validation uses `ValidationPipe` with whitelist, forbidden non-whitelisted fields, and type transformation enabled. Fields that are not declared by the request DTO are rejected, and invalid input commonly returns `400 Bad Request`.
+
+</Callout>
+
+## Health endpoints
+
+Health routes are unauthenticated and return the current status of the NestJS API service. The service listens on port `3001` in the current configuration.
+
+### GET `/`
+
+Use the root route for a minimal liveness check.
+
+#### Request details
+
+<ParamField body="method" param-type="string" required="true" show-location="false">
+
+`GET`
+
+</ParamField>
+
+<ParamField body="path" param-type="string" required="true" show-location="false">
+
+`/`
+
+</ParamField>
+
+<ParamField body="authentication" param-type="string" required="true" show-location="false">
+
+No authentication required.
+
+</ParamField>
+
+<ParamField body="request body" param-type="none" required="false" show-location="false">
+
+None.
+
+</ParamField>
+
+#### Example request
+
+<CodeGroup tabs="cURL,JavaScript">
+
+```bash
+curl -i http://localhost:3001/
+```
+
+```javascript
+const response = await fetch("http://localhost:3001/");
+const health = await response.json();
+
+console.log(health);
+```
+
+</CodeGroup>
+
+#### Response
+
+```json
+{
+  "status": "ok",
+  "service": "api"
+}
+```
+
+<ResponseField name="status" field-type="string" required="true">
+
+Always returns `ok` for a successful response.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Always returns `api`.
+
+</ResponseField>
 
 ### GET `/health`
 
-Use this endpoint to verify that the NestJS backend is running and responding.
+Use the health route to check liveness and record the time of the check.
+
+#### Request details
 
 <ParamField body="method" param-type="string" required="true" show-location="false">
 
@@ -37,105 +201,239 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 </ParamField>
 
-<ParamField body="auth" param-type="string" required="true" show-location="false">
+<ParamField body="authentication" param-type="string" required="true" show-location="false">
 
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
+No authentication required.
 
 </ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
-None. `GET /health` does not accept a request body.
+None.
 
 </ParamField>
 
-### Example request
+#### Example request
 
-<CodeGroup tabs="cURL">
+<CodeGroup tabs="cURL,JavaScript">
 
 ```bash
 curl -i http://localhost:3001/health
 ```
 
-</CodeGroup>
+```javascript
+const response = await fetch("http://localhost:3001/health");
+const health = await response.json();
 
-## Response
-
-A successful request returns a JSON object that identifies the service and reports its status.
-
-<CodeGroup tabs="JSON">
-
-```json
-{
-  "status": "ok",
-  "service": "api"
-}
+console.log(health);
 ```
 
 </CodeGroup>
 
-### Response fields
+#### Response
+
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2026-10-05T12:34:56.789Z"
+}
+```
 
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Always returns `ok` for a successful response.
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Always returns `api`.
 
 </ResponseField>
 
-## Likely error responses
+<ResponseField name="timestamp" field-type="string" required="true">
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+ISO 8601 timestamp generated when the request is handled.
 
-### 404 not found
+</ResponseField>
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+<Callout kind="alert">
 
-### 500 internal server error
+The implemented route is `/health`, not `/api/health`. The application does not configure a global `/api` prefix for these health controllers.
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+</Callout>
 
-## Notes
+## Authentication endpoints
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+The authentication controller exposes 17 routes under `/api/auth` for user authentication and account-related operations.
+
+<Expandable title="View authentication endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/auth/*` | Mixed | 17 authentication and account operations | `200`, `201`, `400`, `401`, `404`, `409`, `500` |
+
+</Expandable>
+
+## Chat endpoints
+
+The chat controller exposes 8 routes under `/api/chat`. These routes do not use `SupabaseAuthGuard`; authorization for the user or session occurs in the service layer.
+
+<Expandable title="View chat endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/chat/*` | Service-level | 8 chat, conversation, and message operations | `200`, `201`, `400`, `404`, `500` |
+
+</Expandable>
+
+<Callout kind="info">
+
+Chat routes do not require a Supabase bearer token through `SupabaseAuthGuard`. Include the user or session information required by the specific operation and rely on the OpenAPI schema for the request shape.
+
+</Callout>
+
+## Apps endpoints
+
+The apps controller exposes 8 routes under `/api/apps`. The Activepieces session route is exposed separately at `/api/activepieces/ensure-session`.
+
+<Expandable title="View apps endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/apps/*` | Supabase JWT | 8 app lifecycle and configuration operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `POST` | `/api/activepieces/ensure-session` | Supabase JWT | Ensure an Activepieces session exists for the authenticated user | `200`, `201`, `401`, `500` |
+
+</Expandable>
+
+## Connections endpoints
+
+The connections controller exposes 5 routes under `/api/connections` for managing connected services and credentials.
+
+<Expandable title="View connections endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/connections/*` | Supabase JWT | 5 connection management operations | `200`, `201`, `400`, `401`, `404`, `500` |
+
+</Expandable>
+
+## Builder endpoints
+
+Builder functionality is split across three route families: `/api/builder`, `/api/builder/connections`, and `/api/builders`.
+
+<Expandable title="View builder endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/builder/*` | Supabase JWT | 3 builder operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `GET`, `POST`, `DELETE` | `/api/builder/connections/*` | Supabase JWT | 4 builder connection operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/builders/*` | Supabase JWT | 3 builder resource operations | `200`, `201`, `400`, `401`, `404`, `500` |
+
+</Expandable>
+
+## Agents endpoints
+
+The agents controller exposes 20 routes under `/api/agents` for agent configuration, execution, verification, and related operations.
+
+<Expandable title="View agents endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/agents/*` | Supabase JWT | 20 agent management, execution, and verification operations | `200`, `201`, `202`, `400`, `401`, `404`, `500` |
+
+</Expandable>
+
+<Callout kind="info">
+
+The agent `verify-stream` route returns `text/event-stream` and keeps the response open while verification events arrive. The `verify-warmup` and `verify-prewarm` routes return `202 Accepted` when the asynchronous operation is queued.
+
+</Callout>
+
+## Admin endpoints
+
+The admin controller exposes 14 routes under `/api/agents/admin`. Every route requires both `SupabaseAuthGuard` and `AdminGuard`.
+
+<Expandable title="View admin endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/agents/admin/*` | Supabase JWT plus admin role | 14 administrative agent operations | `200`, `201`, `400`, `401`, `403`, `404`, `500` |
+
+</Expandable>
+
+<Callout kind="alert">
+
+Admin requests require a valid bearer JWT and the `admin` role. A valid token without that role returns `403 Forbidden`.
+
+</Callout>
+
+## Marketplace endpoints
+
+The marketplace controller exposes 23 routes under `/api/marketplace`, along with file and OAuth operations.
+
+<Expandable title="View marketplace endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/marketplace/*` | Mixed | 23 marketplace listing, workflow, and integration operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `GET`, `POST`, `DELETE` | `/api/marketplace/files/*` | Supabase JWT | Marketplace file operations | `200`, `201`, `400`, `401`, `404`, `413`, `500` |
+| `GET`, `POST` | `/api/marketplace/oauth/*` | Mixed | Marketplace OAuth authorization and callback operations | `200`, `201`, `400`, `401`, `404`, `500` |
+
+</Expandable>
+
+<Callout kind="info">
+
+`GET /api/marketplace/workflows/{id}` is public and does not require a Supabase JWT. Marketplace file uploads are capped at 30 MB.
+
+</Callout>
+
+## Automations endpoints
+
+The automations controller exposes 7 routes under `/api/automations` for creating and managing automated workflows.
+
+<Expandable title="View automations endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/automations/*` | Supabase JWT | 7 automation management and execution operations | `200`, `201`, `400`, `401`, `404`, `500` |
+
+</Expandable>
+
+## Bounties endpoints
+
+The bounties controller exposes 16 routes under `/api/bounties` for browsing, creating, assigning, and managing bounty work.
+
+<Expandable title="View bounties endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/bounties/*` | Supabase JWT | 16 bounty management and workflow operations | `200`, `201`, `400`, `401`, `404`, `500` |
+
+</Expandable>
+
+## Payments endpoints
+
+Payment operations cover credits, payouts, subscriptions, and provider webhooks. The payment controllers use different authentication models depending on whether a request originates from an authenticated application user or an external payment provider.
+
+<Expandable title="View payments endpoint inventory">
+
+| Method | Path | Auth | Description | Status codes |
+|---|---|---|---|---|
+| `GET`, `POST`, `PATCH`, `DELETE` | Payment credits routes | Supabase JWT | Credit balance and credit transaction operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `GET`, `POST`, `PATCH`, `DELETE` | Payment payouts routes | Supabase JWT | Payout account and payout lifecycle operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `GET`, `POST`, `PATCH`, `DELETE` | Payment subscriptions routes | Supabase JWT | Subscription creation and management operations | `200`, `201`, `400`, `401`, `404`, `500` |
+| `POST` | Payment webhook routes | Provider signature | External payment provider callbacks | `200`, `400`, `401`, `500` |
+
+</Expandable>
+
+<Callout kind="info">
+
+Payment webhooks are public provider callbacks authenticated with request signatures, not Supabase JWTs. Preserve the raw request data and provider signature handling required by the payment integration when forwarding webhook requests.
+
+</Callout>
+
+## OpenAPI reference
+
+Open the generated Swagger reference at `/api/docs` while the NestJS service is running. Use it to inspect the exact route-level parameters, request bodies, DTO schemas, and response models for each endpoint group.
