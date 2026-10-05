@@ -1,69 +1,61 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Notable product releases — new features, improvements, and bug fixes shipped to Gravity.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
+This changelog tracks notable product changes shipped to Gravity. Each entry lists new features, updates to existing capabilities, and bug fixes in reverse-chronological order.
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update releaseDate="2026-09-10" title="September 2026">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### New Features
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Agent Review Pipeline** — Admins can now run submitted agents, inspect human-readable outputs, review workflow quality, judge AI responses, and send structured feedback to builders. Builder answers are preserved across failed runs for easier debugging. Learn more in the [Features](/features) overview.
+- **Subscriptions & Billing** — Introduced subscription quotas, Stripe checkout, creator earnings and payouts, referral earnings, and a billing dashboard. See [Features](/features) for details.
+- **Runtime Safety Checkpoints** — Agents can now allow, ask for confirmation, or block before executing external actions. Fail-closed behavior applies when the safety checker is unavailable. Learn more in [Features](/features).
+- **Chat Session Preservation** — Consumer chat context is now carried into cloned agent copies so runtime safety checks respect the user's original intent. See [Features](/features).
+- **Activepieces Version Compatibility** — Gravity now detects the running Activepieces version and adjusts compatibility behavior accordingly, preventing breakage during AP upgrades. See [Integrations](/integrations).
+
+### Updates
+
+- Consumer experience improved with richer result rendering, long-run polling, dependent dropdowns, chat-bar question flows, and better builder question handling.
+- Email lookups now normalize mixed-case and whitespace-padded addresses for more reliable account provisioning.
+- File proxying restricted to the correct Activepieces host to prevent unsafe URL rewriting.
+- Notification email delivery enabled across all deployment environments.
+
+### Bug Fixes
+
+- Restored production chat, guardrails, and marketplace test-builder calls by correcting the production AI service endpoint.
+- Paused runs now correctly distinguish between approval, delay, and run-agent pauses, showing meaningful status messages instead of generic errors.
+- Approval-paused agent runs now stay alive for up to two hours, display "Waiting for approval," and preserve their reattach handle.
+- Action steps incompatible with the current Activepieces version are now pinned or rejected with a readable error instead of failing silently or timing out.
+- AI provider configuration from Activepieces Cloud is now correctly normalized during publishing and cloning.
+- Empty options responses from Activepieces no longer cause JSON parsing failures in dynamic question pickers.
+- Recurring agents waiting for approval no longer lose their active-run handle after transient polling errors.
+- Workflow submissions containing stray null characters no longer fail with a misleading database error.
+- Connected-app loading and Activepieces database operations restored after a tunnel hostname fix.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Scan from top to bottom when you want the newest information first. Each entry is organized into New Features, Updates, and Bug Fixes so you can quickly find what matters to you.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+Explore the core capabilities and features available in Gravity.
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+Get started with Gravity and run your first agent.
 </Card>
 
 </Columns>
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+For troubleshooting and common questions, visit the [Help Center](/help-center).
