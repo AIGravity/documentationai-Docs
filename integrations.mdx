@@ -1,164 +1,131 @@
 ---
 title: Integrations
-description: Connect documentation content and tooling workflows to your development process.
+description: Configure external services that power workflow execution, authentication, payments, payouts, AI routing, and tool connections in Gravity.
 ---
 
-## Why integrations matter
+## Overview
 
-Documentation works better when it connects to the systems that already run your workflow. Git repositories, CI jobs, event handlers, and content tooling keep docs closer to the code they describe and make changes easier to verify.
+Gravity integrates with several external services to power workflow execution, authentication, billing, payouts, AI capabilities, and tool connections. This page describes each integration and what it provides from a user's perspective.
 
-## Integration categories
+## Activepieces
+
+Activepieces is the workflow execution engine. When you run an agent, Gravity creates or imports an Activepieces flow and executes it there.
+
+- **Workflow execution:** Published agents run as Activepieces flows. Gravity imports workflow templates, resolves trigger pieces, and manages the flow lifecycle, including publish, activate, pause, and deactivate.
+- **Connections:** You authorize external services through Activepieces connection flows. Gravity detects required connections from the workflow and guides you through OAuth or API key setup.
+- **Capability probing:** Gravity probes the Activepieces instance version through its flags endpoint and caches the result for ten minutes. When the engine supports native interval scheduling in version 0.87.0 or later, Gravity uses it directly. Older versions use a compatibility pin. The same Gravity build works before and after an Activepieces upgrade without requiring a matching Gravity release. Unknown or unreachable versions conservatively retain the compatibility pin.
+- **AI provider normalization:** Activepieces Cloud may export provider configuration with an account-specific config ID. Gravity strips the config ID and uses a bare provider string so the workflow can run in your workspace without exposing the exporting account's credentials.
+- **File proxying:** Gravity proxies file URLs only when the URL host matches its configured Activepieces instance. Third-party URLs with similar paths remain untouched, preventing unintended cross-origin file access.
+- **Custom pieces:** Gravity registers and verifies custom pieces for publish gates, runtime checkpoints, and AI integration against the target Activepieces version. Custom-piece compatibility has been verified on Activepieces 0.90.2.
+- **User provisioning:** Gravity provisions Activepieces user accounts and projects, manages sessions, and repairs stale identity mappings.
 
 <Callout kind="info">
 
-The categories below are intentionally generic. Exact integration names, providers, and setup steps are not sourced here, so treat them as patterns rather than product-specific instructions.
+An Activepieces upgrade does not require a matching Gravity release. Gravity detects the Activepieces version at runtime and adapts its compatibility behavior automatically.
 
 </Callout>
 
-Use integrations to:
+## Supabase
 
-- sync content from Git-based sources
-- verify documentation builds in CI
-- react to events from publishing or content pipelines
-- connect Markdown and MDX files to local editor and build tooling
+Supabase provides authentication and platform persistence.
 
-## Git-based content sync
+Gravity uses Supabase for:
 
-Git-based sync keeps documentation in the same review and versioning flow as application code. In practice, that means docs live in a repository, changes move through pull requests, and merges become the source of truth for published content.
+- User authentication through email and password, one-time passwords, and Google OAuth
+- JWT issuance and verification for API requests
+- Platform data storage for identities, profiles, billing records, marketplace workflows, earnings, referrals, bounties, and review state
 
-This pattern works well when you want review history, branch-based editing, and traceable rollbacks. It also keeps documentation changes visible to the same people who already review code and release work.
+## Payment providers
 
-### Typical workflow
+Gravity uses multiple payment providers for pay-ins and payouts.
 
-<Steps>
+### Razorpay
 
-<Step title="Edit content in the repository" icon="edit">
+Razorpay processes payments for users in India, including subscriptions, credit top-ups, and bounty funding. It also handles payment webhooks.
 
-Update Markdown or MDX files in the branch you are already using for the change.
+### Stripe
 
-</Step>
+Stripe processes payments for users outside India, including subscriptions and credit top-ups. Stripe Connect supports creator payouts in non-India regions.
 
-<Step title="Review the diff" icon="check">
+### RazorpayX
 
-Confirm the content change, metadata, and links before merge. The review should show the exact files that changed.
+RazorpayX processes bank transfer payouts for creators in India.
 
-</Step>
+### PayPal
 
-<Step title="Publish from the approved branch" icon="upload">
+PayPal supports creator payouts through PayPal. The current integration uses a demo-style email connection rather than full partner onboarding.
 
-Merge the branch into the publishing branch or trigger your normal release flow. The published docs should reflect the reviewed commit.
+<Callout kind="info">
 
-</Step>
-
-</Steps>
-
-## CI build verification
-
-CI verification catches broken documentation before it reaches readers. A docs build usually checks parsing, component usage, link integrity, and any site-specific transforms that your toolchain applies.
-
-<Callout kind="tip">
-
-If your docs rely on custom MDX components, keep the build check close to the editor workflow so syntax errors surface before merge.
+Checkout automatically routes to the correct provider based on your region. India-based users are routed to Razorpay. Users in other regions use Stripe when available.
 
 </Callout>
 
-### Example setup
+## OpenRouter
 
-Use the same source content for local preview and CI validation, but run them in different places for different reasons.
+OpenRouter provides LLM routing across supported model providers. Gravity uses it for AI-assisted features such as intent detection, agent search, agent verification, content generation, and the review pipeline.
 
-<Tabs>
-  <Tab title="Local preview" icon="monitor">
+Gravity also tracks model costs so AI usage can be correlated with billing.
 
-Local preview helps you catch layout problems, MDX syntax issues, and broken links while you edit.
+## Composio
 
-<CodeGroup tabs="npm,pnpm" show-lines={true}>
+Composio provides tool integrations that agents can use. Gravity manages the connection lifecycle for Composio apps by:
 
-```bash
-npm run docs:dev
-```
+- Detecting Composio apps used by a workflow
+- Initiating OAuth connections and checking connection status
+- Connecting, disconnecting, and listing connections
 
-```bash
-pnpm docs:dev
-```
+## Connection types
 
-</CodeGroup>
+Gravity supports several ways to authorize services used by agents.
 
-  </Tab>
-  <Tab title="CI check" icon="shield">
-
-CI verification runs the docs build after install and before deployment.
-
-<CodeGroup tabs="npm,pnpm" show-lines={true}>
-
-```bash
-npm run docs:build
-```
-
-```bash
-pnpm docs:build
-```
-
-</CodeGroup>
-
-  </Tab>
-</Tabs>
-
-## Webhooks and events
-
-Webhook and event integrations connect documentation workflows to other systems when something changes. Common uses include notifying a build system, triggering a sync job, or handing off a publishing event to another service.
-
-Because exact event names are not sourced here, define your own event contract around the actions you already need, such as content updated, page published, or build completed. Keep the payload stable and small so downstream automation stays predictable.
-
-### What to keep in the payload
-
-- the content identifier
-- the action that occurred
-- a timestamp
-- the source branch or environment, when relevant
-
-## Markdown and MDX toolchain integration
-
-Markdown and MDX usually fit into the same editing stack as the rest of a documentation site. Editors, formatters, linters, and site builds can all work from the same files as long as they agree on syntax and component support.
-
-Use the toolchain to enforce consistency, not to add complexity. A good setup catches malformed frontmatter, invalid component usage, and broken links before a page is published.
-
-### Toolchain checks to enable
-
-- frontmatter parsing
-- MDX syntax validation
-- markdown formatting
-- link checking
-- component availability checks
+- **OAuth connections:** Authorize a service through its OAuth flow. Use Gravity-managed configuration or provide custom OAuth client credentials.
+- **API key connections:** Add API credentials for services that authenticate with keys.
+- **Activepieces connections:** Reuse existing Activepieces connections when an agent relies on services configured through Activepieces.
+- **Custom OAuth credentials:** Provide your own OAuth client credentials when a service requires your own client registration.
 
 ## Troubleshooting
 
 <ExpandableGroup>
-  <Expandable title="Build fails during docs validation">
 
-Build failures usually come from invalid MDX, missing component imports in a custom pipeline, or a link that points to a page that does not exist. Start with the first error in the build log, then fix one issue at a time.
+<Expandable title="An action step cannot resolve on the current Activepieces version">
 
-Check that any page path used in navigation or links matches a file that exists in the repository. If the build fails after a content change, compare the failing file against the last known good commit.
+Gravity rejects unresolvable action versions before execution begins. The error identifies the affected step and app, instead of allowing the flow to proceed and fail later without a useful explanation.
 
-  </Expandable>
-  <Expandable title="A page is missing after sync">
+Check whether the action version is supported by the Activepieces instance connected to Gravity. Update the workflow to use a supported action version, then publish the agent again.
 
-A missing page usually means the file did not sync, the route path does not match the filename, or the page was excluded by your build rules. Confirm that the source file exists, the route is still wired correctly, and the page is included in the publish step.
+</Expandable>
 
-If the page moved, update every internal link that still points to the old path so readers do not hit a dead end.
+<Expandable title="A connection is required before a run can start">
 
-  </Expandable>
+Gravity detects required connections from the workflow and surfaces them before execution begins. Authorize each requested service through its OAuth flow, API key form, or existing Activepieces connection before starting the run.
+
+If the required connection does not appear, confirm that the workflow includes the expected app and that the connection type matches the service's authentication requirements.
+
+</Expandable>
+
 </ExpandableGroup>
 
-## Next steps
+## Related pages
 
-<Columns cols={2}>
+<Columns cols={3}>
 
-<Card title="Docs workflow" href="/docs" icon="book-open" horizontal={true}>
-See how documentation pages fit into the broader documentation workflow.
+<Card title="Features" href="/features" icon="zap">
+
+Explore the capabilities available in Gravity.
+
 </Card>
 
-<Card title="Content tooling" href="/docs/tooling" icon="settings" horizontal={true}>
-Review the editor and build patterns that support docs authoring.
+<Card title="Architecture overview" href="/architecture-overview" icon="book-open">
+
+Understand how Gravity components work together.
+
+</Card>
+
+<Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code">
+
+Review the API endpoints available for platform integrations.
+
 </Card>
 
 </Columns>

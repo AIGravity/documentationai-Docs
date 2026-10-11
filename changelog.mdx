@@ -1,69 +1,113 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track notable platform changes, new features, and fixes across Gravity releases.
 ---
-
-## Overview
-
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
 
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+<Update date="September 2026">
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+### **Subscriptions and billing**
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- Subscription plans support monthly billing cycles, credit entitlements, and usage tracking.
+- Checkout routes to Razorpay for users in India and Stripe for users in other regions.
+- Free plans activate directly. Paid plans require checkout.
+- Cancelling a subscription at the end of the billing period preserves access until the current cycle expires.
+- An entitlement endpoint reports the current ledger credits, outstanding holds, spendable credits, and reserved budget.
+
+### **Scheduled-agent affordability checks**
+
+- Activating a scheduled agent estimates the cost for the remainder of the current cycle and checks it against available credit entitlements before starting.
+- A soft reservation holds credits for active schedules.
+- Pausing or unsubscribing releases the reservation.
+
+### **Creator earnings and payouts**
+
+- A dedicated earnings balance endpoint returns withdrawable amounts, pending payouts, and currency conversion details.
+- Payouts support bank transfer in India, PayPal, and Stripe Connect in other regions.
+- Creators can add, update, and delete payout accounts.
+
+### **Referral program**
+
+- Builders can create share links and earn monthly referral payouts from referred-builder earnings during the referred builder's first year.
+- A referral earnings summary endpoint provides a monthly breakdown.
+- Share link resolution and click attribution work for signed-out visitors.
+
+### **Improved paused-run classification**
+
+- Paused executions now report a kind: `approval`, `delay`, `agent`, or `unknown`.
+- The UI shows distinct messaging for each kind instead of using a generic "waiting for approval" label.
+
+### **More actionable execution errors**
+
+- Memory limit, log size limit, and quota limit failures now surface as distinct error types instead of generic internal errors.
+- Timeout failures preserve information about the step that failed.
+
+### **Agent review feedback loop**
+
+- Admins can edit finding severity before sending a review report. Sending a report also rejects the submission.
+- Builders can mark individual findings as fair or unfair and add explanatory notes.
+- Admins can re-run quality review using stored submission data.
+- Review feedback persists when pending submissions move to the rejected archive.
+
+### **Admin test runs use a shared review workspace**
+
+- Admin test runs execute against a dedicated review workspace instead of the admin's personal Activepieces project.
+
+### **Safer file proxying**
+
+- File proxying only intercepts URLs matching the configured Activepieces instance. Third-party URLs remain untouched.
+
+### **Earlier incompatibility detection**
+
+- Builder paths reject unresolvable action versions with the step name and app name instead of allowing flows that later fail without a useful error.
+- Empty undeclared inputs are stripped automatically.
+
+### **Removed obsolete workflow endpoint**
+
+- The legacy n8n-based workflow API has been removed.
+- Marketplace execution now uses Activepieces-based endpoints exclusively.
+
+</Update>
+
+<Update date="September 2026">
+
+### **Capability-gated schedule pinning**
+
+- Gravity probes the Activepieces instance version through its flags endpoint and caches the result for ten minutes.
+- When the Activepieces engine supports native interval scheduling, starting with version 0.87.0, Gravity uses it directly.
+- Older Activepieces versions use a compatibility pin.
+- The same Gravity build works before and after an Activepieces upgrade without requiring a lockstep Gravity release.
+
+### **AI provider normalization**
+
+- Activepieces Cloud may export provider configuration with an account-specific config ID.
+- Gravity strips the config ID and uses a bare provider string so the workflow can run in the consumer's workspace without exposing the exporting account's credentials.
+
+### **Custom-piece compatibility verification**
+
+- Gravity's custom pieces have been verified on Activepieces 0.90.2, including publish gates, runtime checkpoints, and AI integration.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Read the release entries from top to bottom to find the most recent platform changes first. Each entry groups updates by their effect on subscriptions, scheduled agents, creator workflows, reviews, execution reliability, and Activepieces compatibility.
 
 ## Related resources
 
 <Columns cols={2}>
 
 <Card title="Features" href="/features" icon="zap">
+
 Review the current documentation capabilities and supported workflows.
+
 </Card>
 
 <Card title="Quickstart" href="/quickstart" icon="rocket">
+
 Set up the documentation site and confirm the basic workflow.
+
 </Card>
 
 </Columns>
-
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).

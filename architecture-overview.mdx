@@ -1,339 +1,165 @@
 ---
 title: Architecture overview
-description: Evaluate the Gravity monorepo structure, service boundaries, tooling, and current implementation gaps across web, API, and AI services.
+description: Understand how Gravity's web, API, and AI services work together to power agent creation, marketplace execution, billing, and quality review.
 ---
 
 ## Overview
 
-Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, but the application layer is still intentionally thin.
-
-The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, no persistence layer, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
+Gravity is a polyglot monorepo with three independently deployable applications: a Remix frontend, a NestJS API, and a FastAPI AI service. The platform supports agent creation from workflow templates, marketplace discovery and execution, subscription billing with credit entitlements, creator earnings and payouts, referral programs, bounties, and an automated quality review pipeline.
 
 <Callout kind="info">
 
-`pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
-
-</Callout>
-
-## Top-level repository structure
-
-The repository root contains the orchestration, build, and operational layers that tie the three applications together.
-
-- `.github/`
-  - `.github/workflows/web.yml`
-  - `.github/workflows/api.yml`
-  - `.github/workflows/ai-service.yml`
-- `apps/`
-  - `apps/web`
-  - `apps/api`
-  - `apps/ai-service`
-- `scripts/`
-  - `scripts/bootstrap.sh`
-  - `scripts/version-bump.sh`
-- `README.md`
-- `package.json`
-- `pnpm-lock.yaml`
-- `pnpm-workspace.yaml`
-- `tsconfig.base.json`
-- `turbo.json`
-
-A few root files define the monorepo shape directly:
-
-- `pnpm-workspace.yaml` registers `apps/*` and `packages/*` as workspaces.
-- `turbo.json` configures a minimal task graph for `dev` and `build`.
-- `package.json` defines root development commands that delegate into the app workspaces.
-- `scripts/bootstrap.sh` installs toolchains and service dependencies across JavaScript, Bun, and Python environments.
-
-## Monorepo orchestration layer
-
-The repo uses `pnpm` workspaces for package coordination and Turborepo primarily as a process orchestrator. At the current maturity level, Turborepo is not modeling a deep dependency graph because there are no shared internal packages yet.
-
-The root `package.json` defines workspace-level commands such as `dev:web`, `dev:api`, and `dev`. Those commands establish the intended local development pattern: run services independently when needed, or run them in parallel through Turbo.
-
-<Callout kind="alert">
-
-The root script `dev:py` points to `apps/py-service`, but the actual Python service lives at `apps/ai-service`. That script is stale relative to the repository tree.
+The three services share a monorepo but run independently. The frontend communicates with the API through REST, and the API delegates AI-related work to the AI service.
 
 </Callout>
 
 ## Service architecture
 
-### `apps/web`: Remix frontend
+### Frontend (Remix)
 
-`apps/web` is the user-facing frontend. It uses Remix with Vite and React, and the current code remains close to a starter application rather than an integrated product UI.
+The Remix frontend provides the product experience for creators, consumers, reviewers, and administrators. It connects to the API through authenticated REST requests and presents the workflows, marketplace operations, billing tools, and review feedback required to use Gravity end to end.
 
-The main entry file is `apps/web/app/root.tsx`. That file defines the document shell, global styles, font links, an `ErrorBoundary`, and the route outlet. The exported app component returns an `Outlet`, so request handling follows standard Remix nested routing.
+The frontend supports:
 
-Current route files are minimal:
+- **Authentication and onboarding:** Email and password, one-time passwords, Google OAuth, session handling, and profile management.
+- **Agent marketplace:** Browse agents, inspect agent details, clone agents, and start live runs.
+- **Agent creation:** Create and customize agents through a guided workflow wizard.
+- **Builder dashboard:** Review agent performance, earnings, payout settings, and quality review feedback.
+- **Consumer dashboard:** Manage saved applications and scheduled agents.
+- **Connection management:** Configure OAuth connections, API keys, and Activepieces connections.
+- **Consumer inputs:** Render dynamic forms for text, dates, files, dropdowns, cascades, arrays, JSON values, and schedules.
+- **Paused runs:** Display runs paused for human approval, configured delays, or AI-agent waitpoints.
+- **Execution output:** Render text, files, images, PDFs, and structured values returned by marketplace runs.
+- **Credits and billing:** Purchase credit top-ups, manage subscriptions, review usage, and complete checkout.
+- **Community and growth:** Access bounties, requested agents, leaderboards, and notifications.
+- **Administration:** Review agents, manage quality reviews, oversee billing operations, and manage referrals.
 
-- `apps/web/app/routes/_index.tsx`
-- `apps/web/app/routes/home.tsx`
+### API (NestJS)
 
-Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, no data fetching helpers, and no API client layer in the current frontend tree.
+The NestJS API is the main application and domain service. It coordinates authentication, agent lifecycle management, marketplace execution, billing, creator economics, integrations, and administrative workflows.
 
-`apps/web/vite.config.ts` shows the active frontend stack:
+#### Authentication
 
-- Remix
-- Vite
-- Tailwind CSS
-- TypeScript path support
+The authentication module handles signup, login, one-time passwords, password resets, Google OAuth, and session management through Supabase JWTs. The API validates authenticated requests and provides the identity context used by user, creator, consumer, and administrative workflows.
 
-The relationship to the rest of the repo is mostly implicit. The API service enables CORS for `http://localhost:3000`, which indicates the frontend is expected to call the API, but no such calls are implemented in the frontend code today.
+#### Agents
 
-### `apps/api`: NestJS API on Bun
+The agent module manages agent creation, publishing, and verification. It supports duplicate detection, review workflows, verification state transitions, and feedback from quality reviews to the agent builder.
 
-`apps/api` is the TypeScript backend boundary. It uses NestJS for the HTTP framework, Bun as the runtime for local development and execution, and TypeScript compilation to `dist/` for builds.
+#### Marketplace execution
 
-The service boots from `apps/api/src/main.ts`. That file creates the Nest application, enables CORS for `http://localhost:3000`, and listens on port `3001`.
+The marketplace module manages the complete consumer execution lifecycle:
 
-The root module lives at `apps/api/src/app.module.ts`. Its composition is currently minimal: one root module and one controller, with no providers, feature modules, guards, pipes, interceptors, or middleware classes registered.
+- Agent catalog and discovery
+- Agent cloning and workflow import
+- Consumer runs and scheduled execution
+- Trigger resolution
+- Connection discovery
+- Output normalization
+- Cost estimation
+- Run polling
+- Paused-run classification
+- File proxying
 
-The only implemented controller is `apps/api/src/health/health.controller.ts`. It exposes `GET /health` and returns a static payload indicating the API is healthy. There is no service layer, DTO layer, repository layer, or domain module structure behind that endpoint.
+This module translates consumer intent into workflow execution and returns normalized results that the frontend can render across supported output types.
 
-That makes `apps/api` a real runnable service, but architecturally it is still a shell. The service boundary exists at the application level, not yet at the module or domain level.
+#### Billing and entitlements
 
-### `apps/ai-service`: FastAPI Python service
+The billing module manages credits, subscriptions, usage entitlements, and payment flows. It supports Razorpay and Stripe for pay-ins, as well as payout accounts and withdrawal workflows for creators.
 
-`apps/ai-service` is the Python service intended to host AI-related functionality. In its current state, it is a very small FastAPI application with one route and no internal substructure.
+#### Earnings
 
-The entry point is `apps/ai-service/main.py`. That file creates a `FastAPI` app and defines `GET /health`, which returns a static status object. There are no routers, service classes, Pydantic models beyond what FastAPI would support, middleware, persistence adapters, or model-inference integrations implemented yet.
+The earnings module tracks creator balances and payout activity. It provides currency conversion through foreign exchange rates and exposes paginated earnings history for creators and administrative workflows.
 
-The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development. The tooling is ready for a larger service, but the runtime surface area is currently limited to health checking.
+#### Referrals
 
-<Callout kind="info">
+The referrals module manages share links, referral attribution, monthly settlement, and referral earnings. It connects referral activity to the billing and earnings systems.
 
-Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
+#### Bounties
 
-</Callout>
+The bounties module supports bounty creation, funding, agent submissions, review workflows, and payouts. It provides a structured path for requesting and rewarding new agent capabilities.
 
-## Entry points and request handling
+#### Activepieces integration
 
-Each application has a clear entry point, but request handling remains shallow.
+The Activepieces integration module connects Gravity to the workflow execution platform. It manages flows, connections, OAuth, user provisioning, capability probing, and custom-piece registration.
 
-### Web routes
+#### Health
 
-The frontend entry point is `apps/web/app/root.tsx`, with route modules under `apps/web/app/routes/`.
+Health endpoints expose service availability for operational monitoring and deployment checks.
 
-Current route behavior:
+### AI service (FastAPI)
 
-- `/` is defined by `apps/web/app/routes/_index.tsx`
-- `/home` is defined by `apps/web/app/routes/home.tsx`
+The FastAPI AI service handles AI-related functionality that supports discovery, verification, review, and content generation. The API delegates AI-assisted work to this service over HTTP.
 
-Both route modules render the same welcome component. There are no loaders, actions, or backend requests in those routes.
+The AI service provides:
 
-### API routes
+- **Intent detection and conversational routing:** Interpret user requests and route them to the appropriate product workflow.
+- **Agent search and recommendation:** Find relevant agents and rank recommendations based on user needs.
+- **Agent verification:** Run behavioral, code, network and domain, guardrail, health, AI reviewer, request-alignment, and setup-field checks.
+- **Multi-phase agent review:** Score agents across evidence axes and combine review signals into quality decisions.
+- **Content generation:** Create agent descriptions, categories, and fillable fields.
+- **Guide and help responses:** Generate contextual guidance for agent usage and product workflows.
+- **Pricing and provider lookup:** Retrieve information used for cost estimation and provider selection.
 
-The API entry point is `apps/api/src/main.ts`, and the only route controller is `apps/api/src/health/health.controller.ts`.
+## Cross-service communication
 
-Implemented route behavior today:
+Gravity separates user interaction, domain orchestration, AI processing, workflow execution, and infrastructure services across explicit integration boundaries.
 
-- `GET http://localhost:3001/health`
+- **Frontend to API:** The frontend makes REST calls with Bearer JWT authentication.
+- **API to AI service:** The API makes HTTP calls for verification, review, intent handling, recommendations, and AI-assisted content generation.
+- **API to Activepieces:** The API uses REST for flow management, connections, and execution. It reads workflow and run data directly from Activepieces Postgres and uses Socket.IO for test runs.
+- **API to payment providers:** Razorpay and Stripe process pay-ins. RazorpayX, PayPal, and Stripe Connect support creator payouts.
+- **API to Supabase:** Supabase provides authentication and JWT verification, along with platform persistence.
 
-The repository README reportedly references `/api/health`, but `apps/api/src/main.ts` does not set a global prefix. Based on the code, the implemented route is `/health`, not `/api/health`.
+```mermaid
+graph TB
+  Frontend -->|REST / JWT| API
+  API -->|HTTP| AIService
+  API -->|REST + Postgres| Activepieces
+  API -->|API| Supabase
+  API -->|API| PaymentProviders
+  Activepieces -->|Executes| Workflows
+```
 
-### AI service routes
+## External integrations
 
-The AI service entry point is `apps/ai-service/main.py`.
+Gravity integrates with the following external systems:
 
-Implemented route behavior today:
+- **Activepieces:** Workflow execution, flow management, connections, OAuth, and run handling.
+- **Supabase:** Authentication, JWT verification, and platform persistence.
+- **OpenRouter:** LLM routing across supported model providers.
+- **Stripe and Razorpay:** Customer payments, subscriptions, and credit purchases.
+- **RazorpayX, PayPal, and Stripe Connect:** Creator payouts and withdrawals.
+- **Composio:** Tool integrations used by agents and workflows.
 
-- `GET /health`
+## Persistence
 
-There are no additional routers or path groupings.
+Gravity uses Supabase for authentication and platform persistence. Supabase stores the application data required for identities, profiles, billing-related records, marketplace workflows, creator economics, referrals, bounties, and review state.
 
-## Module relationships and service boundaries
-
-The repository has strong top-level separation and very thin internal layering. The clearest boundaries today are folder boundaries:
-
-- `apps/web` for the frontend
-- `apps/api` for the TypeScript backend
-- `apps/ai-service` for the Python backend
-
-Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
-
-That means the current architecture is macro-separated but not yet layered. The repo signals where responsibilities will likely live, but those responsibilities are not implemented in code yet.
-
-### Current cross-service wiring
-
-Expected relationships are visible in naming and configuration, not in running integrations.
-
-- `apps/api/src/main.ts` allows CORS from `http://localhost:3000`, implying browser calls from the web app.
-- The repository README describes a future shared-contract pattern through planned packages.
-- The presence of both `apps/api` and `apps/ai-service` implies a future backend-to-backend relationship.
-
-No direct wiring exists today:
-
-- no frontend fetches to the API in `apps/web`
-- no API client or SDK package
-- no API calls from `apps/api` to `apps/ai-service`
-- no shared `packages/` code
-- no shared schema or contract definitions
-
-<Callout kind="alert">
-
-Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
-
-</Callout>
-
-## Persistence, middleware, auth, and external services
-
-### Database and persistence
-
-No database or persistence layer is implemented in the current repository. There are no ORM configurations, migration files, schema directories, repository classes, entity models, or connection settings that would indicate active persistence.
-
-Notably absent from the tree:
-
-- `prisma/`
-- `db/` or `database/`
-- ORM setup for TypeORM, Prisma, Drizzle, MikroORM, Mongoose, or Sequelize
-- SQL migration files
-- Redis or cache clients
-- `.env.example` with database connection variables
-
-The practical result is a stateless system. The frontend renders starter UI, the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
-
-### Middleware
-
-Middleware is also minimal across all services.
-
-- In `apps/api/src/main.ts`, the only visible platform-level request configuration is CORS.
-- In `apps/web`, there is no evidence of session middleware, CSRF protection, cookie handling, or request interception.
-- In `apps/ai-service/main.py`, there is no middleware configured.
-
-This absence matters architecturally because cross-cutting concerns have not yet been formalized. Logging, validation, auth enforcement, and request context propagation are still future concerns.
-
-### Authentication and authorization
-
-No authentication or authorization layer exists today.
-
-There are no signs of:
-
-- login or logout endpoints
-- JWT or session cookies
-- Passport or strategy modules in Nest
-- Remix session storage
-- user identity models
-- authorization guards or policy enforcement
-
-The absence is consistent across all three applications. Any future protected routes, user-specific state, or service-to-service trust model will need to be added from scratch.
-
-### External services and integrations
-
-Actual external integrations are limited.
-
-Present today:
-
-- browser-to-API CORS allowance for `http://localhost:3000` in `apps/api/src/main.ts`
-- Google Fonts references in `apps/web/app/root.tsx`
-- GitHub Container Registry publishing in `.github/workflows/web.yml`, `.github/workflows/api.yml`, and `.github/workflows/ai-service.yml`
-
-Not present today:
-
-- model provider APIs
-- databases
-- caches
-- queues
-- cloud object storage
-- email or SMS providers
-- payment providers
-- OAuth providers
-- observability or APM tooling
-- feature flag systems
-
-## Build, release, and deployment tooling
-
-The operational layer is more mature than the application layer. Each app has enough tooling to build, version, containerize, and publish independently.
-
-### Local setup
-
-`scripts/bootstrap.sh` checks for `pnpm`, `bun`, and `uv`, then installs dependencies for the JavaScript and Python services. That script reflects the repo's polyglot design: each app uses the native tooling expected for its runtime.
-
-### Versioning
-
-Each app has a local `VERSION` file:
-
-- `apps/web/VERSION`
-- `apps/api/VERSION`
-- `apps/ai-service/VERSION`
-
-`scripts/version-bump.sh` updates those version files, establishing per-service version management rather than one monorepo-wide application version.
-
-### Containers and CI/CD
-
-Each service has its own Dockerfile:
-
-- `apps/web/Dockerfile`
-- `apps/api/Dockerfile`
-- `apps/ai-service/Dockerfile`
-
-Each service also has its own GitHub Actions workflow:
-
-- `.github/workflows/web.yml`
-- `.github/workflows/api.yml`
-- `.github/workflows/ai-service.yml`
-
-Those workflows handle build and verification steps, version generation, Docker image publishing to GitHub Container Registry, and GitHub release creation. The deployment sections are present as placeholders, which means release automation is implemented further than environment deployment.
-
-## Notable gaps and inconsistencies
-
-A few repo details can mislead an architectural review unless they are called out directly.
-
-### Shared packages are planned but absent
-
-`pnpm-workspace.yaml` includes `packages/*`, and the README describes shared packages for types, UI, and config. The actual file tree does not contain a `packages/` directory.
-
-That gap matters because the intended contract-sharing architecture does not exist yet in code. No current module should be assumed to share types or UI primitives through a workspace package.
-
-### Script and naming drift around the Python service
-
-The repository uses `apps/ai-service` as the actual Python service path, but some root-level references still point to `py-service`. The most concrete example is the root `package.json` script that targets `apps/py-service`.
-
-This inconsistency affects local development expectations and is a sign that repo documentation and scripts have not fully caught up with the current directory structure.
-
-### API route documentation mismatch
-
-The README references `/api/health`, but the implemented Nest app does not set a global prefix in `apps/api/src/main.ts`. The existing controller path in `apps/api/src/health/health.controller.ts` therefore resolves to `/health`.
-
-When evaluating the system, trust the source files over the README for current route shape.
-
-### Testing exists mostly as intent
-
-The Python service declares `pytest`, and the workflows reference verification steps, but the repository does not yet show a meaningful test suite. The CI layer is prepared for broader testing, while the codebase itself remains at an early implementation stage.
-
-<Callout kind="info">
-
-The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
-
-</Callout>
-
-## What this architecture means today
-
-Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. That gives the repository a stable foundation for future feature work.
-
-What it has not answered yet are the application-level questions: where domain logic lives, how contracts are shared, how state is stored, how users authenticate, and how the API and AI service collaborate. Until those layers exist, the repo should be evaluated as a well-structured platform skeleton rather than as an implemented distributed system.
+The platform also integrates with Activepieces' Postgres database for workflow and run data. This gives the API access to execution state needed for run polling, paused-run classification, output retrieval, and workflow operations.
 
 ## Related pages
 
 <Columns cols={2}>
-  <Card title="Introduction" href="/introduction" icon="book-open">
-
-    Get the high-level orientation for the documentation set and how the project is presented.
-
-  </Card>
-  <Card title="Quickstart" href="/quickstart" icon="rocket">
-
-    Follow the shortest path to running the project and validating the local setup.
-
-  </Card>
-
   <Card title="Features" href="/features" icon="code">
 
-    Review the documented capabilities and compare them with the current implementation state.
+    Explore the product capabilities available to creators, consumers, and administrators.
 
   </Card>
-  <Card title="Help center" href="/help-center/help-center" icon="help-circle">
+  <Card title="Monorepo architecture" href="/monorepo-architecture" icon="folder">
 
-    Find troubleshooting and support-oriented guidance for common setup and usage issues.
+    Review how the repository organizes the frontend, API, AI service, and shared development workflows.
+
+  </Card>
+
+  <Card title="NestJS API" href="/api-reference/nestjs-api" icon="terminal">
+
+    Reference the API modules and endpoints that power Gravity's application workflows.
+
+  </Card>
+  <Card title="Integrations" href="/integrations" icon="cloud">
+
+    Configure the external services that support authentication, workflow execution, AI, payments, and payouts.
 
   </Card>
 </Columns>

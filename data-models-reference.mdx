@@ -1,198 +1,122 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Overview of the domain entities, data relationships, and persistence patterns used across Gravity's marketplace, billing, earnings, and review systems.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
-
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+Gravity persists platform data through Supabase (PostgreSQL) and integrates with Activepieces' Postgres for workflow and run data. The data model spans identities, agents, marketplace workflows, billing, earnings, referrals, bounties, reviews, and connections.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+This reference describes the domain entities and their relationships from a user-facing perspective. It does not enumerate every database column. The focus is on the entities that users interact with through the API.
 
 </Callout>
 
-## Current model inventory summary
+## Entity overview
 
-The repository is closer to a service scaffold than an application with domain entities.
+| Domain area | Key entities | Description |
+| --- | --- | --- |
+| Identity and profiles | Users, profiles, builder profiles | Account types such as creator and business, onboarding data, and builder-specific settings |
+| Agents | Published agents, review submissions | Agent listings, verification state, review findings, and feedback |
+| Marketplace | Published workflows, consumer copies, runs | Agent catalog, consumer workspace clones, and execution records |
+| Subscriptions | Plans, subscriptions, cycles, entitlements | Billing plans, active subscriptions, billing cycles, and credit state |
+| Earnings | Earnings balance, payouts, payout accounts | Creator revenue, withdrawal requests, and payout destinations |
+| Referrals | Share links, referral attributions, earnings | Referral codes, click tracking, and monthly settlement records |
+| Bounties | Bounties, submissions | Funded requests, builder entries, and award records |
+| Requested agents | Requests, interests | Agent requests and interest tracking |
+| Connections | App connections, OAuth tokens, API keys | External service connections and credentials |
+| Reviews | Review findings, builder feedback, evidence scores | Quality review results, builder responses, and scoring data |
 
-| Area | Current status |
-| --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
+## Identity and profiles
 
-### Model-like definitions found
+Identity records establish who uses Gravity and how each account participates in the platform.
 
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
-- **FastAPI health response** — inline response shape: `{"status": "ok"}`
+- **Users**: An account with an email address, an account type of creator or business, and an authentication method such as password, OTP, or Google OAuth.
+- **Profiles**: Onboarding data including full name, industry, profession, and the automations the user has built.
+- **Builder profiles**: Builder-specific settings including payout currency and referral code.
 
-<Callout kind="danger">
+## Agents and marketplace
 
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
+Marketplace entities connect published agents with the workflows consumers activate and run in their workspaces.
 
-</Callout>
-
-## Persistence and migration status
-
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
-
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
-
-### Repository-level signals
-
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
-
-## NestJS API response shape
-
-The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
-
-### Implemented shape
-
-<CodeGroup tabs="TypeScript">
-
-```ts
-@Controller("health")
-export class HealthController {
-  @Get()
-  getHealth() {
-    return { status: "ok", service: "api" };
-  }
-}
-```
-
-</CodeGroup>
-
-### Classification
-
-- **Kind** — Inline response shape
-- **Named entity or DTO** — None found in the analyzed code
-- **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
-
-### Response fields
-
-<ResponseField name="status" field-type="string" required="true">
-
-Health state returned by the endpoint. The implemented handler returns `ok`.
-
-</ResponseField>
-
-<ResponseField name="service" field-type="string" required="true">
-
-Service identifier returned by the endpoint. The implemented handler returns `api`.
-
-</ResponseField>
-
-### Notes
-
-This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
-
-## FastAPI response shape
-
-The FastAPI service currently returns one structured object from the health endpoint. This object is an inline response shape, not a named Pydantic model or persisted entity.
-
-### Implemented shape
-
-<CodeGroup tabs="Python">
-
-```python
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
-
-</CodeGroup>
-
-### Classification
-
-- **Kind** — Inline response shape
-- **Named model** — None found in the analyzed code
-- **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
-
-### Response fields
-
-<ResponseField name="status" field-type="string" required="true">
-
-Health state returned by the endpoint. The implemented handler returns `ok`.
-
-</ResponseField>
-
-### Notes
-
-The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
-
-## Validation schema and DTO status
-
-No named validation layer is implemented in the analyzed repository.
-
-### NestJS API
-
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
-
-### FastAPI service
-
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+- **Published agents**: Agent listings with a name, description, workflow template, tags, categories, and consumer input schema.
+- **Review submissions**: Agent submissions with verification state, review findings, and builder feedback.
+- **Consumer copies**: Cloned agent instances in a consumer's workspace with activation state and schedule configuration.
+- **Runs**: Execution records with status, result data, paused-run kind, and error classification.
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+Paused runs carry a `kind` field that classifies the pause reason: `approval`, `delay`, `agent`, or `unknown`. Failed runs distinguish resource errors such as memory, log size, and quota issues from timeout and general execution errors.
 
 </Callout>
 
-## Migration status
+## Subscriptions and billing
 
-No migration system is present in the analyzed code.
+Billing entities track the plan a user selects, the subscription lifecycle, and the credits available for agent execution.
 
-### Summary
+- **Plans**: Subscription tiers with pricing, currency, and included credits.
+- **Subscriptions**: An active subscription with status, plan, renewal date, and cancellation flag.
+- **Cycles**: A monthly billing cycle with start and end dates.
+- **Entitlements**: Credit state including ledger credits, outstanding holds, spendable credits, and reserved budget.
+- **Reservations**: Soft credit reservations for scheduled agents.
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+## Earnings and payouts
 
-### Current implication
+Earnings entities track creator revenue and the movement of funds from earned balances to payout destinations.
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+- **Earnings balance**: The withdrawable amount, pending payouts, and currency associated with a creator.
+- **Payouts**: Withdrawal requests with amount, currency, destination, and provider status.
+- **Payout accounts**: Bank, UPI, PayPal, or Stripe Connect destinations with masked identifiers.
 
-## Gaps and implications
+## Referrals
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
+Referral entities connect shared agent links to referred users and the earnings generated through those referrals.
 
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
+- **Share links**: Referral codes associated with agents.
+- **Referral attributions**: Links between referred users and referrers, including click tracking.
+- **Referral earnings**: Monthly settlement records for first-year earnings generated by referred builders.
 
-<Callout kind="danger">
+## Bounties
 
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+Bounties let users fund requests and builders submit agents or workflows in response.
+
+- **Bounties**: Funded requests with title, amount, currency, and funding state.
+- **Submissions**: Builder entries with workflow, agent name, and review status.
+
+## Review and quality
+
+Review entities capture the findings, builder responses, and evidence used to assess agent quality.
+
+- **Review findings**: Individual findings with severity, title, message, and builder verdict of fair or unfair.
+- **Builder feedback**: A verdict and notes submitted by builders on individual findings.
+- **Evidence scores**: Multi-axis scoring across behavioral, code, network, guardrail, and AI-reviewer dimensions.
+
+## Connections
+
+Connection entities represent the external tools that agents use and the health of those integrations.
+
+- **App connections**: OAuth and API key connections with provider, status, and associated agent references.
+- **Connection health**: Status tracking for connected tools and the agents affected by disconnections.
+
+## Persistence
+
+Gravity uses Supabase (PostgreSQL) as its primary persistence layer. Supabase stores identities, profiles, agents, marketplace workflows, billing records, earnings, referrals, bounties, review state, and connections.
+
+The platform also reads from Activepieces' Postgres database for workflow and run data, including flow state, run results, and execution metadata.
+
+<Callout kind="info">
+
+Scheduled-agent reservations are soft reservations. They hold credits during the billing cycle and release them when the schedule is paused or the subscription is cancelled.
 
 </Callout>
 
-## Related docs
+## Related pages
 
 <Columns cols={2}>
+
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
-  <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+
+  <Card title="Architecture overview" href="/architecture-overview" icon="book-open" cta="Review platform architecture" />
+
 </Columns>

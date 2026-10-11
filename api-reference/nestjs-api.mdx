@@ -1,103 +1,524 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Reference for Gravity's REST API endpoints covering authentication, agents, marketplace execution, subscriptions, earnings, referrals, and bounties.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+Gravity's NestJS API is the main application and domain service. Most endpoints require a Bearer JWT for authentication. The API runs on port `3001` and serves interactive Swagger documentation at `/api/docs`.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+All authenticated endpoints require a Bearer JWT issued by Supabase. Include it in the `Authorization` header, for example: `Authorization: Bearer eyJhbGciOiJIUzI1NiIs...`.
 
 </Callout>
 
-<Callout kind="alert">
-
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
-
-</Callout>
-
-## Endpoint
-
-### GET `/health`
-
-Use this endpoint to verify that the NestJS backend is running and responding.
-
-<ParamField body="method" param-type="string" required="true" show-location="false">
-
-`GET`
-
-</ParamField>
-
-<ParamField body="path" param-type="string" required="true" show-location="false">
-
-`/health`
-
-</ParamField>
-
-<ParamField body="auth" param-type="string" required="true" show-location="false">
-
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
-
-</ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
+### Request example
 
 <CodeGroup tabs="cURL">
 
 ```bash
-curl -i http://localhost:3001/health
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  http://localhost:3001/api/auth/me
 ```
 
 </CodeGroup>
 
-## Response
+## Authentication endpoints
 
-A successful request returns a JSON object that identifies the service and reports its status.
+### POST `/api/auth/signup`
+
+Create a new creator or business account. **Public.**
+
+<ParamField body="email" param-type="string" required="true" show-location="false">Email address for the new account.</ParamField>
+
+<ParamField body="password" param-type="string" required="true" show-location="false">Password for the new account.</ParamField>
+
+<ParamField body="userType" param-type="string" required="true" enum="creator,business" show-location="false">Account type.</ParamField>
+
+### POST `/api/auth/login`
+
+Authenticate an account and return the user profile with session tokens. **Public.**
+
+<ParamField body="email" param-type="string" required="true" show-location="false">Account email address.</ParamField>
+
+<ParamField body="password" param-type="string" required="true" show-location="false">Account password.</ParamField>
+
+<ResponseField name="user" field-type="object" required="true">Authenticated user profile.</ResponseField>
+
+<ResponseField name="accessToken" field-type="string" required="true">Bearer token for authenticated API requests.</ResponseField>
+
+<ResponseField name="refreshToken" field-type="string" required="true">Token used to refresh the session.</ResponseField>
+
+### POST `/api/auth/otp/send`
+
+Send a one-time password to an email address. **Public.**
+
+<ParamField body="email" param-type="string" required="true" show-location="false">Email address that receives the OTP.</ParamField>
+
+### POST `/api/auth/otp/verify`
+
+Verify an email OTP. **Public.**
+
+<ParamField body="email" param-type="string" required="true" show-location="false">Email address associated with the OTP.</ParamField>
+
+<ParamField body="token" param-type="string" required="true" show-location="false">OTP value received by email.</ParamField>
+
+### POST `/api/auth/refresh`
+
+Refresh an authenticated session.
+
+<ParamField body="refreshToken" param-type="string" required="true" show-location="false">Refresh token returned during login or signup.</ParamField>
+
+### POST `/api/auth/logout`
+
+Invalidate the current session. **Auth.**
+
+### GET `/api/auth/me`
+
+Return the profile associated with the current JWT. **Auth.**
+
+<ResponseField name="user" field-type="object" required="true">Current user profile and account metadata.</ResponseField>
+
+### POST `/api/auth/google/url`
+
+Generate a Google OAuth authorization URL. **Public.**
+
+<ParamField query="userType" param-type="string" required="true" enum="creator,business">Account type to use after OAuth registration.</ParamField>
+
+### POST `/api/auth/google/callback`
+
+Exchange a Google OAuth authorization code for an authenticated session. **Public.**
+
+<ParamField body="code" param-type="string" required="true" show-location="false">Authorization code returned by Google.</ParamField>
+
+<ParamField body="userType" param-type="string" required="true" enum="creator,business" show-location="false">Account type for a new account.</ParamField>
+
+### POST `/api/auth/forgot-password`
+
+Request a password reset email. **Public.**
+
+<ParamField body="email" param-type="string" required="true" show-location="false">Email address of the account.</ParamField>
+
+### POST `/api/auth/update-password`
+
+Change the password for the authenticated account. **Auth.**
+
+<ParamField body="password" param-type="string" required="true" show-location="false">New account password.</ParamField>
+
+### POST `/api/auth/complete-profile`
+
+Complete onboarding details for the authenticated account. **Auth.**
+
+<ParamField body="fullName" param-type="string" required="true" show-location="false">Display name for the profile.</ParamField>
+
+<ParamField body="industry" param-type="string" required="true" show-location="false">Industry associated with the account.</ParamField>
+
+<ParamField body="profession" param-type="string" required="true" show-location="false">Profession associated with the account.</ParamField>
+
+## Subscription endpoints
+
+<Callout kind="info">
+
+Subscription endpoints return `404` when billing is not enabled for the deployment.
+
+</Callout>
+
+### GET `/api/subscriptions/plans`
+
+List available subscription plans with pricing and metadata. **Auth.**
+
+### GET `/api/subscriptions/current`
+
+Return the current subscription. **Auth.** Returns `404` when no active subscription exists.
+
+<ResponseField name="status" field-type="string" required="true">Current subscription status.</ResponseField>
+
+<ResponseField name="plan" field-type="object" required="true">Selected subscription plan.</ResponseField>
+
+<ResponseField name="renewsAt" field-type="string" required="false">Next renewal timestamp.</ResponseField>
+
+<ResponseField name="cancelAtPeriodEnd" field-type="boolean" required="true">Whether cancellation takes effect at the end of the current period.</ResponseField>
+
+### GET `/api/subscriptions/entitlement`
+
+Return the authenticated user's credit entitlement state. **Auth.**
+
+<ResponseField name="ledgerCredits" field-type="number" required="true">Credits recorded in the user's ledger.</ResponseField>
+
+<ResponseField name="outstandingHolds" field-type="number" required="true">Credits reserved by pending operations.</ResponseField>
+
+<ResponseField name="spendableCredits" field-type="number" required="true">Credits available for spending.</ResponseField>
+
+<ResponseField name="reservedBudget" field-type="number" required="true">Budget reserved for active operations.</ResponseField>
+
+### GET `/api/subscriptions/history`
+
+Return the authenticated user's subscription history. **Auth.**
+
+<ResponseField name="subscriptions" field-type="array" required="true">Past and current subscription records.</ResponseField>
+
+### POST `/api/subscriptions/checkout`
+
+Start a paid subscription checkout session. **Auth.** India-based customers are routed to Razorpay. Other regions use Stripe.
+
+<ParamField body="planId" param-type="string" required="true" show-location="false">Plan to purchase.</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false" show-location="false">Optional country code used to select the billing provider.</ParamField>
+
+<ResponseField name="checkoutUrl" field-type="string" required="true">URL for the hosted checkout flow.</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">Checkout session expiration timestamp.</ResponseField>
+
+### POST `/api/subscriptions/cancel`
+
+Cancel the current subscription at the end of the billing period. **Auth.**
+
+<ResponseField name="effectiveDate" field-type="string" required="true">Date when cancellation takes effect.</ResponseField>
+
+<ResponseField name="message" field-type="string" required="true">Cancellation result message.</ResponseField>
+
+### POST `/api/subscriptions/:planId`
+
+Activate a free plan. **Auth.** Paid plans return `PAID_PLAN_REQUIRES_CHECKOUT`.
+
+<ParamField path="planId" param-type="string" required="true">Identifier of the free plan to activate.</ParamField>
+
+## Earnings and payouts
+
+### GET `/api/earnings/balance`
+
+Return the creator's earnings balance. **Auth.**
+
+<ResponseField name="withdrawableAmount" field-type="number" required="true">Amount currently available for withdrawal.</ResponseField>
+
+<ResponseField name="pendingPayouts" field-type="number" required="true">Amount currently being processed for payout.</ResponseField>
+
+<ResponseField name="currency" field-type="string" required="true">Currency used for the balance.</ResponseField>
+
+### GET `/api/payout-accounts`
+
+List payout accounts for the authenticated creator. **Auth.** Account numbers and identifiers are masked.
+
+### POST `/api/payout-accounts`
+
+Add a payout account. **Auth.**
+
+<ParamField body="kind" param-type="string" required="true" show-location="false">Payout account type.</ParamField>
+
+<ParamField body="bankAccountNo" param-type="string" required="false" show-location="false">Bank account number for bank payouts.</ParamField>
+
+<ParamField body="bankIfsc" param-type="string" required="false" show-location="false">IFSC code for an Indian bank account.</ParamField>
+
+<ParamField body="upiHandle" param-type="string" required="false" show-location="false">UPI handle for UPI payouts.</ParamField>
+
+<ParamField body="paypalEmail" param-type="string" required="false" show-location="false">PayPal email address for PayPal payouts.</ParamField>
+
+### DELETE `/api/payout-accounts/:id`
+
+Delete one of the authenticated creator's payout accounts. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Payout account identifier.</ParamField>
+
+### POST `/api/payouts`
+
+Request a withdrawal. **Auth.** The recipient is always taken from the JWT identity.
+
+<ParamField body="amountMinor" param-type="integer" required="true" show-location="false">Withdrawal amount in the smallest currency unit.</ParamField>
+
+<ParamField body="currency" param-type="string" required="true" show-location="false">Payout currency.</ParamField>
+
+<ParamField body="payoutAccountId" param-type="string" required="true" show-location="false">Destination payout account identifier.</ParamField>
+
+### GET `/api/payouts`
+
+List payout history for the authenticated creator. **Auth.**
+
+### GET `/api/payouts/fx-rate`
+
+Return the current exchange rate for a target currency. **Auth.**
+
+<ParamField query="target" param-type="string" required="false">Target currency. Defaults to `INR`.</ParamField>
+
+<ResponseField name="rate" field-type="number" required="true">Exchange rate for the requested target currency.</ResponseField>
+
+## Referral endpoints
+
+### GET `/api/referrals/earnings`
+
+Return referral earnings with a monthly breakdown. **Auth.**
+
+### POST `/api/referrals/links`
+
+Create or retrieve a share link for an agent. **Auth.**
+
+<ParamField body="agentIdentifier" param-type="string" required="true" show-location="false">Agent identifier associated with the share link.</ParamField>
+
+<ResponseField name="shareCode" field-type="string" required="true">Code used to resolve the share link.</ResponseField>
+
+<ResponseField name="url" field-type="string" required="true">Shareable referral URL.</ResponseField>
+
+### GET `/api/referrals/links/:code`
+
+Resolve a share link and record the click. **Public.**
+
+<ParamField path="code" param-type="string" required="true">Referral share code.</ParamField>
+
+<ResponseField name="agent" field-type="object" required="true">Shared agent information.</ResponseField>
+
+<ResponseField name="share" field-type="object" required="true">Referral share metadata.</ResponseField>
+
+### POST `/api/referrals/attribute`
+
+Attribute a referral to the authenticated user. **Auth.**
+
+<ParamField body="code" param-type="string" required="true" show-location="false">Referral share code.</ParamField>
+
+<ParamField body="linkSeenAt" param-type="string" required="true" show-location="false">Timestamp when the referral link was seen.</ParamField>
+
+## Marketplace endpoints
+
+### GET `/api/marketplace/workflows`
+
+List published agents in the marketplace. **Auth.**
+
+<ResponseField name="workflows" field-type="array" required="true">Published agent catalog entries.</ResponseField>
+
+### GET `/api/marketplace/workflows/:id`
+
+Return public metadata and consumer inputs for a published agent. **Public.**
+
+<ParamField path="id" param-type="string" required="true">Published workflow identifier.</ParamField>
+
+<ResponseField name="metadata" field-type="object" required="true">Published agent metadata.</ResponseField>
+
+<ResponseField name="consumerInputs" field-type="array" required="true">Inputs required from the consumer before execution.</ResponseField>
+
+### POST `/api/marketplace/run`
+
+Run a published agent. **Auth.** The response may request additional connections before execution can continue.
+
+<ParamField body="publishedWorkflowId" param-type="string" required="true" show-location="false">Published workflow to execute.</ParamField>
+
+<ParamField body="input" param-type="object" required="true" show-location="false">Runtime input supplied to the agent.</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="false" show-location="false">Consumer field values required by the published workflow.</ParamField>
+
+<ResponseField name="status" field-type="string" required="true">Run status.</ResponseField>
+
+<ResponseField name="requiredConnections" field-type="array" required="false">Connections that must be configured before execution.</ResponseField>
+
+### POST `/api/marketplace/run-result`
+
+Poll the result of a marketplace run. **Auth.**
+
+<ParamField body="consumerCopyId" param-type="string" required="true" show-location="false">Consumer copy identifier for the run.</ParamField>
+
+<ResponseField name="result" field-type="object" required="true">Normalized execution result.</ResponseField>
+
+### POST `/api/marketplace/activate`
+
+Activate a scheduled agent. **Auth.**
+
+<ParamField body="consumerCopyId" param-type="string" required="true" show-location="false">Consumer copy identifier.</ParamField>
+
+<ParamField body="scheduleConfig" param-type="object" required="false" show-location="false">Optional schedule configuration.</ParamField>
+
+### POST `/api/marketplace/pause`
+
+Pause an active agent. **Auth.**
+
+<ParamField body="consumerCopyId" param-type="string" required="true" show-location="false">Consumer copy identifier.</ParamField>
+
+### POST `/api/marketplace/unsubscribe`
+
+Unsubscribe from an agent. **Auth.**
+
+<ParamField body="consumerCopyId" param-type="string" required="true" show-location="false">Consumer copy identifier.</ParamField>
+
+### POST `/api/marketplace/publish`
+
+Publish an agent from a template. **Auth.**
+
+<ParamField body="name" param-type="string" required="true" show-location="false">Name displayed for the published agent.</ParamField>
+
+<ParamField body="template" param-type="object" required="true" show-location="false">Agent template to publish.</ParamField>
+
+<ParamField body="tags" param-type="array" required="false" show-location="false">Tags used to classify the published agent.</ParamField>
+
+### POST `/api/marketplace/introspect`
+
+Inspect a template before publishing it. **Auth.**
+
+<ParamField body="template" param-type="object" required="true" show-location="false">Template to inspect.</ParamField>
+
+### POST `/api/marketplace/scratchpad/run`
+
+Run a template once without publishing it. **Auth.**
+
+<ParamField body="template" param-type="object" required="true" show-location="false">Template to execute.</ParamField>
+
+<ParamField body="input" param-type="object" required="true" show-location="false">Runtime input for the template.</ParamField>
+
+## Agent builder endpoints
+
+### POST `/api/agents/publish`
+
+Publish an agent created by the authenticated builder. **Auth.**
+
+### GET `/api/agents/mine`
+
+List agents owned by the authenticated builder. **Auth.**
+
+### GET `/api/agents/mine/:id`
+
+Return one agent owned by the authenticated builder. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Agent identifier.</ParamField>
+
+### DELETE `/api/agents/mine/:id`
+
+Delete an agent owned by the authenticated builder. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Agent identifier.</ParamField>
+
+### POST `/api/agents/review-submission`
+
+Submit an agent for review. **Auth.**
+
+### GET `/api/agents/review-submissions/mine`
+
+List review submissions created by the authenticated builder. **Auth.**
+
+### POST `/api/agents/review-submissions/mine/:id/feedback`
+
+Submit builder feedback for a review finding. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Review submission identifier.</ParamField>
+
+<ParamField body="findingId" param-type="string" required="true" show-location="false">Finding identifier.</ParamField>
+
+<ParamField body="verdict" param-type="string" required="true" enum="up,down" show-location="false">Builder verdict for the finding.</ParamField>
+
+<ParamField body="note" param-type="string" required="false" show-location="false">Optional explanation for the verdict.</ParamField>
+
+### POST `/api/agents/verify-stream`
+
+Start the agent verification pipeline and stream progress as server-sent events. **Auth.**
+
+### POST `/api/agents/preview-description`
+
+Generate a description preview from workflow JSON. **Auth.**
+
+<ParamField body="workflowJson" param-type="object" required="true" show-location="false">Workflow JSON used to generate the description.</ParamField>
+
+### POST `/api/agents/preview-categories`
+
+Suggest categories for an agent. **Auth.**
+
+## Bounties
+
+### GET `/api/bounties`
+
+List available bounties. **Auth.**
+
+### POST `/api/bounties`
+
+Create a bounty. **Auth.**
+
+<ParamField body="title" param-type="string" required="true" show-location="false">Bounty title.</ParamField>
+
+<ParamField body="amount" param-type="number" required="true" show-location="false">Bounty reward amount.</ParamField>
+
+<ParamField body="currency" param-type="string" required="true" show-location="false">Reward currency.</ParamField>
+
+### GET `/api/bounties/:id`
+
+Return bounty details, including the authenticated user's submission when one exists. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Bounty identifier.</ParamField>
+
+<ResponseField name="mySubmission" field-type="object" required="false">Submission created by the authenticated user.</ResponseField>
+
+### POST `/api/bounties/:id/submissions`
+
+Submit an agent to a bounty. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Bounty identifier.</ParamField>
+
+<ParamField body="workflowJson" param-type="object" required="true" show-location="false">Workflow submitted for evaluation.</ParamField>
+
+<ParamField body="agentName" param-type="string" required="true" show-location="false">Name of the submitted agent.</ParamField>
+
+### POST `/api/bounties/:id/award`
+
+Award a bounty to a submission. **Auth.** Only the bounty owner can award the bounty.
+
+<ParamField path="id" param-type="string" required="true">Bounty identifier.</ParamField>
+
+<ParamField body="submissionId" param-type="string" required="true" show-location="false">Winning submission identifier.</ParamField>
+
+## Requested agents
+
+### GET `/api/requested-agents`
+
+List agent requests. **Auth.**
+
+<ParamField query="status" param-type="string" required="false">Filter requests by status.</ParamField>
+
+<ParamField query="limit" param-type="integer" required="false">Maximum number of requests to return.</ParamField>
+
+### POST `/api/requested-agents`
+
+Create an agent request. **Auth.**
+
+<ParamField body="sessionId" param-type="string" required="true" show-location="false">Session associated with the request.</ParamField>
+
+### POST `/api/requested-agents/:id/interest`
+
+Express interest in an agent request. **Auth.**
+
+<ParamField path="id" param-type="string" required="true">Requested agent identifier.</ParamField>
+
+## Chat
+
+<Callout kind="info">
+
+Chat endpoints do not require Bearer JWT authentication. The caller provides user and session identifiers in the request.
+
+</Callout>
+
+### POST `/api/chat/message`
+
+Send a chat message. **Public.**
+
+<ParamField body="message" param-type="string" required="true" show-location="false">Message text.</ParamField>
+
+<ParamField body="sessionContext" param-type="object" required="true" show-location="false">User and session context used to process the message.</ParamField>
+
+### GET `/api/chat/sessions/:userId`
+
+List chat sessions for a user. **Public.**
+
+<ParamField path="userId" param-type="string" required="true">User identifier supplied by the caller.</ParamField>
+
+### GET `/api/chat/sessions/:sessionId/messages`
+
+List messages in a chat session. **Public.**
+
+<ParamField path="sessionId" param-type="string" required="true">Chat session identifier.</ParamField>
+
+### DELETE `/api/chat/sessions/:sessionId`
+
+Delete a chat session. **Public.**
+
+<ParamField path="sessionId" param-type="string" required="true">Chat session identifier.</ParamField>
+
+## Public endpoints
+
+### GET `/`
+
+Return the root service health status. **Public.**
 
 <CodeGroup tabs="JSON">
 
@@ -110,32 +531,54 @@ A successful request returns a JSON object that identifies the service and repor
 
 </CodeGroup>
 
-### Response fields
+### GET `/health`
 
-<ResponseField name="status" field-type="string" required="true">
+Return the service health status with a timestamp. **Public.**
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+### GET `/api/apps/catalog`
 
-</ResponseField>
+List applications available to the platform. **Public.**
 
-<ResponseField name="service" field-type="string" required="true">
+### GET `/api/leaderboard/builders`
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Return the builder leaderboard. **Public.**
 
-</ResponseField>
+<ParamField query="limit" param-type="integer" required="false">Maximum number of builders to return.</ParamField>
 
-## Likely error responses
+### GET `/api/leaderboard/workflows`
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+Return the workflow leaderboard. **Public.**
 
-### 404 not found
+<ParamField query="limit" param-type="integer" required="false">Maximum number of workflows to return.</ParamField>
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+## Removed endpoints
 
-### 500 internal server error
+<Callout kind="alert">
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+The legacy n8n-based workflow API under `/api/n8n-workflow/*` has been removed. Marketplace execution now uses Activepieces-based endpoints exclusively.
 
-## Notes
+</Callout>
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+## Related pages
+
+<Columns cols={3}>
+
+<Card title="Features" href="/features" icon="zap">
+
+Explore the product capabilities available through Gravity.
+
+</Card>
+
+<Card title="Architecture overview" href="/architecture-overview" icon="cloud">
+
+Understand how Gravity services and integrations fit together.
+
+</Card>
+
+<Card title="Integrations" href="/integrations" icon="settings">
+
+Review supported third-party integrations and connection flows.
+
+</Card>
+
+</Columns>

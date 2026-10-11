@@ -1,66 +1,199 @@
 ---
 title: Features
-description: Key capabilities for building and maintaining MDX documentation sites.
+description: Discover the user-facing capabilities of the Gravity platform, from agent marketplace and billing to creator earnings, referrals, and bounties.
 ---
 
 ## Overview
 
-This page summarizes the core building blocks for an MDX documentation site and shows how they work together from authoring through publishing.
+Gravity lets you discover, create, run, monetize, and improve workflow-based agents. Buyers can run published agents and schedule recurring work, while builders can publish agents, earn revenue, respond to requests, and compete for funded bounties.
 
 <Callout kind="info">
 
-Keep pages small and focused so each document answers one reader need well.
+Agents can collect structured inputs, connect to external tools, run on demand or on a schedule, and report execution results with specific status and error details.
 
 </Callout>
 
-## Feature grid
+## Explore and build agents
 
 <Columns cols={2}>
-  <Card title="MDX page authoring" icon="code" href="/help-center">
-    Write documentation pages in MDX so content, structure, and components live in one file.
+  <Card title="Agent Marketplace" icon="users" href="/architecture-overview">
+
+    Browse published agents, inspect their details, complete consumer input forms, and run agents on demand. Clone an agent into your workspace when you want to customize or reuse its workflow.
+
   </Card>
-  <Card title="Navigation-driven IA" icon="folder" href="/help-center">
-    Organize pages through navigation so readers can find the right topic without hunting across the site.
+  <Card title="Dynamic input forms" icon="settings" href="/architecture-overview">
+
+    Agents can request text, dates, files, dropdown selections, cascading selections, arrays, JSON values, and schedules. The form adapts to the inputs required by each agent.
+
   </Card>
-  <Card title="Reusable MDX components" icon="settings" href="/help-center">
-    Use shared components to present callouts, cards, layouts, and structured content consistently.
+  <Card title="Agent creation and publishing" icon="code" href="/api-reference/nestjs-api">
+
+    Create agents from Activepieces workflow templates. Gravity identifies the template's triggers, inputs, and outputs, then generates agent descriptions and categories to help you prepare the listing.
+
   </Card>
-  <Card title="Integration hooks" icon="plug" href="/help-center">
-    Connect documentation to external tooling, publishing workflows, and site-level behavior where needed.
-  </Card>
-  <Card title="Help center organization" icon="help-circle" href="/help-center">
-    Group task-based articles so support content stays easy to scan and maintain.
-  </Card>
-  <Card title="Release notes" icon="book-open" href="/help-center">
-    Record changes in a focused format so readers can quickly see what changed and whether they need to act.
+  <Card title="Publishing verification" icon="check-circle" href="/api-reference/nestjs-api">
+
+    Validate setup fields and run the verification pipeline before publishing an agent. The pipeline checks whether the workflow is configured for reliable use by consumers.
+
   </Card>
 </Columns>
 
-## How the pieces fit together
+### Publish an agent
 
-Author a page in MDX, wire it into navigation, and use reusable components to make the content clear and scannable. Integration hooks extend the site where needed, while the help center and release notes keep operational content organized around reader tasks and change history.
+Gravity inspects the workflow template before publication so builders can correct missing setup fields and understand how the workflow behaves. The resulting agent includes the inputs consumers must provide and the outputs they can expect.
 
-```mermaid
-graph LR
-  A[Author MDX] --> B[Add navigation]
-  B --> C[Use shared components]
-  C --> D[Preview and refine]
-  D --> E[Publish site]
-```
+<Callout kind="tip">
 
-## Recommended workflow
+Review generated descriptions, categories, inputs, and outputs before publishing. Clear consumer inputs reduce failed runs and support requests.
 
-- **Author** the page in MDX with one clear topic and a structure that matches the reader's task.
-- **Preview** the page to confirm links, components, and navigation placement.
-- **Publish** once the page is concise, accurate, and easy to scan.
+</Callout>
 
-## Related links
+## Manage subscriptions and earnings
 
 <Columns cols={2}>
-  <Card title="Help Center" icon="help-circle" href="/help-center">
-    Find task-oriented articles for setup, troubleshooting, and maintenance.
+  <Card title="Subscriptions and billing" icon="bar-chart" href="/api-reference/nestjs-api">
+
+    Choose plans with monthly billing cycles, credit entitlements, and usage tracking. Activate free plans directly or complete checkout for paid plans through Razorpay in India and Stripe in other regions.
+
   </Card>
-  <Card title="Help articles" icon="book-open" href="/help-center">
-    Browse focused guidance for common documentation workflows.
+  <Card title="Creator earnings" icon="database" href="/api-reference/nestjs-api">
+
+    Earn revenue when people use your agents. Your earnings balance separates withdrawable amounts, pending payouts, and currency conversion details.
+
+  </Card>
+  <Card title="Referral program" icon="users" href="/api-reference/nestjs-api">
+
+    Create share links for your agents and earn monthly referral payouts from referred-builder earnings during their first year. Review your referral earnings history from the same program.
+
+  </Card>
+  <Card title="Payout methods" icon="upload" href="/api-reference/nestjs-api">
+
+    Withdraw earnings through bank transfer in India, PayPal, or Stripe Connect for non-India accounts.
+
+  </Card>
+</Columns>
+
+### Subscription lifecycle
+
+Paid plans require checkout, while free plans become active without payment processing. You can cancel a subscription at the end of its current billing period, so existing access remains available until the period ends.
+
+### Earnings and referrals
+
+Creator earnings track money generated by agent usage. Referral earnings are calculated from the earnings of builders who joined through your share link, with monthly payouts during the first year.
+
+## Compete and contribute
+
+<Columns cols={2}>
+  <Card title="Bounties" icon="zap" href="/architecture-overview">
+
+    Create funded bounties, submit agent workflows as entries, and review submissions when you own a bounty. Bounty owners can shortlist entries, accept a submission, and issue the associated payout.
+
+  </Card>
+  <Card title="Requested agents" icon="plus" href="/architecture-overview">
+
+    Request an agent that does not exist yet and express interest in requests created by other users. Builders can match requests with agent submissions that address the requested capability.
+
+  </Card>
+</Columns>
+
+### Bounty workflow
+
+A bounty connects a requested capability with a funded reward. The owner defines the work, builders submit workflows, and the owner evaluates entries before accepting one and releasing the payout.
+
+## Schedule and monitor runs
+
+### Scheduled agents
+
+Schedule an agent for recurring runs when the same workflow needs to operate over time. Activating a schedule estimates the remaining cost in the current cycle, checks that your credit entitlements can cover it, and creates a soft reservation for the expected usage.
+
+Pausing or unsubscribing from the schedule releases the reservation. This keeps reserved credits aligned with the schedules that are still active.
+
+<Callout kind="tip">
+
+Check the estimated remaining-cycle cost before activating a schedule. A schedule must be affordable against your available credit entitlement before it can start.
+
+</Callout>
+
+### Paused-run handling
+
+A paused execution reports why it is waiting instead of showing a generic approval message. Gravity classifies paused runs as one of the following:
+
+- **`approval`**: A human approval step is waiting for a decision.
+- **`delay`**: A timer or wait period must finish before execution continues.
+- **`agent`**: An AI-agent waitpoint is holding the execution.
+- **`unknown`**: The platform cannot identify a more specific wait condition.
+
+The UI uses the classification to show messaging that matches the actual state of the run.
+
+### Execution error reporting
+
+Failed runs distinguish resource and execution failures so you can identify the appropriate next step. Gravity reports separate error types for memory limits, log size limits, and quota limits instead of reducing them to a generic internal error.
+
+Timeout failures preserve information about the step that failed. Use that step context to locate the operation that exceeded the allowed execution time.
+
+## Review and improve agent quality
+
+### Agent review and quality feedback
+
+Admins can review submitted agents through an automated verification pipeline. The review covers behavioral checks, code checks, network checks, guardrail checks, and AI reviewer checks.
+
+Admins can edit finding severity before sending a report. Sending the report also rejects the submission, so the report represents the final review decision for that submission.
+
+Builders can mark individual findings as fair or unfair and add notes to explain their feedback. Admins can re-run the quality review using the stored submission data when they need to reassess an agent.
+
+<Callout kind="info">
+
+Treat quality findings as actionable feedback. Review each finding, add context for disputed results, and update the workflow before submitting again.
+
+</Callout>
+
+## Connect external tools
+
+### Connections and integrations
+
+Connect the external services your agents need through OAuth, API keys, or Activepieces connections. Gravity detects required connections from the workflow and guides you through the setup before a run starts.
+
+OAuth flows can use Gravity-managed configuration or custom OAuth client credentials when a service requires your own client registration. Once a connection is established, the agent can use it without asking you to enter credentials for every run.
+
+<Columns cols={2}>
+  <Card title="OAuth connections" icon="lock" href="/integrations">
+
+    Authorize a service through its OAuth flow and grant the scopes required by the agent.
+
+  </Card>
+  <Card title="API key connections" icon="shield" href="/integrations">
+
+    Add API credentials for services that authenticate with keys, then reuse the connection across compatible agents.
+
+  </Card>
+  <Card title="Activepieces connections" icon="cloud" href="/integrations">
+
+    Use existing Activepieces connections when an agent relies on services configured through Activepieces.
+
+  </Card>
+  <Card title="Custom OAuth credentials" icon="settings" href="/integrations">
+
+    Provide your own OAuth client credentials when you need control over the registered application or authorization settings.
+
+  </Card>
+</Columns>
+
+## Related pages
+
+<Columns cols={3}>
+  <Card title="Architecture overview" icon="book-open" href="/architecture-overview">
+
+    See how Gravity's major platform capabilities fit together.
+
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference/nestjs-api">
+
+    Explore the API surface for integrating with Gravity.
+
+  </Card>
+  <Card title="Integrations" icon="cloud" href="/integrations">
+
+    Configure external services and authentication connections for your agents.
+
   </Card>
 </Columns>
