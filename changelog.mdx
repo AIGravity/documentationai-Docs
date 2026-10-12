@@ -3,54 +3,26 @@ title: Changelog
 description: Release history and notable changes.
 ---
 
-## Overview
-
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
-
-<Callout kind="alert">
-
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
-
-</Callout>
-
 ## Release history
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+### September 2026
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+**New features**
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- **Agent review pipeline.** Admins can now review submitted agents in a dedicated workspace with automated quality findings, evidence-backed reports, and a built-in test-run panel. Admins select and edit findings to send curated feedback to builders, who can respond per-finding and resubmit. Stale reviews can be re-run with a single click. See [Features](/features) for an overview of platform capabilities.
+- **Approval-paused runs now show as in progress.** Runs waiting on an approval no longer appear as failures. The UI identifies the waiting step and app, tells the user what to do, and keeps polling — no need to restart the run. Delay and AI-agent waits show their own clear status with "nothing is needed from you" copy.
 
-## How to read this changelog
+**Updates**
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+- **Cloud-authored agents now import correctly.** Agents exported from Activepieces Cloud that used Cloud's object-style AI provider configuration now work on self-hosted deployments. The provider is automatically converted to the local format at publish and clone time.
+- **Unsupported action versions are auto-pinned or rejected early.** When a workflow step uses an action version that isn't installed, the platform pins it to the newest compatible version automatically. If no compatible version exists, the builder gets a clear error naming the affected step before the test run — instead of a blank card and a silent failure later.
+- **Activepieces compatibility shims.** Version-gated compatibility checks now adapt workflow imports to the installed Activepieces version, preventing older flow versions from failing during import on newer platforms.
+
+**Bug fixes**
+
+- **Production AI features restored.** Chat, guardrail checks, and marketplace test-builder runs were failing in production because API requests were routed to the nonproduction AI service. Production now uses the correct AI service URL.
+- **Email signup no longer fails on case or whitespace.** Email lookups now normalize case and whitespace, so mixed-case or padded email addresses match existing accounts instead of stranding users in a provisioning loop.
+- **File downloads restricted to your instance.** File URL proxying now only applies to URLs from the configured Activepieces host, preventing third-party or lookalike URLs from being proxied through the platform.
 
 ## Related resources
 
