@@ -5,19 +5,13 @@ description: How the FastAPI-based AI service currently starts, manages dependen
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
+The AI service is a FastAPI application that provides agent verification, quality review, and AI-assisted content generation. It uses OpenRouter or OpenAI for language model access, Bedrock for guardrail checks, Gemini for embeddings and search, Redis for session caching, and Typesense for agent search indexing.
 
-<Callout kind="alert">
-
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
-
-</Callout>
+The service exposes endpoints for agent verification with SSE streaming, description and category generation, workflow step generation, setup field validation, URL safety screening, quality review workflows, and agent indexing. It uses Pydantic models for request and response validation throughout.
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
-
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The AI service provides the AI-powered capabilities that support Gravity's agent marketplace. It handles agent safety verification, quality review with evidence scoring, and AI-assisted content generation for agent descriptions, categories, and workflow steps. The service also manages URL safety screening using threat intelligence feeds and popularity data.
 
 ## Bootstrap in main.py
 
@@ -37,18 +31,21 @@ def health():
 ```
 
 ```text
-Grounded bootstrap details:
+Bootstrap details:
 
-- app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
+- FastAPI app is created at module level
+- Routers handle verification, review, and content generation endpoints
+- Pydantic models validate request and response shapes
+- LLM access through OpenRouter or OpenAI
+- Guardrail checks through AWS Bedrock
+- Embeddings and search through Gemini
+- Session caching through Redis
+- Agent search indexing through Typesense
 ```
 
 </CodeGroup>
 
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+The startup path initializes the FastAPI application and registers routers for verification, review, and content generation. Service-level dependencies include LLM clients, the Bedrock guardrail integration, Redis session cache, and the Typesense search client.
 
 ## Health endpoint
 
@@ -71,6 +68,8 @@ def health():
 </CodeGroup>
 
 The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+
+The health endpoint is one of many endpoints exposed by the AI service. The full endpoint surface covers agent verification, content generation, setup validation, URL safety, quality review, and agent indexing.
 
 ## Python environment and dependency management
 
@@ -132,7 +131,7 @@ version = "0.41.0"
 
 The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
 
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The runtime dependencies extend beyond the core FastAPI/Pydantic/Uvicorn stack to include LLM client libraries, Redis, Typesense, SQLAlchemy database helpers, and Sentry/PostHog observability integrations. Environment variables configure LLM model selection, guardrail settings, cache TTLs, and feed refresh intervals. See the Configuration Reference for the full AI service environment variable inventory.
 
 ## Run locally
 
@@ -199,4 +198,9 @@ On `dev`, the workflow generates a development version using the base version, t
   <Card title="Health checks" href="/health-checks" icon="check-circle" cta="Open doc" />
   <Card title="Service versioning" href="/service-versioning" icon="settings" cta="Open doc" />
   <Card title="CI/CD pipelines" href="/ci-cd-pipelines" icon="rocket" cta="Open doc" />
+  <Card title="API Reference" href="/api-reference/ai-service" icon="code">
+
+  Browse AI service API endpoints.
+
+  </Card>
 </Columns>

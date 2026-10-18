@@ -1,69 +1,96 @@
 ---
 title: Changelog
-description: Release history and notable changes.
+description: Track platform changes including new API endpoints, marketplace behavior updates, billing features, and removed integrations.
 ---
 
 ## Overview
 
-This changelog tracks notable documentation and platform updates in a template format. Replace each entry with verified release notes from the repository before publishing to readers who depend on release accuracy.
+This changelog tracks notable user-facing changes to the Gravity platform. Each entry describes what changed and how it affects builders, consumers, or administrators.
 
-<Callout kind="alert">
+<Update date="2026-09-22">
 
-Replace the template items on this page with real release notes from the repository. Do not publish placeholder entries as if they were verified release history.
+#### Marketplace run behavior
 
-</Callout>
+- Paused runs are now treated as in-progress, not terminal failures. Runs paused for approval, delay, or agent waitpoints retain their run handle and stay alive for extended polling windows: 2 hours for builders and 24 hours for consumers.
+- Paused runs now include a `kind` field with one of `approval`, `delay`, `agent`, or `unknown`, so consumers can distinguish human-approval waitpoints from other pause reasons.
+- `QUEUED` status from the workflow engine is now treated as `running`.
+- Memory limit, log size, and quota exceeded conditions are now reported as `failed` with the provider's failure message preserved.
+- Timeout results retain failed-step details.
+- Unsupported action-piece versions now produce a readable `422` response that names the affected step, application, action, and version gap. Builder paths receive detailed error messages, while consumer paths receive generic copy.
+- Empty Activepieces options responses now become readable errors instead of silent failures.
+- Dynamic option lookup is now restricted to dynamic dropdown fields.
+- Recurring agents retain their active run handle when a run is paused, and polling cadence remains slow while paused even after transient errors.
 
-## Release history
+#### Agent review pipeline
 
-1. **Unreleased**
-   - **Docs**
-     - Outline upcoming documentation updates that are planned but not yet released.
-     - Keep entries specific to the content that will actually change.
-   - **Platform**
-     - Summarize platform changes that are expected to affect documentation workflows.
-     - Leave out claims that are not backed by repository notes.
-   - **Fixes**
-     - Record fix items only after you can verify them in source control.
-     - Use this section for reader-facing corrections and cleanup.
+- New endpoint: `POST /api/agents/review-submissions/mine/:id/feedback`. Builders can submit thumbs-up or thumbs-down feedback with optional notes on individual review findings.
+- New endpoint: `POST /api/agents/admin/pending-reviews/:id/re-review`. Admins can trigger an asynchronous re-review of a previously reviewed submission.
+- Sending a builder report now also rejects the submission. The report send endpoint accepts `keepIds`, `edits`, and `reason` for admin corrections.
+- Admin test runs now use a shared review workspace rather than the admin's own project.
+- Review results can include evidence-axis scores, penalty-by-severity breakdowns, and measured case counts.
 
-2. **Latest**
-   - **Docs**
-     - Capture the most recent documented changes in the repository snapshot.
-     - Keep wording neutral until a release note confirms the final scope.
-   - **Platform**
-     - Note platform-level updates that are relevant to site behavior or integrations.
-     - Avoid adding dates or version numbers unless the repository includes them.
-   - **Fixes**
-     - List bug fixes and content corrections that are safe to share.
-     - Prefer short, scannable bullets that explain impact without overstatement.
+#### Subscriptions and billing
 
-3. **Prior release**
-   - **Docs**
-     - Summarize the previous release of documentation changes in broad terms.
-     - Use this entry as a placeholder until a verified release note is available.
-   - **Platform**
-     - Describe earlier platform updates only when the repository records them.
-     - Keep the scope limited to reader-visible changes.
-   - **Fixes**
-     - Include fixes that improve clarity, navigation, or reliability.
-     - Remove this placeholder if the repository does not support a prior release entry.
+- New subscription endpoints cover the plans catalog, current subscription, entitlement, history, checkout, cancellation, and free-plan activation.
+- Checkout selects Razorpay for users in India and Stripe for international users based on geographic detection.
+- New subscription webhook endpoints:
+  - `POST /api/subscriptions/webhook/razorpay`
+  - `POST /api/subscriptions/webhook/stripe`
+- Two database-backed feature flags control billing: `subscription_billing_enabled` and `subscription_enforcement_enabled`. Both default to off and fail safely.
+
+#### Credits, earnings, and payouts
+
+- New earnings endpoint: `GET /api/earnings/balance`. The endpoint returns lifetime, withdrawn, and withdrawable balances.
+- Payout balance checks now include pending, processing, and paid payouts to prevent double withdrawal.
+- Duplicate payout requests return a conflict response.
+- Insufficient earnings return a structured error.
+- Payout balance checks use database-level advisory locks for concurrency safety.
+
+#### Referrals
+
+- New referral endpoints provide an earnings summary, share-link creation, public share-link resolution, and referral attribution.
+- Referral earnings are settled monthly based on referred users' activity, with configurable rates stored in the database.
+
+#### Activepieces integration improvements
+
+- AI provider objects exported from Activepieces Cloud are now flattened to the configured provider string, fixing first-call failures on AI steps.
+- The file proxy now only proxies URLs whose host matches the configured Activepieces instance URL. Third-party URLs pass through unchanged.
+- Email lookups during Activepieces user provisioning are now normalized to lowercase and trimmed, preventing mixed-case or whitespace accounts from getting stuck.
+- Schedule piece compatibility is now capability-gated. The schedule pin is skipped on Activepieces 0.87.0 and later, but retained on older versions.
+- The Activepieces version is probed and cached for 10 minutes to determine which compatibility shims to apply.
+
+#### Removed
+
+- The legacy `/api/n8n-workflow/*` endpoints have been removed. They are not maintained as aliases. Use `/api/marketplace/*` endpoints for all workflow operations.
+
+</Update>
 
 ## How to read this changelog
 
-Scan from top to bottom when you want the newest information first. Read the section labels under each entry to separate documentation updates, platform changes, and fixes quickly.
+Entries are listed newest first. Each entry groups changes by functional area. Items marked as new endpoints or removed features are breaking changes for integrations that depend on the old behavior.
 
 ## Related resources
 
-<Columns cols={2}>
+<Columns cols={3}>
 
 <Card title="Features" href="/features" icon="zap">
-Review the current documentation capabilities and supported workflows.
+
+Review platform capabilities and supported workflows.
+
 </Card>
 
-<Card title="Quickstart" href="/quickstart" icon="rocket">
-Set up the documentation site and confirm the basic workflow.
+<Card title="API Reference" href="/api-reference/nestjs-api" icon="code">
+
+Browse all current API endpoints.
+
+</Card>
+
+<Card title="Configuration" href="/configuration-reference" icon="settings">
+
+Review environment variables and feature flags.
+
 </Card>
 
 </Columns>
 
-For migration or troubleshooting guidance, visit the [Help Center](/help-center).
+For troubleshooting guidance, visit the [Help Center](/help-center).

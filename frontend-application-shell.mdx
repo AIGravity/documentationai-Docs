@@ -5,15 +5,17 @@ description: How the Remix frontend is scaffolded today, including root layout, 
 
 ## Overview
 
-The current frontend is a thin Remix application shell with two implemented routes, a shared starter-style welcome screen, global Tailwind-based styling, and basic packaging for local development and containers. It establishes the document structure, asset pipeline, and runtime boundaries for the web app, but it does not yet contain product-specific UI, authentication, or backend-driven data flows.
+The frontend is a Remix application that provides the user-facing interface for Gravity's agent marketplace, builder tools, admin review dashboards, subscription and billing UI, and payout management. It uses Supabase for browser-side authentication and communicates with the API through an API client layer.
+
+The root layout, styling pipeline, and error handling described on this page form the foundational shell. Product-specific routes, components, and data flows are built on top of this foundation.
 
 ## App purpose and current scope
 
-Today, the frontend serves as a scaffold rather than a feature-complete application. Both implemented routes render the same shared `Welcome` component, and the visible UI is still the default starter-style screen.
+The frontend provides the full product interface for builders, consumers, and administrators. Builder tools support agent creation, testing, and publishing. Consumer surfaces include marketplace browsing, workflow execution, and subscription management. Admin dashboards cover agent review, quality assessment, and payout management.
 
 <Callout kind="info">
 
-This page reflects the current implementation in `apps/web`. The shell includes routing, layout, styling, error handling, local scripts, and Docker packaging. It does not yet include app-specific screens, API calls, session handling, or workflow UI.
+This page describes the foundational shell: root layout, styling, error handling, and packaging. Product-specific routes, components, and data flows are built on top of this shell using Remix route modules, loaders, actions, and an API client layer.
 
 </Callout>
 
@@ -31,59 +33,16 @@ The implemented files that define the shell are:
 
 ## Route map
 
-Two routes are currently implemented, and both render the same shared component.
+The web app uses Remix nested routing with route modules under `apps/web/app/routes/`. Routes include:
 
-### `/`
+- Builder routes for agent creation, customization, and testing
+- Marketplace routes for browsing and running agents
+- Dashboard routes for consumer and builder views
+- Admin routes for review management and quality assessment
+- Subscription and billing routes
+- Payout management routes
 
-The index route is defined in `apps/web/app/routes/_index.tsx`. It exports Remix metadata and returns `Welcome`.
-
-<CodeGroup tabs="Route component,Route metadata">
-
-```tsx
-import { Welcome } from "../welcome/welcome";
-
-export default function Home() {
-  return <Welcome />;
-}
-```
-
-```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
-```
-
-</CodeGroup>
-
-### `/home`
-
-The `/home` route is defined in `apps/web/app/routes/home.tsx`. It is effectively identical to the index route and also renders `Welcome`.
-
-<CodeGroup tabs="Route component,Route metadata">
-
-```tsx
-import { Welcome } from "../welcome/welcome";
-
-export default function Home() {
-  return <Welcome />;
-}
-```
-
-```tsx
-export function meta() {
-  return [
-    { title: "New Remix App" },
-    { name: "description", content: "Welcome to Remix!" },
-  ];
-}
-```
-
-</CodeGroup>
-
-Because both routes render the same component, there is no functional distinction between `/` and `/home` yet. Any product-specific route structure still needs to be added.
+Route modules use Remix loaders and actions for data fetching and mutations. The API client layer handles authenticated requests to the NestJS API.
 
 ## Root layout
 
@@ -276,63 +235,18 @@ export default defineConfig({
 
 No additional server settings, proxy behavior, environment-specific overrides, or custom build options are configured here. The shell uses the default behavior provided by these plugins.
 
-## Welcome and home UI
+## Product UI
 
-The visible UI for both routes lives in `apps/web/app/welcome/welcome.tsx`. It is still a placeholder screen intended to confirm that the shell is running.
+The web app renders product-specific UI for each functional area:
 
-### What the current UI does
+- **Builder tools**: Agent creation workflow, test sandbox, and publishing interface
+- **Marketplace**: Agent discovery, filtering, workflow detail, and run execution
+- **Dashboard**: Consumer and builder dashboards with run history and agent management
+- **Admin review**: Pending review queue, quality assessment, test runs, and builder reports
+- **Billing**: Subscription plans, checkout, credit balance, and order history
+- **Payouts**: Payout account management, withdrawal, and payout history
 
-The component renders a centered layout, a logo that switches by color scheme, and a small navigation card with external links.
-
-<CodeGroup tabs="Main layout,Navigation card">
-
-```tsx
-<main className="flex items-center justify-center pt-16 pb-4">
-  <div className="flex-1 flex flex-col items-center gap-16 min-h-0">
-    <header className="flex flex-col items-center gap-9">
-      <div className="w-[500px] max-w-[100vw] p-4">
-        <img src={logoLight} alt="React Router" className="block w-full dark:hidden" />
-        <img src={logoDark} alt="React Router" className="hidden w-full dark:block" />
-      </div>
-    </header>
-```
-
-```tsx
-<nav className="rounded-3xl border border-gray-200 p-6 dark:border-gray-700 space-y-4">
-  <p className="leading-6 text-gray-700 dark:text-gray-200 text-center">
-    What&apos;s next?
-  </p>
-  <ul>
-    {resources.map(({ href, text, icon }) => (
-      <li key={href}>
-        <a
-          className="group flex items-center gap-3 self-stretch p-3 leading-normal text-blue-700 hover:underline dark:text-blue-500"
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {icon}
-          {text}
-        </a>
-      </li>
-    ))}
-  </ul>
-</nav>
-```
-
-</CodeGroup>
-
-### What the current UI does not do
-
-At this stage, the welcome screen is not connected to any application behavior. The current implementation has:
-
-- no API integration
-- no backend data fetches
-- no auth or session UI
-- no domain-specific navigation
-- no business workflow screens
-
-The two external links in the resources list open in a new tab, and the screen remains a starter-style landing page rather than an application homepage.
+Components use Tailwind CSS for styling, with shared UI primitives and layout patterns across routes. Dashboard flow hooks manage polling for workflow run results, including paused-run handling for approval waitpoints.
 
 ## Local run and build
 
@@ -420,18 +334,15 @@ A few implementation details matter:
 
 ## Current limitations
 
-<Callout kind="alert">
+The frontend is a feature-complete application with authentication, API integration, and product-specific UI. Remaining considerations:
 
-The frontend shell does not yet include authentication, backend data integration, or business workflow UI. It is a starter scaffold with routing, layout, styling, error handling, and packaging only.
-
-</Callout>
-
-That constraint is important when planning the next layer of frontend work. New pages, loaders, actions, shared app chrome, and API-facing components still need to be introduced on top of this shell.
+- Error boundaries could be enhanced with branded recovery flows
+- The welcome component from the original scaffold may still exist in the codebase but is not part of the product UI
 
 ## Related foundation docs
 
 <Columns cols={3}>
   <Card title="API service foundation" href="/api-service-foundation" icon="database" />
   <Card title="Health checks" href="/health-checks" icon="shield" />
-  <Card title="Docker packaging" href="/docker-packaging" icon="package" />
+  <Card title="Docker packaging" href="/docker-images-and-packaging" icon="package" />
 </Columns>

@@ -1,198 +1,232 @@
 ---
 title: Data Models Reference
-description: Inventory of the repository’s current model-like definitions, response schemas, and migration status across the API and AI services.
+description: Reference for PostgreSQL tables, SQL migrations, API data transfer objects, TypeScript contracts, and Pydantic models across the platform.
 ---
 
 ## Overview
 
-AIGravity/core currently does not define a model layer. The analyzed codebase contains no ORM or database models, no migration files, no DTO classes, and no named validation schemas in either the NestJS API or the FastAPI service.
+The platform persists data in a Supabase-hosted PostgreSQL database. The persistence layer is schema-first and SQL-first: database tables, constraints, triggers, and stored procedures are defined in raw SQL migrations. The NestJS API accesses the database through the Supabase client and the `pg` library, using parameterized queries and RPC calls. No ORM entity layer such as TypeORM, Prisma, Drizzle, or Knex is used on the Gravity side.
 
-What exists today is limited to two inline response shapes returned by health endpoints. Those shapes are API responses, not persisted entities, and they do not declare relationships, validation rules, or storage mappings.
+The AI service uses Pydantic models for request and response validation and contains its own database helpers, but its domain persistence is also SQL-first rather than ORM-mapped.
 
 <Callout kind="info">
 
-This reference inventories what is present in the checked-in repository today. It does not describe planned architecture, intended schemas, or future database work.
+A separate Activepieces PostgreSQL database stores workflow execution state, including flows, runs, and connections. Activepieces manages that schema separately from the Gravity application database.
 
 </Callout>
 
-## Current model inventory summary
+## Database table inventory
 
-The repository is closer to a service scaffold than an application with domain entities.
+### Billing and credits
 
-| Area | Current status |
+| Table | Purpose |
 | --- | --- |
-| Named domain models | None found in the analyzed code |
-| ORM or database models | None found in the analyzed code |
-| DTO classes | None found in the analyzed code |
-| Named validation schemas | None found in the analyzed code |
-| Migration files | None found in the analyzed code |
-| Inline response shapes | 2 found |
-| Persisted entities | None found in the analyzed code |
-
-### Model-like definitions found
-
-- **NestJS API health response** — inline response shape: ``{ status: "ok", service: "api" }``
-- **FastAPI health response** — inline response shape: `{"status": "ok"}`
-
-<Callout kind="danger">
-
-The analyzed repository does not implement persistence yet. No current shape in this page maps to a database table, collection, or stored record.
-
-</Callout>
-
-## Persistence and migration status
-
-No persistence layer is implemented in the analyzed codebase. The repository contains no Prisma schema, no TypeORM entities, no Drizzle tables, no Mongoose schemas, no SQLAlchemy models, no Sequelize models, and no Knex-based schema definitions.
-
-Migration infrastructure is also absent. No `migrations` directory, ORM-managed migration history, or SQL migration files were found in the analyzed code.
-
-### Repository-level signals
-
-- The NestJS API exposes a single health controller with an inline object response.
-- The FastAPI service exposes a single health endpoint with an inline object response.
-- `pydantic` is present as a Python dependency, but no `BaseModel` classes are defined.
-- The repository README describes shared schemas and database work as planned rather than implemented.
-
-## NestJS API response shape
-
-The NestJS API currently returns one structured object from the health endpoint. This object is an inline response shape, not a named DTO or persisted entity.
-
-### Implemented shape
-
-<CodeGroup tabs="TypeScript">
-
-```ts
-@Controller("health")
-export class HealthController {
-  @Get()
-  getHealth() {
-    return { status: "ok", service: "api" };
-  }
-}
-```
-
-</CodeGroup>
-
-### Classification
-
-- **Kind** — Inline response shape
-- **Named entity or DTO** — None found in the analyzed code
-- **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
-
-### Response fields
-
-<ResponseField name="status" field-type="string" required="true">
-
-Health state returned by the endpoint. The implemented handler returns `ok`.
-
-</ResponseField>
-
-<ResponseField name="service" field-type="string" required="true">
-
-Service identifier returned by the endpoint. The implemented handler returns `api`.
-
-</ResponseField>
-
-### Notes
-
-This response shape is defined inline inside the controller method. No DTO class, serializer, validation pipe, or schema definition backs the response.
-
-## FastAPI response shape
-
-The FastAPI service currently returns one structured object from the health endpoint. This object is an inline response shape, not a named Pydantic model or persisted entity.
-
-### Implemented shape
-
-<CodeGroup tabs="Python">
-
-```python
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
-
-</CodeGroup>
-
-### Classification
-
-- **Kind** — Inline response shape
-- **Named model** — None found in the analyzed code
-- **Persistence-backed** — No
-- **Relationships** — None found in the analyzed code
-- **Validation rules** — None found in the analyzed code
-
-### Response fields
-
-<ResponseField name="status" field-type="string" required="true">
-
-Health state returned by the endpoint. The implemented handler returns `ok`.
-
-</ResponseField>
-
-### Notes
-
-The service declares `pydantic` as a dependency, but this endpoint does not use a response model or request model. The returned object is defined directly in the route handler.
-
-## Validation schema and DTO status
-
-No named validation layer is implemented in the analyzed repository.
-
-### NestJS API
-
-- No DTO classes found
-- No `class-validator` usage found
-- No `ValidationPipe` setup found
-- No request body schemas found
-
-### FastAPI service
-
-- No Pydantic `BaseModel` classes found
-- No request model annotations found
-- No response model annotations found
+| `credit_ledger` | Append-only ledger of credit deltas. The authoritative balance is `SUM(delta)`. |
+| `credit_orders` | Credit purchase orders and payment session state. |
+| `agent_run_charges` | Per-run charge records with pricing snapshots and creator-split attribution. |
+| `pricing_config` | Key-value configuration for pricing, feature flags, and rates. |
+| `billing_plans` | Versioned subscription plan catalog with pricing, included credits, and budget percentages. |
+| `user_subscriptions` | User subscription lifecycle and status. |
+| `subscription_cycles` | Per-cycle budget tracking, grants, and renewal state. |
+| `usage_grants` | Entitlement grants linked to subscription cycles. |
+| `usage_reservations` | Soft holds on credits for active or scheduled runs. |
+| `billing_webhook_inbox` | Idempotent webhook event processing queue. |
 
 <Callout kind="info">
 
-Dependency presence does not establish a schema layer. Although `pydantic` is installed in the Python service, no checked-in source files define Pydantic models.
+Subscription cycles and reservations store metadata about entitlements and active holds. The authoritative balance remains the credit ledger. Immutability triggers protect finalized plans, cycles, grants, and ledger-derived totals from mutation.
 
 </Callout>
 
-## Migration status
+### Marketplace
 
-No migration system is present in the analyzed code.
+| Table | Purpose |
+| --- | --- |
+| `published_workflows` | Marketplace-published workflow and agent catalog with metadata, tags, and discovery fields. |
+| `consumer_flow_copies` | Consumer clones of marketplace workflows with activation, schedule, and session state. |
+| `agent_info` | Marketplace agent metadata, metrics, and ranking data. |
+| `user_automations` | User-owned automation records with Activepieces identifiers. |
+| `agent_runs` | Agent execution tracking records. |
+| `agent_e2e_runs` | End-to-end agent verification run records. |
 
-### Summary
+### Agent review and verification
 
-- No ORM migration configuration found
-- No migration directories found
-- No SQL migration files found
-- No schema history found
-- No persistence entities found that would require migrations
+| Table | Purpose |
+| --- | --- |
+| `pending_agent_reviews` | Agent review queue with workflow JSON, issues, and review state. |
+| `rejected_agent_reviews` | Rejected submission lifecycle and data. |
+| `agent_verification_runs` | Verification pipeline run records. |
+| `agent_quality_review` | Advisory quality review records with evidence and scores. |
+| `builder_report` | Builder-facing quality reports sent during review. |
+| `builder_report_edits` | Corrections and edits applied to builder reports. |
+| `builder_report_feedback` | Builder thumbs-up or thumbs-down feedback and notes on report findings. |
+| `review_run_evidence` | Step-level evidence and output captured during review test runs. |
+| `review_checks` | Individual review pipeline check records. |
+| `agent_draft_events` | Agent draft and publish lifecycle audit events. |
 
-### Current implication
+### Earnings and payouts
 
-The repository has no implemented database schema to evolve. Migration status is absent because persistence itself is absent.
+| Table | Purpose |
+| --- | --- |
+| `creator_earnings_ledger` | Append-only ledger of creator earnings with run and referral kinds. |
+| `payout_accounts` | Payout destination accounts for bank, UPI, PayPal, and Stripe, with redacted display values. |
+| `payouts` | Payout lifecycle records with status and provider reference. |
+| `payout_events` | Payout status transition history from provider webhooks. |
 
-## Gaps and implications
+<Callout kind="alert">
 
-The current codebase exposes service health, but it does not yet define durable application data structures. That has several practical implications for anyone reading the repository as a backend reference.
-
-- **No canonical domain entities** — There is no checked-in source of truth for business objects.
-- **No validation contract** — Request and response validation rules are not formalized in DTOs or schema classes.
-- **No persistence contract** — No model maps to a database table, collection, or record.
-- **No migration history** — Schema changes cannot be tracked because no schema layer exists yet.
-- **Limited reuse across services** — Shared contracts are not implemented as reusable schema packages.
-
-<Callout kind="danger">
-
-Treat the current response objects as endpoint-local shapes only. They should not be interpreted as stable domain models, database entities, or cross-service contracts.
+Payout creation uses a database-level advisory lock and guarded database operation to prevent double withdrawal. The operation checks available balance, including pending, processing, and paid payouts, detects duplicate requests, and inserts the payout atomically.
 
 </Callout>
+
+### Referrals
+
+| Table | Purpose |
+| --- | --- |
+| `referral_clicks` | Share-link click tracking with visitor attribution. |
+| `referral_attributions` | First-run attribution per user and workflow. The table enforces one attribution per user and workflow pair. |
+| `referral_earnings` | Monthly referral earnings with settlement period, rate, and linked ledger entry. |
+| `referral_partners` | Admin-managed referral partner configuration. |
+| `builder_referral_signups` | Referral signup attribution records. |
+
+### User profiles and bounty system
+
+| Table | Purpose |
+| --- | --- |
+| `profiles` | User profiles with profession, industry, and automation count. |
+| `builders` | Builder and creator profile data. |
+| `requested_agents` | User requests for new agents with interest tracking. |
+| `bounty_submissions` | Bounty submission lifecycle with structured fields and review state. |
+| `candidate_pools` | Candidate selection and pooling data. |
+| `candidate_assignments` | Candidate-to-bounty assignment records. |
+
+### Notifications and telemetry
+
+| Table | Purpose |
+| --- | --- |
+| `notifications` | In-app and email notification queue with delivery state. |
+| `loading_durations` | Performance telemetry records. |
+
+## Migration system
+
+The database schema is managed through hand-written SQL migrations in two migration directories maintained by the API service. The migrations cover the full lifecycle of the application:
+
+1. Identity and profiles, including user profiles, builders, and admin profiles
+2. Marketplace and workflows, including published workflows, consumer copies, and discovery
+3. Agent review and verification, including pending reviews, quality reviews, builder reports, and feedback
+4. Billing and credits, including the credit ledger, orders, charges, and pricing
+5. Subscriptions, including plans, subscriptions, cycles, grants, reservations, and webhooks
+6. Earnings and payouts, including creator earnings, payout accounts, payouts, and events
+7. Referrals, including clicks, attributions, earnings, partners, and signups
+8. Bounty and candidate systems, including submissions, pools, assignments, and scoring
+9. Notifications and telemetry
+
+Migrations use PostgreSQL features including:
+
+- Advisory transaction locks for concurrency-safe payouts
+- Immutability triggers for billing integrity
+- Stored procedures for atomic charge and refund operations with creator splits
+- Idempotency constraints on referral earnings and refund operations
+
+<Callout kind="info">
+
+Migration numbering is not globally unique across the two directories. Both directories contain sequences that overlap in numbering. For example, two separate migrations use the `007` prefix, one for creator earnings and one for payouts.
+
+</Callout>
+
+## Data transfer objects
+
+The NestJS API defines DTOs for request validation. These DTOs use `class-validator` decorators and are processed by a global validation pipe that strips unknown properties and transforms input types.
+
+### Agent DTOs
+
+- **Publish agent:** Name, summary, platforms, tools, use cases, categories, problem solved, workflow steps, builder questions, AI-generated status, workflow JSON, and optional requested-agent and test-run identifiers.
+- **Review submission:** Source, title, workflow, and review payload.
+- **URL verdict:** Workflow and agent setup fields restricted to designated reviewers.
+- **Verify agent:** Workflow and agent setup fields for server-sent events verification.
+- **Check request alignment:** Workflow and requested-agent context.
+- **Check duplicate:** Workflow JSON and an optional source identifier.
+
+### Marketplace DTOs
+
+- **Introspect template:** Pasted Activepieces template JSON.
+- **Publish paste:** Template plus name, tagging, and publishing metadata.
+- **Run workflow:** Published workflow identifier, input, optional field values, and session identifier.
+- **Run scratchpad:** Full template and input.
+- **Builder connections:** Template used for connection introspection.
+
+### Subscription DTOs
+
+- **Payment checkout:** Plan identifier and optional country override.
+- **Subscription activation:** Plan identifier supplied as a path parameter.
+
+### Credit DTOs
+
+- **Create credit order:** Package, currency, and optional country override.
+- **Create custom credit order:** Amount in USD minor units, currency, and optional country override.
+- **Verify credit order:** Razorpay or Stripe verification fields.
+
+### Payout DTOs
+
+- **Create payout:** Amount in minor units, currency, note, and optional payout account identifier.
+- **Create payout account:** Account kind, bank, UPI, or PayPal fields, country, and optional default flag.
+- **Connect Stripe:** Optional country code.
+
+### Referral DTOs
+
+- **Create share link:** Published workflow identifier and optional campaign.
+- **Attribute referral:** Referral code and optional ISO 8601 link-seen timestamp.
+
+## TypeScript type contracts
+
+The API defines TypeScript type contracts beyond DTOs for internal service-level data:
+
+- **Subscription types:** Subscription lifecycle, status, and plan bindings
+- **Grant types:** Entitlement grant allocation and consumption
+- **Reservation types:** Soft-hold lifecycle and release state
+- **Entitlement types:** Spendable credits, outstanding holds, safety net, and budget tracking
+- **Webhook inbox types:** Idempotent event processing state
+- **Referral earnings types:** Monthly summary, settlement period, and rate
+
+## AI service models
+
+The Python AI service uses Pydantic models for request and response validation. Key model groups include:
+
+### Interaction and search
+
+- Chat request and interaction response models for conversational AI
+- Guardrail check request and response models for content safety evaluation
+- Embedding and indexing request and response models for agent search
+
+### Requested agents
+
+- Create-requested-agent and requested-agent view models
+- Interest and mark-built models for community-driven agent requests
+
+### Agent verification
+
+- Verify-agent request with workflow and setup fields
+- Prewarm-agent request for verification warm-up
+- Description, workflow step, category, and fillable-field generation models
+- Setup-field check request with per-field verdicts
+- Request-alignment judgment request and response models
+- URL verdict request and response models
+
+### Agent review
+
+- Workflow review request and response models with evidence and findings
+- Review finding models with severity and evidence-axis scoring
+- Requirement coverage and verdict models
+
+### Static analysis
+
+- Risk level, finding, extracted endpoint, and trajectory models
+- Guardrail violation and guardrail result models
+- AI review result models that combine analysis outputs
 
 ## Related docs
 
 <Columns cols={2}>
   <Card title="NestJS API reference" href="/api-reference/nestjs-api" icon="code" cta="Open API reference" />
-  <Card title="API service foundation" href="/api-service-foundation" icon="book-open" cta="Review service structure" />
+  <Card title="Configuration Reference" href="/configuration-reference" icon="settings" cta="Review configuration" />
 </Columns>

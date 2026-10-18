@@ -1,105 +1,51 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Integrate Gravity's API for agent publishing, workflow execution, subscriptions, credits, referrals, earnings, and payouts.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API is Gravity's primary backend for agent publishing and review, marketplace workflow execution, subscription billing, credits, earnings, referrals, and payouts.
+
+The default local base URL is `http://localhost:3001`. Configure the listening port with the `PORT` environment variable. The API does not use a global URL prefix. Controllers define their own `/api/...` route prefixes.
+
+CORS origins are configured with the `CORS_ORIGINS` environment variable. The default origins are:
+
+- `http://localhost:3000`
+- `http://localhost:5173`
+- `http://localhost:5174`
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Request validation uses a global validation pipe. Unknown properties are stripped from request bodies, and input types are transformed when the endpoint's validation rules support transformation.
 
 </Callout>
 
-<Callout kind="alert">
+## Authentication
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+Most endpoints require a Supabase bearer token. Send the token in the `Authorization` header.
 
-</Callout>
-
-## Endpoint
-
-### GET `/health`
-
-Use this endpoint to verify that the NestJS backend is running and responding.
-
-<ParamField body="method" param-type="string" required="true" show-location="false">
-
-`GET`
-
-</ParamField>
-
-<ParamField body="path" param-type="string" required="true" show-location="false">
-
-`/health`
-
-</ParamField>
-
-<ParamField body="auth" param-type="string" required="true" show-location="false">
-
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
-
-</ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
-
-<CodeGroup tabs="cURL">
-
-```bash
-curl -i http://localhost:3001/health
+```http
+Authorization: Bearer eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiJ1c2VyX2V4YW1wbGUifQ.signature
 ```
 
-</CodeGroup>
+Admin endpoints require both an authenticated user and an administrator role. Public endpoints do not require a bearer token.
 
-## Response
+Public endpoints include:
 
-A successful request returns a JSON object that identifies the service and reports its status.
+- Health checks
+- Public workflow detail
+- Share-link resolution
+- File proxy downloads
+- Webhook receivers
 
-<CodeGroup tabs="JSON">
+Webhook endpoints authenticate through provider signature verification instead of bearer tokens.
+
+## Health
+
+### GET `/`
+
+Returns the API service status. This endpoint is public.
 
 ```json
 {
@@ -108,34 +54,404 @@ A successful request returns a JSON object that identifies the service and repor
 }
 ```
 
-</CodeGroup>
+### GET `/health`
 
-### Response fields
+Returns the API service status and the current server timestamp. This endpoint is public.
 
-<ResponseField name="status" field-type="string" required="true">
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2025-01-15T10:30:00.000Z"
+}
+```
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+## Agents
+
+The agents API supports agent publishing, workflow checks, verification, marketplace metadata, review submissions, and administrative review operations.
+
+### Builder endpoints
+
+All builder endpoints require authentication.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/api/agents/publish` | Publish or update an agent. The owner is derived from the bearer token. The body includes `name`, `summary`, `platforms`, `tools`, `useCases`, `categories`, `problemSolved`, `workflowSteps`, `builderQuestions`, `aiGenerated`, and `workflowJson`. Optional fields include `requestedAgentId` and `testRunId`. |
+| POST | `/api/agents/check-request-alignment` | Check whether a requested agent aligns with a workflow. Returns `shouldReject` and `reason`. |
+| POST | `/api/agents/check-duplicate` | Check for duplicate workflows. |
+| GET | `/api/agents/mine` | List the caller's published agents. |
+| GET | `/api/agents/mine/:id` | Get details for an agent owned by the caller. |
+| DELETE | `/api/agents/mine/:id` | Delete an agent owned by the caller. |
+| POST | `/api/agents/preview-description` | Generate a polished agent description from workflow JSON. |
+| POST | `/api/agents/preview-workflow-steps` | Generate workflow steps from workflow JSON. |
+| POST | `/api/agents/preview-categories` | Suggest marketplace categories for an agent. |
+| POST | `/api/agents/validate-setup` | Validate that field intent matches the workflow setup. |
+| POST | `/api/agents/review-submission` | Submit an agent for administrator review. |
+| GET | `/api/agents/review-submissions/mine` | List the caller's review submissions. |
+| GET | `/api/agents/review-submissions/mine/:id` | Get details for a review submission. |
+| POST | `/api/agents/review-submissions/mine/:id/feedback` | Submit builder feedback on a review finding. |
+| POST | `/api/agents/preview-fillable-fields` | Generate fillable field metadata. |
+| POST | `/api/agents/verify-stream` | Start an agent verification stream using server-sent events. |
+| POST | `/api/agents/verify-warmup` | Warm up the verification service. Returns `202` with `{ "warming": true }`. |
+| POST | `/api/agents/verify-prewarm` | Prewarm a specific workflow. Returns `202` with `{ "prewarming": true }`. |
+| POST | `/api/agents/url-verdict` | Submit a URL safety verdict. Access is restricted to designated reviewers. |
+| GET | `/api/agents/:id/pricing` | Get pricing for an agent. |
+
+#### Feedback request
+
+The feedback endpoint accepts the finding identifier and an optional verdict and note.
+
+<ParamField body="findingId" param-type="string" required="true" show-location="false">
+
+Identifier of the review finding receiving feedback.
+
+</ParamField>
+
+<ParamField body="verdict" param-type="string" required="false" enum="up,down" show-location="false">
+
+Builder assessment of the finding.
+
+</ParamField>
+
+<ParamField body="note" param-type="string" required="false" show-location="false">
+
+Optional explanation for the submitted verdict.
+
+</ParamField>
+
+### Admin endpoints
+
+All admin endpoints require authentication and an administrator role.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/api/agents/admin/pending-reviews` | List pending reviews. The `status` query parameter defaults to `pending`. |
+| GET | `/api/agents/admin/published` | List published agents. The `limit` query parameter accepts values from 1 to 50 and defaults to 15. Use `offset` for pagination. |
+| GET | `/api/agents/admin/running-automations` | List running automations. Supports `limit` and `offset` pagination parameters. |
+| GET | `/api/agents/admin/published/:id` | Get published agent details. |
+| GET | `/api/agents/admin/running-automations/:id` | Get running automation details. |
+| GET | `/api/agents/admin/pending-reviews/:id` | Get full pending review details. |
+| GET | `/api/agents/admin/pending-reviews/:id/builder-report/draft` | Get a draft builder report. |
+| POST | `/api/agents/admin/pending-reviews/:id/re-review` | Trigger an asynchronous re-review. Returns `202`. |
+| POST | `/api/agents/admin/pending-reviews/:id/builder-report/send` | Send a builder report and reject the submission. The body supports `keepIds`, `edits`, and `reason`. |
+| POST | `/api/agents/admin/pending-reviews/:id/approve` | Approve and publish an agent. |
+| POST | `/api/agents/admin/pending-reviews/:id/reject` | Reject a submission. The body includes `note`. |
+| POST | `/api/agents/admin/pending-reviews/:id/test-run/prepare` | Prepare a test run. The body optionally includes `draftFlowId`. |
+| POST | `/api/agents/admin/pending-reviews/:id/test-run` | Execute a test run. The body includes `draftFlowId` and `fieldValues`. |
+| POST | `/api/agents/admin/pending-reviews/:id/test-run/result` | Poll for a test run result. The body includes `draftFlowId` and `runId`. |
+
+<Callout kind="alert">
+
+Sending a builder report also rejects the submission. The re-review endpoint returns `202` and continues processing asynchronously. Admin test runs use a shared review workspace rather than the administrator's own project.
+
+</Callout>
+
+## Marketplace
+
+The marketplace API supports workflow discovery, execution, publishing, connections, files, OAuth, and workflow lifecycle operations.
+
+### Workflow discovery and execution
+
+Most workflow discovery and execution endpoints require authentication. Workflow detail is public.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/api/marketplace/workflows` | List available published workflows. |
+| GET | `/api/marketplace/workflows/:id` | Get workflow details. Public. |
+| POST | `/api/marketplace/builder-fields` | Get builder field metadata. The body optionally includes `agentId`. |
+| POST | `/api/marketplace/introspect` | Introspect a pasted Activepieces template. |
+| POST | `/api/marketplace/publish` | Publish a workflow from a pasted template. |
+| POST | `/api/marketplace/run` | Start a workflow run. The body includes `publishedWorkflowId` and `input`, with optional `fieldValues` and `sessionId`. The response may include connection requirements, OAuth URLs, or run results. |
+| POST | `/api/marketplace/run-result` | Poll for a run result. The body includes `consumerCopyId` and optionally `gravityRunId`, `apRunId`, and `startedAfter`. |
+| POST | `/api/marketplace/execute` | Execute a workflow on demand. The body includes `consumerCopyId` and optional `fieldValues`. |
+| POST | `/api/marketplace/feedback` | Submit agent feedback. The body includes `reasons` and optionally `details`, `sessionId`, `publishedWorkflowId`, `agentId`, and `agentName`. |
+| POST | `/api/marketplace/draft-events/:id` | Record a draft outcome. The body optionally includes `outcome` and includes `changedFields`. |
+| POST | `/api/marketplace/activate` | Activate a workflow with an optional schedule. The body includes `consumerCopyId` and optional `scheduleConfig`. |
+| POST | `/api/marketplace/pause` | Pause a workflow. The body includes `consumerCopyId`. |
+| POST | `/api/marketplace/unsubscribe` | Unsubscribe from a workflow. The body includes `consumerCopyId`. |
+| GET | `/api/marketplace/runs/:consumerCopyId` | Get recent runs for a consumer clone. |
+| POST | `/api/marketplace/prepare-run` | Prepare a run. The body includes `publishedWorkflowId`. |
+| POST | `/api/marketplace/workflow-connections` | Resolve required connections from `workflowJson`. |
+| POST | `/api/marketplace/property-options` | Get dynamic property options for a workflow step. |
+| POST | `/api/marketplace/connections` | Create or update an API-key connection. |
+
+#### Start a workflow run
+
+<ParamField body="publishedWorkflowId" param-type="string" required="true" show-location="false">
+
+Identifier of the published workflow to run.
+
+</ParamField>
+
+<ParamField body="input" param-type="object" required="true" show-location="false">
+
+Input values passed to the workflow.
+
+</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="false" show-location="false">
+
+Optional values for workflow fields that require user input.
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="false" show-location="false">
+
+Optional session identifier used to associate the run with a client session.
+
+</ParamField>
+
+### Builder test endpoints
+
+All builder test endpoints require authentication.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/api/marketplace/test-builder/prepare` | Prepare a builder draft flow. |
+| POST | `/api/marketplace/test-builder/property-options` | Get dynamic property options for a draft flow. |
+| POST | `/api/marketplace/test-builder/run` | Execute a builder test run. |
+| POST | `/api/marketplace/test-builder/run-result` | Poll a builder test run result. |
+| POST | `/api/marketplace/scratchpad/run` | Run a workflow in scratchpad mode. |
+
+### File proxy
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/api/marketplace/files` | Upload a file. Requires authentication. Send the binary body with `x-filename` and `x-file-mimetype` headers. Returns `fileId` and `url`. |
+| GET | `/api/marketplace/files/:token` | Download a file using a public token. |
+
+<Callout kind="info">
+
+The file proxy only proxies URLs whose host matches the configured Activepieces instance URL. Third-party URLs pass through unchanged.
+
+</Callout>
+
+### OAuth
+
+| Method | Route | Authentication | Description |
+| --- | --- | --- | --- |
+| GET | `/api/marketplace/oauth/callback` | Public | Handle an OAuth callback with a signed state JWT. |
+| POST | `/api/marketplace/oauth/cloud-complete` | Bearer token | Complete cloud OAuth. |
+| POST | `/api/marketplace/oauth/custom-start` | Bearer token | Start a custom OAuth flow. |
+| POST | `/api/marketplace/oauth/custom-complete` | Bearer token | Complete a custom OAuth flow. |
+
+### Builder connections
+
+All builder connection endpoints require authentication.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/api/builder/connections/introspect` | Introspect connections from a template. |
+| GET | `/api/builder/connections` | List builder connections. |
+| GET | `/api/builder/connections/catalog` | List the available application catalog. |
+| POST | `/api/builder/connections/start-oauth` | Start OAuth for a builder connection. |
+
+## Subscriptions
+
+All subscription endpoints require authentication. Subscription operations are feature-flagged and return `404` when billing is disabled.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/api/subscriptions/plans` | List available plans. Returns `{ "plans": [...] }`. |
+| GET | `/api/subscriptions/current` | Get the current subscription. Returns `status`, `plan`, `renewsAt`, and `cancelAtPeriodEnd`. Returns `404` when no active subscription exists. |
+| GET | `/api/subscriptions/entitlement` | Get entitlement state, including `ledgerCredits`, `outstandingHolds`, `safetyNet`, `spendableCredits`, `activeBudget`, and `reservedBudget`. |
+| GET | `/api/subscriptions/history` | Get subscription history. Returns entries containing `plan`, `status`, `startedAt`, and `canceledAt`. |
+| POST | `/api/subscriptions/checkout` | Start checkout for a paid plan. The body includes `planId` and optional `countryOverride`. Returns `201` with `checkoutUrl`, `providerSessionId`, and `expiresAt`. |
+| POST | `/api/subscriptions/cancel` | Cancel a subscription at the end of the current period. Returns `status`, `effectiveDate`, and `message`. |
+| POST | `/api/subscriptions/:planId` | Activate a free plan. Returns `201` with `subscriptionId`, `plan`, `status`, and `cycleId`. Paid plans must use checkout. |
+| GET | `/api/billing/plans` | Alternative endpoint for listing plans. Returns `{ "plans": [...] }`. |
+
+<Callout kind="info">
+
+Checkout selects Razorpay for users in India and Stripe for international users based on geographic detection. Activate free plans directly. Paid plans require checkout.
+
+</Callout>
+
+### Subscription webhooks
+
+These endpoints are public and verify provider signatures.
+
+| Method | Route | Signature |
+| --- | --- | --- |
+| POST | `/api/subscriptions/webhook/razorpay` | `x-razorpay-signature` |
+| POST | `/api/subscriptions/webhook/stripe` | `stripe-signature` |
+
+## Credits
+
+All credit endpoints require authentication.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/api/credits/packages` | List available credit packages. |
+| GET | `/api/credits/balance` | Get the current credit balance. |
+| GET | `/api/credits/orders` | List credit orders. |
+| GET | `/api/credits/charges` | List credit charges. |
+| POST | `/api/credits/orders` | Create a credit order. The body includes package and currency information and optionally a country override. Returns `201`. |
+| POST | `/api/credits/orders/custom` | Create a custom credit order. The body includes `amountUsdMinor` and `currency`, with an optional `countryOverride`. Returns `201`. |
+| POST | `/api/credits/orders/verify` | Verify and apply a credit order using Razorpay or Stripe verification fields. |
+
+## Earnings
+
+Earnings endpoints require authentication.
+
+### GET `/api/earnings/balance`
+
+Returns the caller's earnings balance.
+
+<ResponseField name="lifetimeCredits" field-type="number" required="true">
+
+Total lifetime earnings in credits.
 
 </ResponseField>
 
-<ResponseField name="service" field-type="string" required="true">
+<ResponseField name="withdrawnCredits" field-type="number" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Total amount already withdrawn.
 
 </ResponseField>
 
-## Likely error responses
+<ResponseField name="withdrawableCredits" field-type="number" required="true">
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+Amount currently available for withdrawal.
 
-### 404 not found
+</ResponseField>
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+<ResponseField name="withdrawableUsd" field-type="number" required="true">
 
-### 500 internal server error
+Current withdrawable amount converted to USD.
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+</ResponseField>
 
-## Notes
+## Referrals
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+Most referral endpoints require authentication. Share-link resolution is public.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/api/referrals/earnings` | Get the referral earnings summary. Requires authentication. |
+| POST | `/api/referrals/links` | Create a share link. The body includes `publishedWorkflowId` and optional `campaign`. Requires authentication. |
+| GET | `/api/referrals/links/:code` | Resolve a share link. Public. An optional bearer token identifies a signed-in visitor. |
+| POST | `/api/referrals/attribute` | Attribute a referral. The body includes `code` and optional `linkSeenAt`. Requires authentication. |
+
+## Payouts
+
+All payout endpoints require authentication unless noted otherwise.
+
+### Payout accounts
+
+| Method | Route | Description |
+| --- | --- | --- |
+| GET | `/api/payout-accounts/region` | Get the payout region. Returns `region`, either `IN` or `INTL`, and `country`. |
+| GET | `/api/payout-accounts` | List payout accounts. Bank numbers are redacted to their last four digits. |
+| POST | `/api/payout-accounts/connect-paypal` | Connect PayPal. The body includes `email` and optional `countryCode`. Returns `201`. |
+| POST | `/api/payout-accounts/connect-stripe` | Connect Stripe. The body optionally includes `countryCode`. Returns a Stripe onboarding URL. |
+| POST | `/api/payout-accounts` | Create a payout account. The body contains account details. Returns `201`. |
+| PATCH | `/api/payout-accounts/:id` | Update a payout account. |
+| DELETE | `/api/payout-accounts/:id` | Delete a payout account. |
+
+### Payout operations
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/api/payouts` | Create a payout for the caller. The body includes `amountMinor`, `currency`, and `note`, with an optional `payoutAccountId`. Returns `201`. |
+| POST | `/api/payouts/admin` | Create a payout for a specific user. Admin only. The body includes the target `userId`. |
+| GET | `/api/payouts` | List the caller's payouts. |
+| GET | `/api/payouts/fx-rate` | Get an FX rate. The `target` query parameter defaults to `INR`. Returns `target` and `rate`. |
+| POST | `/api/payouts/sync` | Synchronize payout statuses with the provider. |
+| POST | `/api/payouts/:id/refresh` | Refresh the status of a single payout. |
+| GET | `/api/payouts/:id` | Get payout details and events. |
+
+<Callout kind="alert">
+
+Payout balance checks include pending, processing, and paid payouts. Duplicate payout requests return a conflict response. Requests that exceed available earnings return a structured insufficient-balance error.
+
+</Callout>
+
+### Payout webhooks
+
+These endpoints are public and authenticate through provider signature verification.
+
+| Method | Route | Description |
+| --- | --- | --- |
+| POST | `/api/webhooks/paypal` | Receive PayPal payout events. |
+| POST | `/api/webhooks/razorpayx` | Receive RazorpayX payout events. |
+| POST | `/api/webhooks/stripe-connect` | Receive Stripe Connect payout events. |
+| POST | `/api/webhooks/razorpay` | Receive Razorpay pay-in events. |
+| POST | `/api/webhooks/stripe` | Receive Stripe pay-in events. |
+
+## Removed endpoints
+
+<Callout kind="alert">
+
+The legacy `/api/n8n-workflow/*` endpoints have been removed. They are not maintained as aliases. Use the `/api/marketplace/*` endpoints for all workflow operations.
+
+</Callout>
+
+## Run status semantics
+
+Workflow runs use four states:
+
+- `running`: The run is currently executing.
+- `paused`: The run is still in progress but is waiting for an external condition.
+- `succeeded`: The run completed successfully.
+- `failed`: The run stopped because an error or limit prevented completion.
+
+A paused run is not terminal. Paused runs include a `kind` field with one of these values:
+
+- `approval`
+- `delay`
+- `agent`
+- `unknown`
+
+The API treats provider `QUEUED` status as `running`. Memory limit errors, log size errors, and quota exceeded conditions are reported as `failed`, while preserving the provider's failure message.
+
+Timeout responses retain details about the failed step. Unsupported action-piece versions produce a readable `422` response that identifies the step, application, action, and version gap.
+
+## Examples
+
+### Health check
+
+```bash
+curl -i http://localhost:3001/health
+```
+
+### List available workflows
+
+```bash
+curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiJ1c2VyX2V4YW1wbGUifQ.signature" \
+  http://localhost:3001/api/marketplace/workflows
+```
+
+### Start a workflow run
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs.eyJzdWIiOiJ1c2VyX2V4YW1wbGUifQ.signature" \
+  -H "Content-Type: application/json" \
+  -d '{"publishedWorkflowId":"wf_7f4a2c91e6b84d0f","input":{"customerId":"cus_28a91f6e"}}' \
+  http://localhost:3001/api/marketplace/run
+```
+
+## Related docs
+
+<Columns cols={3}>
+
+<Card title="Configuration Reference" href="/configuration-reference" icon="settings">
+
+Review environment variables and service configuration.
+
+</Card>
+
+<Card title="Data Models Reference" href="/data-models-reference" icon="database">
+
+Explore the entities returned by the API.
+
+</Card>
+
+<Card title="Features" href="/features" icon="zap">
+
+See how Gravity capabilities map to API workflows.
+
+</Card>
+
+</Columns>

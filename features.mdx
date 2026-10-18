@@ -1,66 +1,114 @@
 ---
 title: Features
-description: Key capabilities for building and maintaining MDX documentation sites.
+description: Explore Gravity's agent marketplace, builder tools, review pipeline, billing, earnings, and referral capabilities.
 ---
 
 ## Overview
 
-This page summarizes the core building blocks for an MDX documentation site and shows how they work together from authoring through publishing.
+Gravity is a platform for building, publishing, and running AI-powered workflow agents. Builders create agents from automation workflows, submit them for review, and earn credits when consumers run their agents.
 
-<Callout kind="info">
-
-Keep pages small and focused so each document answers one reader need well.
-
-</Callout>
+Consumers browse the marketplace, connect their accounts, and run agents on demand or on a schedule. Gravity manages billing, credits, earnings, payouts, referrals, and workflow execution across the platform.
 
 ## Feature grid
 
-<Columns cols={2}>
-  <Card title="MDX page authoring" icon="code" href="/help-center">
-    Write documentation pages in MDX so content, structure, and components live in one file.
+<Columns cols={3}>
+  <Card title="Agent Marketplace" icon="store" href="/api-reference/nestjs-api">
+    Browse, discover, and run published AI workflow agents. Filter by category, search by keyword, and view workflow details before running.
   </Card>
-  <Card title="Navigation-driven IA" icon="folder" href="/help-center">
-    Organize pages through navigation so readers can find the right topic without hunting across the site.
+  <Card title="Agent Builder" icon="wrench" href="/api-reference/nestjs-api">
+    Create agents from automation workflows. Test in a builder sandbox, generate descriptions and categories with AI assistance, and publish to the marketplace.
   </Card>
-  <Card title="Reusable MDX components" icon="settings" href="/help-center">
-    Use shared components to present callouts, cards, layouts, and structured content consistently.
+  <Card title="Review Pipeline" icon="shield-check" href="/api-reference/nestjs-api">
+    Submitted agents go through admin review with quality checks, evidence-backed findings, and builder feedback. Admins can approve, reject, re-review, and send builder reports.
   </Card>
-  <Card title="Integration hooks" icon="plug" href="/help-center">
-    Connect documentation to external tooling, publishing workflows, and site-level behavior where needed.
+  <Card title="Agent Verification" icon="scan-search" href="/api-reference/nestjs-api">
+    Safety verification includes static analysis, guardrail checks, URL safety screening, and real-time streaming verification results.
   </Card>
-  <Card title="Help center organization" icon="help-circle" href="/help-center">
-    Group task-based articles so support content stays easy to scan and maintain.
+  <Card title="Subscriptions" icon="credit-card" href="/api-reference/nestjs-api">
+    Choose a plan, check out through Razorpay or Stripe based on region, track entitlements and credits, and cancel at period end.
   </Card>
-  <Card title="Release notes" icon="book-open" href="/help-center">
-    Record changes in a focused format so readers can quickly see what changed and whether they need to act.
+  <Card title="Credits" icon="coins" href="/api-reference/nestjs-api">
+    Purchase credit packages, track balances and charges, and verify orders. Credits power agent runs on a pay-as-you-go basis.
+  </Card>
+  <Card title="Creator Earnings" icon="trending-up" href="/api-reference/nestjs-api">
+    Builders earn credits when consumers run their agents. Track lifetime earnings, withdrawn amounts, and withdrawable balances.
+  </Card>
+  <Card title="Payouts" icon="banknote" href="/api-reference/nestjs-api">
+    Withdraw earnings through bank transfer, UPI, PayPal, or Stripe Connect. Concurrency-safe balance checks prevent double withdrawals.
+  </Card>
+  <Card title="Referrals" icon="share-2" href="/api-reference/nestjs-api">
+    Share agent links, attribute referrals on first run, and earn referral credits monthly based on referred users' activity.
+  </Card>
+  <Card title="Workflow Execution" icon="play-circle" href="/api-reference/nestjs-api">
+    Run agents on demand or on a schedule. Approval waitpoints pause runs until a human approves. Paused runs stay alive for extended polling windows.
+  </Card>
+  <Card title="OAuth Connections" icon="link" href="/integrations">
+    Connect third-party apps through OAuth. Gravity supports Google, Slack, Notion, GitHub, Microsoft, and dozens of other providers.
+  </Card>
+  <Card title="Notifications" icon="bell" href="/configuration-reference">
+    Receive in-app and email notifications for review updates, low-credit warnings, and failed scheduled runs.
   </Card>
 </Columns>
 
-## How the pieces fit together
+## How agents flow through the platform
 
-Author a page in MDX, wire it into navigation, and use reusable components to make the content clear and scannable. Integration hooks extend the site where needed, while the help center and release notes keep operational content organized around reader tasks and change history.
+Agents move from builder creation through sandbox testing, review, marketplace publication, and consumer execution. Approved agents generate creator earnings when consumers run them.
 
 ```mermaid
 graph LR
-  A[Author MDX] --> B[Add navigation]
-  B --> C[Use shared components]
-  C --> D[Preview and refine]
-  D --> E[Publish site]
+  A[Builder creates agent] --> B[Test in sandbox]
+  B --> C[Submit for review]
+  C --> D[Admin review]
+  D --> E{Approved?}
+  E -->|Yes| F[Publish to marketplace]
+  E -->|No| G[Builder report + feedback]
+  G --> C
+  F --> H[Consumer runs agent]
+  H --> I[Builder earns credits]
+  I --> J[Withdraw via payout]
 ```
 
-## Recommended workflow
+## Billing and earnings model
 
-- **Author** the page in MDX with one clear topic and a structure that matches the reader's task.
-- **Preview** the page to confirm links, components, and navigation placement.
-- **Publish** once the page is concise, accurate, and easy to scan.
+Gravity uses credits to connect consumer activity with agent creator earnings:
 
-## Related links
+- Consumers subscribe to a plan or purchase credit packages.
+- Each agent run consumes credits based on the workflow's pricing.
+- Credits are split between the platform and the agent's creator.
+- Creators can withdraw earnings through supported payout methods.
+- Referral earnings provide additional credits based on referred users' activity.
 
-<Columns cols={2}>
-  <Card title="Help Center" icon="help-circle" href="/help-center">
-    Find task-oriented articles for setup, troubleshooting, and maintenance.
+<Callout kind="info">
+
+Subscription billing and enforcement are controlled by database-backed feature flags. When billing is disabled, subscription endpoints return 404. When enforcement is off, runs are not blocked by entitlement checks, allowing shadow-mode operation.
+
+</Callout>
+
+## Workflow run states
+
+A workflow run moves through these states:
+
+- **Running:** The workflow is actively executing.
+- **Paused:** The workflow is waiting for an external condition, such as approval, a delay, or an agent waitpoint. Paused runs are not terminal and remain in progress.
+- **Succeeded:** The workflow completed successfully.
+- **Failed:** The workflow stopped because of an error, timeout, or resource limit.
+
+<Callout kind="info">
+
+When a run is paused for approval, the workflow stays active. Builders and consumers can poll for results for up to 2 hours for builders or 24 hours for consumers. Recurring agents retain their run handle while paused, so approval-based workflows continue functioning across cycles.
+
+</Callout>
+
+## Related docs
+
+<Columns cols={3}>
+  <Card title="API Reference" href="/api-reference/nestjs-api" icon="code">
+    Browse all API endpoints.
   </Card>
-  <Card title="Help articles" icon="book-open" href="/help-center">
-    Browse focused guidance for common documentation workflows.
+  <Card title="Configuration" href="/configuration-reference" icon="settings">
+    Review environment variables and feature flags.
+  </Card>
+  <Card title="Data Models" href="/data-models-reference" icon="database">
+    Explore the database schema and data contracts.
   </Card>
 </Columns>

@@ -1,191 +1,187 @@
 ---
 title: Configuration Reference
-description: Reference for the repository’s current environment variables, config files, hardcoded runtime settings, and workflow gates across the web, API, and AI services.
+description: Reference for environment variables, feature flags, config files, runtime settings, and workflow gates across the web, API, and AI services.
 ---
 
 ## Overview
 
-This repository currently relies far more on static configuration than on environment-driven configuration. The inspected implementation does not define any `.env` files, does not read application environment variables in source code, and does not implement an app-level feature flag system.
+The platform uses environment-driven configuration across all three services. Each service reads from `.env` files locally and from deployment environment variables in production. The API and web apps read environment variables through `process.env` and `import.meta.env` respectively, and the AI service uses `os.getenv`. Feature flags are database-backed, allowing runtime toggling of billing and enforcement behavior without redeployment.
+
+This page covers environment variables, feature flags, runtime settings, config files, Docker configuration, and workflow settings across the web, API, and AI services.
 
 <Callout kind="info">
 
-This page reflects the current implementation in the repository, not an intended future configuration model. If a setting is listed here, it was found in source files, Dockerfiles, package scripts, or GitHub Actions workflows.
+This page reflects the current implementation. Environment variables are documented by category. Some variables are required only when specific features are enabled, for example, payment provider keys are needed only when that provider is active.
 
 </Callout>
 
 Use this page to answer three practical questions:
 
-- Which settings affect local runtime, builds, and deployment
+- Which environment variables and feature flags affect local runtime, builds, and deployment
 - Where each setting is defined
 - Which mismatches in the current configuration can affect development or container runtime
 
 ## Configuration surface summary
 
-Configuration is spread across a small number of concrete surfaces rather than a centralized settings layer.
+Configuration is distributed across several layers:
 
-- **Application runtime code** defines hardcoded behavior such as the API port, API CORS origin, and the AI service health route.
+- **Environment variables** drive ports, CORS origins, database connections, provider credentials, and service URLs across all three apps.
+- **Database-backed feature flags** control billing and enforcement behavior at runtime.
 - **Package scripts** define dev and build commands for the monorepo and individual apps.
 - **Static config files** define TypeScript, workspace, Turbo, Nest, and Python tool settings.
-- **Dockerfiles** define container base images, exposed ports, commands, and one runtime environment variable for the AI service image.
-- **GitHub Actions workflows** define service names, image names, branch filters, concurrency behavior, setup versions, and release gating logic.
+- **Dockerfiles** define container base images, exposed ports, and commands.
+- **GitHub Actions workflows** define service names, image names, branch filters, concurrency behavior, and release gating logic.
 
-<Callout kind="alert">
+<Callout kind="info">
 
-The repository does not currently expose a general configuration abstraction for ports, CORS origin, or deployment behavior. Several values that are often environment-driven in other projects are fixed directly in code or workflow files.
+Some settings such as package manager version and TypeScript targets are pinned in static config files. Runtime behavior, including ports, CORS, database connections, and provider credentials, is driven by environment variables.
 
 </Callout>
 
 ## Environment variables
 
-### App environment variables
+Environment variables provide local and deployment-time configuration for the API, web, and AI services. Local development loads values from `.env` files, while production deployments provide the same settings through the deployment environment.
 
-The inspected source code does not consume repository-defined application environment variables.
+### Core application
 
-<Callout kind="success">
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `PORT` | number | `3001` | API listening port | No |
+| `CORS_ORIGINS` | comma-separated string | `http://localhost:3000,http://localhost:5173,http://localhost:5174` | Allowed CORS origins | No |
+| `FRONTEND_URL` | URL string | `http://localhost:5173` | Public web origin for OAuth callbacks | No, but required for production OAuth |
+| `AI_SERVICE_URL` | URL string | `http://localhost:8001` | Base URL for the Python AI service | Yes for AI-powered features |
+| `AI_SERVICE_TIMEOUT_MS` | integer | `10000` | Timeout for AI service requests in milliseconds | No |
 
-No `.env` files were found in the repository tree, and no application code reads of `process.env`, `import.meta.env`, `os.getenv`, `getenv`, or `dotenv` were found.
+### Database and authentication
+
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `SUPABASE_URL` | URL string | none | Supabase project URL | Yes |
+| `SUPABASE_ANON_KEY` | string | none | Public Supabase client key | Yes for public operations |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret string | none | Admin Supabase client bypassing RLS | Yes for API persistence |
+| `SUPABASE_DB_URL` | PostgreSQL URL | none | Direct database connection for scripts | Required by migration scripts |
+
+### Activepieces integration
+
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `ACTIVEPIECES_INSTANCE_URL` | URL string | `http://localhost:8080` | Activepieces server URL | Yes for marketplace features |
+| `AP_JWT_SECRET` | secret string | none | Shared JWT signing secret for Activepieces user provisioning | Yes for AP user features |
+| `AP_POSTGRES_HOST` | string | none | Activepieces Postgres host | Yes when AP DB access is used |
+| `AP_POSTGRES_PORT` | integer | none | Activepieces Postgres port | Yes when AP DB access is used |
+| `AP_POSTGRES_DATABASE` | string | none | Activepieces Postgres database | Yes when AP DB access is used |
+| `AP_POSTGRES_USERNAME` | string | none | Activepieces Postgres user | Yes when AP DB access is used |
+| `AP_POSTGRES_PASSWORD` | secret string | none | Activepieces Postgres password | Yes when AP DB access is used |
+| `GRAVITY_OAUTH_STATE_SECRET` | secret string | falls back to `AP_JWT_SECRET` | Signs OAuth state JWTs | Yes for OAuth broker |
+
+### Payment providers
+
+<Callout kind="info">
+
+Payment providers are presence-based. A provider is enabled only when its required keys are set. For example, Stripe initializes when `STRIPE_SECRET_KEY` is present, and Razorpay initializes when both `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are present.
 
 </Callout>
 
-### Current status
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `RAZORPAY_KEY_ID` | string | none | Razorpay public key ID | Yes to enable Razorpay |
+| `RAZORPAY_KEY_SECRET` | secret string | none | Razorpay API authentication | Yes to enable Razorpay |
+| `RAZORPAY_WEBHOOK_SECRET` | secret string | empty | Verifies Razorpay pay-in webhooks | Yes for webhook verification |
+| `RAZORPAYX_KEY_ID` | string | empty | RazorpayX API key | Yes to enable RazorpayX payouts |
+| `RAZORPAYX_KEY_SECRET` | secret string | empty | RazorpayX API secret | Yes to enable RazorpayX payouts |
+| `RAZORPAYX_ACCOUNT_NUMBER` | string | empty | RazorpayX business account number | Yes to enable RazorpayX payouts |
+| `RAZORPAYX_WEBHOOK_SECRET` | secret string | empty | Verifies RazorpayX payout webhooks | Yes for webhook processing |
+| `STRIPE_SECRET_KEY` | secret string | none | Enables Stripe API client | Yes to enable Stripe |
+| `STRIPE_PUBLISHABLE_KEY` | string | none | Browser checkout key | Yes for Stripe checkout |
+| `STRIPE_WEBHOOK_SECRET` | secret string | none | Main Stripe payments webhook signature | Yes for Stripe webhooks |
+| `STRIPE_CONNECT_WEBHOOK_SECRET` | secret string | none | Stripe Connect webhook signature | Yes for Connect webhooks |
+| `STRIPE_SUBSCRIPTIONS_WEBHOOK_SECRET` | secret string | none | Subscription webhook signature | Yes for subscription webhooks |
+| `PAYMENTS_GEO_DEFAULT_COUNTRY` | ISO country string | `IN` | Fallback country when edge header is absent | No |
+| `PAYPAL_CLIENT_ID` | string | empty | PayPal OAuth client ID | Yes to enable PayPal payouts |
+| `PAYPAL_CLIENT_SECRET` | secret string | empty | PayPal OAuth client secret | Yes to enable PayPal payouts |
+| `PAYPAL_MODE` | string | `sandbox` | Selects sandbox or live PayPal | No |
+| `PAYPAL_WEBHOOK_ID` | string | empty | PayPal webhook verification ID | Yes for PayPal webhooks |
 
-<ParamField body="repo-defined-app-env" param-type="none" required="false" show-location="false">
+<Callout kind="alert">
 
-**Purpose:** Configure application runtime through repository-defined environment variables.
+RazorpayX webhook secret placeholder values (`default_webhook_secret`, `your_webhook_secret`, `changeme`, `secret`) are rejected as invalid. Set a real secret to enable webhook processing.
 
-**Type:** none.
+</Callout>
 
-**Explicit value:** not present.
+### LLM and AI provider credentials
 
-**Required:** No. The current codebase does not depend on a repo-defined `.env` file for local startup.
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `OPENROUTER_API_KEY` | secret string | none | OpenRouter access | Yes for OpenRouter-backed features |
+| `OPENAI_API_KEY` | secret string | none | OpenAI fallback credential | Required if OpenRouter is absent |
+| `ANTHROPIC_API_KEY` | secret string | none | Anthropic credential | Optional |
+| `GEMINI_API_KEY` | secret string | none | Gemini credential | Optional |
+| `COHERE_API_KEY` | secret string | none | Cohere credential | Optional |
+| `OPENROUTER_REFERER` | URL string | `https://gravity.fast` | OpenRouter HTTP-Referer header | No |
 
-</ParamField>
+### Email and notifications
 
-<ParamField body="env-file-support" param-type="none" required="false" show-location="false">
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `SMTP_HOST` | string | none | SMTP server hostname | Yes to send email |
+| `SMTP_PORT` | integer | `587` | SMTP port | No |
+| `SMTP_USER` | string | none | SMTP username | Yes for authenticated SMTP |
+| `SMTP_PASS` | secret string | none | SMTP password | Yes for authenticated SMTP |
+| `MAIL_FROM` | email string | none | Envelope from address | Yes for production email |
+| `NOTIFICATIONS_ENABLED` | boolean string | `true` | Kill switch for outbound email | No |
+| `NOTIFICATIONS_REDIRECT_TO` | email string | empty | Redirects all notification recipients in staging | No |
 
-**Purpose:** Load local configuration from `.env` files.
+### Observability
 
-**Type:** none.
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `SENTRY_DSN` | string | none | Error and performance reporting endpoint | No |
+| `SENTRY_ENVIRONMENT` | string | `development` | Sentry environment label | No |
+| `POSTHOG_API_KEY` | secret string | none | PostHog server analytics | No |
+| `POSTHOG_HOST` | URL string | `https://us.i.posthog.com` | PostHog endpoint | No |
+| `POSTHOG_ENVIRONMENT` | string | `development` | Server analytics send gate, only production sends | No |
 
-**Explicit value:** not implemented.
+### Web application (Vite)
 
-**Required:** No. No `.env`, `.env.example`, or application dotenv loading was found.
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `VITE_SUPABASE_URL` | URL string | none | Browser Supabase URL | Yes for browser auth |
+| `VITE_SUPABASE_ANON_KEY` | string | none | Browser Supabase anonymous key | Yes for browser auth |
+| `VITE_API_URL` | URL string | none | API base URL | Yes for API calls |
+| `VITE_APP_ENVIRONMENT` | string | none | Controls dev-only UI features | No |
+| `VITE_SENTRY_DSN` | string | none | Browser Sentry DSN | No |
+| `VITE_POSTHOG_KEY` | string | none | Browser analytics key | No |
+| `VITE_CRISP_WEBSITE_ID` | string | none | Crisp support widget ID | No |
 
-</ParamField>
+### Marketplace safety controls
 
-### Workflow and container environment variables
+| Variable | Type | Default | Purpose | Required |
+| --- | --- | --- | --- | --- |
+| `GRAVITY_CHECKPOINT_INJECTION` | mode string | `off` | Controls runtime checkpoint injection | No |
+| `URL_VERDICT_REVIEWER_IDS` | comma-separated IDs | empty | Users allowed to review URL verdicts | No |
 
-The repository does use environment variables outside application code in Docker and GitHub Actions.
+### OAuth provider credentials
 
-#### Docker runtime environment
+OAuth providers are configured dynamically. Each provider requires a client ID and secret pair. A provider is enabled only when both values are present.
 
-<ParamField body="PATH" param-type="string" required="false" show-location="false">
-
-**Purpose:** Prepend the AI service virtual environment binary path so `uvicorn` and installed tools resolve from `/app/.venv/bin`.
-
-**Type:** string.
-
-**Explicit value:** `/app/.venv/bin:$PATH`.
-
-**Required:** No. The AI service Docker image sets this value internally.
-
-</ParamField>
-
-#### GitHub Actions workflow environment
-
-<ParamField body="SERVICE_NAME" param-type="string" required="true" show-location="false">
-
-**Purpose:** Identify the service being built in a workflow.
-
-**Type:** string.
-
-**Explicit values:** `api`, `web`, and `ai-service`, depending on the workflow file.
-
-**Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
-
-</ParamField>
-
-<ParamField body="IMAGE_NAME" param-type="string" required="true" show-location="false">
-
-**Purpose:** Define the Docker image name used by a workflow.
-
-**Type:** string.
-
-**Explicit values:** `gravity-api`, `gravity-web`, and `gravity-ai-service`.
-
-**Required:** Yes for the current workflow implementation, because each workflow sets it explicitly.
-
-</ParamField>
-
-<ParamField body="GITHUB_TOKEN" param-type="string" required="true" show-location="false">
-
-**Purpose:** Authenticate Docker login in GitHub Actions.
-
-**Type:** string.
-
-**Explicit value:** GitHub-provided secret at workflow runtime.
-
-**Required:** Yes for workflow execution paths that log in to GitHub Container Registry.
-
-</ParamField>
-
-<ParamField body="github-context-values" param-type="string" required="true" show-location="false">
-
-**Purpose:** Drive branch-based and event-based workflow behavior.
-
-**Type:** GitHub Actions context values.
-
-**Explicit values:** `github.ref`, `github.ref_name`, `github.actor`, `github.repository_owner`, and `github.event_name`.
-
-**Required:** Yes for the current workflow conditions and tagging logic.
-
-</ParamField>
-
-### Grounded excerpts
-
-<CodeGroup tabs="AI service Dockerfile,Workflow env">
-
-```dockerfile
-ENV PATH="/app/.venv/bin:$PATH"
-
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
-```
-
-```yaml
-env:
-  SERVICE_NAME: api
-  IMAGE_NAME: gravity-api
-```
-
-</CodeGroup>
+Supported providers include Google, Slack, Notion, GitHub, Microsoft, GitLab, HubSpot, Salesforce, Pipedrive, Zoho, Asana, ClickUp, Monday, Todoist, Dropbox, Box, Mailchimp, LinkedIn, Reddit, Zoom, Shopify, Stripe, Figma, Webflow, and others.
 
 ## Application runtime settings
 
-Application runtime behavior is mostly fixed in source rather than configured dynamically.
+Application runtime behavior combines environment-driven values with fixed service behavior such as health routes and credential handling.
 
 ### API service runtime settings
 
-The API bootstrap file hardcodes both network binding and CORS behavior.
+The API reads its listening port and allowed origins from environment variables, with local-development defaults.
 
-<CodeGroup tabs="main.ts,Behavior summary">
-
-```ts
-const app = await NestFactory.create(AppModule);
-
-app.enableCors({
-  origin: ["http://localhost:3000"],
-  credentials: true,
-});
-
-await app.listen(3001);
-```
+<CodeGroup tabs="Behavior summary">
 
 ```ts
-// Effective runtime behavior:
-// - CORS allows exactly http://localhost:3000
-// - Credentialed requests are enabled
-// - API listens on port 3001
-// - No environment-based override is present
+// API runtime behavior:
+// - CORS origins configured via CORS_ORIGINS env var
+// - Default origins: localhost:3000, localhost:5173, localhost:5174
+// - Credentialed requests enabled
+// - API port configured via PORT env var (default: 3001)
 ```
 
 </CodeGroup>
@@ -196,9 +192,11 @@ await app.listen(3001);
 
 **Type:** array of strings.
 
-**Explicit value:** `["http://localhost:3000"]`.
+**Explicit value:** Environment-driven through `CORS_ORIGINS`.
 
-**Required:** Yes. The current bootstrap code passes this value directly to `app.enableCors(...)`.
+**Default:** `http://localhost:3000`, `http://localhost:5173`, and `http://localhost:5174`.
+
+**Required:** No. The default origins apply when `CORS_ORIGINS` is not set.
 
 </ParamField>
 
@@ -210,7 +208,7 @@ await app.listen(3001);
 
 **Explicit value:** `true`.
 
-**Required:** Yes. The current bootstrap code sets it directly.
+**Required:** Yes. Credentialed requests remain enabled.
 
 </ParamField>
 
@@ -220,9 +218,11 @@ await app.listen(3001);
 
 **Type:** number.
 
-**Explicit value:** `3001`.
+**Explicit value:** Environment-driven through `PORT`.
 
-**Required:** Yes. The service binds with `app.listen(3001)` and does not read a port from environment variables.
+**Default:** `3001`.
+
+**Required:** No. The service uses port `3001` when `PORT` is not set.
 
 </ParamField>
 
@@ -1061,87 +1061,42 @@ GitHub Actions workflows provide the repository’s main deployment-time configu
 
 ## Feature flags
 
-No true application feature flag system was found in the inspected codebase.
+The platform uses database-backed feature flags stored in the `pricing_config` table. These flags are read at runtime and cached for 60 seconds. They default to off when the database row is missing, zero, `NULL`, or when a query error occurs.
+
+### Subscription flags
+
+| Flag | Default | Behavior |
+| --- | --- | --- |
+| `subscription_billing_enabled` | Off | Enables subscription billing and entitlement computation. When off, subscription endpoints return 404. |
+| `subscription_enforcement_enabled` | Off | Blocks or admits workflow runs based on subscription entitlement. Fail-safe: errors default to off so transient issues cannot block users. |
 
 <Callout kind="info">
 
-Boolean settings exist in the repository, but they are not feature flags unless application code uses them to enable or disable user-facing behavior at runtime. In this repository, the booleans that were found belong to bootstrap settings, build tools, or workflows.
+The two flags are intentionally independent. Billing on with enforcement off creates a shadow mode that computes entitlements without blocking runs. Enforcement is fail-safe: database or configuration errors default to off.
 
 </Callout>
 
-### App code feature flags
+### Presence-based toggles
 
-<ParamField body="app-feature-flags" param-type="none" required="false" show-location="false">
+Several features activate based on the presence of environment variables rather than explicit boolean flags:
 
-**Purpose:** Toggle application behavior through a dedicated feature-flag mechanism.
+- Stripe enables when `STRIPE_SECRET_KEY` is set.
+- Razorpay enables when `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` are both set.
+- RazorpayX payouts enable when all three RazorpayX keys are set.
+- PayPal payouts enable when `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` are set.
+- Agent rank scoring enables when `AGENT_RANKER_API_URL` is set.
+- Composio verification enables when `COMPOSIO_API_KEY` is set.
+- Crisp support chat enables when `VITE_CRISP_WEBSITE_ID` is set.
+- Analytics sending enables only when `POSTHOG_ENVIRONMENT` is `production`.
 
-**Type:** none.
+### Notification safety toggles
 
-**Explicit value:** not present.
-
-**Required:** No. No app-level feature flag framework or env-driven toggle system was found.
-
-</ParamField>
-
-### Workflow and tool booleans that are not feature flags
-
-<ParamField body="api-cors-credentials" param-type="boolean" required="true" show-location="false">
-
-**Purpose:** Allow credentialed CORS requests in the API bootstrap config.
-
-**Type:** boolean.
-
-**Explicit value:** `true`.
-
-**Required:** Yes.
-
-</ParamField>
-
-<ParamField body="turbo-dev-cache" param-type="boolean" required="true" show-location="false">
-
-**Purpose:** Disable caching for Turbo dev tasks.
-
-**Type:** boolean.
-
-**Explicit value:** `false`.
-
-**Required:** Yes.
-
-</ParamField>
-
-<ParamField body="workflow-cancel-in-progress" param-type="boolean" required="true" show-location="false">
-
-**Purpose:** Cancel overlapping CI runs for the same ref.
-
-**Type:** boolean.
-
-**Explicit value:** `true`.
-
-**Required:** Yes.
-
-</ParamField>
+- `NOTIFICATIONS_ENABLED`: Kill switch for outbound email while retaining queued rows.
+- `NOTIFICATIONS_REDIRECT_TO`: Redirects all notification recipients in staging.
 
 ## Notable mismatches
 
-A few current settings conflict across files or docs and can affect local setup or deployment assumptions.
-
-<Callout kind="alert">
-
-The API service listens on port `3001` in source code, but `apps/api/Dockerfile` exposes port `3000`. Treat this as an active mismatch until one side changes.
-
-</Callout>
-
-<ParamField body="api-port-mismatch" param-type="runtime mismatch" required="false" show-location="false">
-
-**Purpose:** Highlight the difference between API source runtime port and container exposed port.
-
-**Type:** mismatch.
-
-**Explicit value:** source listens on `3001`, Docker exposes `3000`.
-
-**Required:** No, but it is operationally important.
-
-</ParamField>
+A few current settings still differ across files or documentation and can affect local setup assumptions.
 
 <ParamField body="web-port-documentation-mismatch" param-type="documentation mismatch" required="false" show-location="false">
 
@@ -1149,9 +1104,9 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 
 **Type:** mismatch.
 
-**Explicit value:** root docs and API CORS expect `http://localhost:3000`, while the web app README mentions `http://localhost:5173`.
+**Explicit value:** Root docs and the API CORS defaults reference `http://localhost:3000`, while the web app README mentions `http://localhost:5173`. Both `localhost:3000` and `localhost:5173` are now included in the default `CORS_ORIGINS`, so the mismatch is largely resolved for CORS purposes.
 
-**Required:** No, but it affects local integration expectations.
+**Required:** No, but the documentation still contains different local web port expectations.
 
 </ParamField>
 
@@ -1167,18 +1122,6 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
 
 </ParamField>
 
-<ParamField body="env-abstraction-gap" param-type="architecture note" required="false" show-location="false">
-
-**Purpose:** Call out that ports, CORS origin, and several deployment choices are hardcoded rather than abstracted into application configuration.
-
-**Type:** implementation characteristic.
-
-**Explicit value:** present across runtime code and workflows.
-
-**Required:** No, but it is important when planning changes.
-
-</ParamField>
-
 ## Related docs
 
 <Columns cols={3}>
@@ -1186,3 +1129,5 @@ The API service listens on port `3001` in source code, but `apps/api/Dockerfile`
   <Card title="API service foundation" href="/api-service-foundation" icon="code" cta="Review runtime behavior" />
   <Card title="Monorepo architecture" href="/monorepo-architecture" icon="folder" cta="Browse project layout" />
 </Columns>
+
+<Card title="NestJS API" href="/api-reference/nestjs-api" icon="code" cta="Browse API endpoints" />

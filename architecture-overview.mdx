@@ -5,13 +5,13 @@ description: Evaluate the Gravity monorepo structure, service boundaries, toolin
 
 ## Overview
 
-Gravity is currently a polyglot monorepo scaffold with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository already has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines, but the application layer is still intentionally thin.
+Gravity is a polyglot monorepo with three independently runnable applications under `apps/`: a Remix frontend at `apps/web`, a NestJS API at `apps/api`, and a FastAPI service at `apps/ai-service`. The repository has workspace orchestration, per-service Dockerfiles, semantic version files, and GitHub Actions pipelines.
 
-The practical architecture today is best understood as a deployment-ready foundation rather than a feature-complete platform. Each service starts, builds, and ships independently, but there are no shared packages, no persistence layer, no authentication system, and no implemented cross-service request flow beyond the API allowing browser requests from `http://localhost:3000`.
+The API is the primary backend, exposing endpoints for agent publishing, marketplace workflow execution, subscription billing, credits, earnings, referrals, payouts, and admin review. It uses Supabase for PostgreSQL persistence and authentication. The AI service provides agent verification, quality review, and AI-assisted content generation. The web app provides the user-facing interface for builders and consumers.
 
 <Callout kind="info">
 
-`pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages, but no `packages/` directory exists in the current repository tree.
+`pnpm-workspace.yaml` includes `packages/*`, and the README describes planned shared packages. Shared contracts are currently defined as TypeScript types within the API rather than as separate workspace packages.
 
 </Callout>
 
@@ -60,7 +60,7 @@ The root script `dev:py` points to `apps/py-service`, but the actual Python serv
 
 ### `apps/web`: Remix frontend
 
-`apps/web` is the user-facing frontend. It uses Remix with Vite and React, and the current code remains close to a starter application rather than an integrated product UI.
+`apps/web` is the user-facing frontend. It provides builder tools for agent creation and testing, a marketplace for browsing and running agents, subscription and billing UI, admin review dashboards, and payout management. The app communicates with the API through an API client layer and uses Supabase for browser-side authentication.
 
 The main entry file is `apps/web/app/root.tsx`. That file defines the document shell, global styles, font links, an `ErrorBoundary`, and the route outlet. The exported app component returns an `Outlet`, so request handling follows standard Remix nested routing.
 
@@ -69,7 +69,7 @@ Current route files are minimal:
 - `apps/web/app/routes/_index.tsx`
 - `apps/web/app/routes/home.tsx`
 
-Both routes render the same component from `apps/web/app/welcome/welcome.tsx`. There are no route loaders, no route actions, no session handling, no data fetching helpers, and no API client layer in the current frontend tree.
+Both routes render the same component from `apps/web/app/welcome/welcome.tsx`.
 
 `apps/web/vite.config.ts` shows the active frontend stack:
 
@@ -84,31 +84,23 @@ The relationship to the rest of the repo is mostly implicit. The API service ena
 
 `apps/api` is the TypeScript backend boundary. It uses NestJS for the HTTP framework, Bun as the runtime for local development and execution, and TypeScript compilation to `dist/` for builds.
 
-The service boots from `apps/api/src/main.ts`. That file creates the Nest application, enables CORS for `http://localhost:3000`, and listens on port `3001`.
+The service boots from `apps/api/src/main.ts`. It creates the Nest application, enables CORS through the `CORS_ORIGINS` environment variable, applies a global validation pipe that strips unknown properties and transforms input types, and listens on the `PORT` environment variable, which defaults to `3001`.
 
-The root module lives at `apps/api/src/app.module.ts`. Its composition is currently minimal: one root module and one controller, with no providers, feature modules, guards, pipes, interceptors, or middleware classes registered.
+The root module imports feature modules for agents, marketplace, payments, subscriptions, credits, payouts, earnings, referrals, and health. Authentication uses Supabase JWT bearer tokens through an auth guard. Admin endpoints require an additional admin role guard.
 
-The only implemented controller is `apps/api/src/health/health.controller.ts`. It exposes `GET /health` and returns a static payload indicating the API is healthy. There is no service layer, DTO layer, repository layer, or domain module structure behind that endpoint.
-
-That makes `apps/api` a real runnable service, but architecturally it is still a shell. The service boundary exists at the application level, not yet at the module or domain level.
+The API exposes dozens of endpoints across its feature modules, with DTO classes for request validation, service layers for business logic, and database access through the Supabase client and `pg` library. See the API reference for the full endpoint inventory.
 
 ### `apps/ai-service`: FastAPI Python service
 
-`apps/ai-service` is the Python service intended to host AI-related functionality. In its current state, it is a very small FastAPI application with one route and no internal substructure.
+`apps/ai-service` is the Python service for agent verification, quality review, and AI-assisted content generation. It uses OpenRouter or OpenAI for language model access, Bedrock for guardrail checks, Gemini for embeddings and search, and Redis for session caching.
 
-The entry point is `apps/ai-service/main.py`. That file creates a `FastAPI` app and defines `GET /health`, which returns a static status object. There are no routers, service classes, Pydantic models beyond what FastAPI would support, middleware, persistence adapters, or model-inference integrations implemented yet.
+The service exposes endpoints for agent verification with SSE streaming, description and category generation, setup field validation, URL safety screening, and quality review workflows. It uses Pydantic models for request and response validation.
 
-The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development. The tooling is ready for a larger service, but the runtime surface area is currently limited to health checking.
-
-<Callout kind="info">
-
-Despite the service name `ai-service`, the current codebase does not include integrations with model providers, vector databases, inference libraries, or any AI-specific application logic.
-
-</Callout>
+The entry point is `apps/ai-service/main.py`. The Python project configuration lives in `apps/ai-service/pyproject.toml`. Dependencies include `fastapi`, `pydantic`, and `uvicorn`, with `ruff` and `pytest` declared for development.
 
 ## Entry points and request handling
 
-Each application has a clear entry point, but request handling remains shallow.
+Each application has a clear entry point, with request handling distributed across the web routes and backend feature modules.
 
 ### Web routes
 
@@ -123,122 +115,62 @@ Both route modules render the same welcome component. There are no loaders, acti
 
 ### API routes
 
-The API entry point is `apps/api/src/main.ts`, and the only route controller is `apps/api/src/health/health.controller.ts`.
-
-Implemented route behavior today:
-
-- `GET http://localhost:3001/health`
-
-The repository README reportedly references `/api/health`, but `apps/api/src/main.ts` does not set a global prefix. Based on the code, the implemented route is `/health`, not `/api/health`.
+The API entry point is `apps/api/src/main.ts`. Controllers define their own `/api/...` route prefixes. The API exposes endpoints for agents, marketplace, subscriptions, credits, earnings, referrals, payouts, and webhooks. See the API reference for the full endpoint inventory.
 
 ### AI service routes
 
-The AI service entry point is `apps/ai-service/main.py`.
-
-Implemented route behavior today:
-
-- `GET /health`
-
-There are no additional routers or path groupings.
+The AI service entry point is `apps/ai-service/main.py`. The service exposes endpoints for agent verification, content generation, setup validation, URL safety, and quality review.
 
 ## Module relationships and service boundaries
 
-The repository has strong top-level separation and very thin internal layering. The clearest boundaries today are folder boundaries:
+The repository has strong top-level separation and layered internal modules. The Nest application organizes domain behavior through feature modules, controllers, DTOs, services, guards, and database access. The FastAPI application separates its endpoint workflows and uses Pydantic models for request and response validation.
+
+The clearest boundaries today are folder boundaries:
 
 - `apps/web` for the frontend
 - `apps/api` for the TypeScript backend
 - `apps/ai-service` for the Python backend
 
-Inside those boundaries, the internal module graph is still mostly absent. The Nest app does not yet follow a controller-to-service-to-repository pattern. The FastAPI app does not yet split routes into routers or separate business logic into services. The frontend does not yet separate route modules from API clients, domain packages, or shared contracts.
-
-That means the current architecture is macro-separated but not yet layered. The repo signals where responsibilities will likely live, but those responsibilities are not implemented in code yet.
-
 ### Current cross-service wiring
 
-Expected relationships are visible in naming and configuration, not in running integrations.
-
-- `apps/api/src/main.ts` allows CORS from `http://localhost:3000`, implying browser calls from the web app.
-- The repository README describes a future shared-contract pattern through planned packages.
-- The presence of both `apps/api` and `apps/ai-service` implies a future backend-to-backend relationship.
-
-No direct wiring exists today:
-
-- no frontend fetches to the API in `apps/web`
-- no API client or SDK package
-- no API calls from `apps/api` to `apps/ai-service`
-- no shared `packages/` code
-- no shared schema or contract definitions
-
-<Callout kind="alert">
-
-Treat the current topology as three isolated services managed in one monorepo, not as an already integrated multi-service system.
-
-</Callout>
+The API communicates with the AI service over HTTP for verification, review, and content generation. The web app communicates with the API through an API client layer. Both the API and web app use Supabase for authentication and database access.
 
 ## Persistence, middleware, auth, and external services
 
 ### Database and persistence
 
-No database or persistence layer is implemented in the current repository. There are no ORM configurations, migration files, schema directories, repository classes, entity models, or connection settings that would indicate active persistence.
+The platform uses Supabase-hosted PostgreSQL as its primary database. The persistence layer is schema-first and SQL-first: tables, constraints, triggers, and stored procedures are defined in raw SQL migrations. The API accesses the database through the Supabase client and the `pg` library. No ORM entity layer is used.
 
-Notably absent from the tree:
+The database schema covers billing and credits, marketplace workflows, agent review and verification, earnings and payouts, referrals, user profiles, bounty systems, notifications, and telemetry. See the Data Models Reference for the full table inventory.
 
-- `prisma/`
-- `db/` or `database/`
-- ORM setup for TypeORM, Prisma, Drizzle, MikroORM, Mongoose, or Sequelize
-- SQL migration files
-- Redis or cache clients
-- `.env.example` with database connection variables
-
-The practical result is a stateless system. The frontend renders starter UI, the API returns a hardcoded health response, and the AI service returns a hardcoded health response.
+A separate Activepieces PostgreSQL database stores workflow execution state, including flows, runs, and connections. Activepieces manages this schema, which is intentionally separate from the Gravity application database.
 
 ### Middleware
 
-Middleware is also minimal across all services.
-
-- In `apps/api/src/main.ts`, the only visible platform-level request configuration is CORS.
-- In `apps/web`, there is no evidence of session middleware, CSRF protection, cookie handling, or request interception.
-- In `apps/ai-service/main.py`, there is no middleware configured.
-
-This absence matters architecturally because cross-cutting concerns have not yet been formalized. Logging, validation, auth enforcement, and request context propagation are still future concerns.
+The API uses a global validation pipe that strips unknown properties and transforms input types. CORS is configured through the `CORS_ORIGINS` environment variable. Sentry and PostHog integrations provide error tracking and analytics.
 
 ### Authentication and authorization
 
-No authentication or authorization layer exists today.
-
-There are no signs of:
-
-- login or logout endpoints
-- JWT or session cookies
-- Passport or strategy modules in Nest
-- Remix session storage
-- user identity models
-- authorization guards or policy enforcement
-
-The absence is consistent across all three applications. Any future protected routes, user-specific state, or service-to-service trust model will need to be added from scratch.
+Authentication uses Supabase JWT bearer tokens. Most API endpoints require a valid token through an auth guard. Admin endpoints additionally require an administrator role. Public endpoints include health checks, public workflow detail, share-link resolution, file proxy downloads, and webhook receivers. Webhooks authenticate through provider signature verification.
 
 ### External services and integrations
 
-Actual external integrations are limited.
+Present integrations:
 
-Present today:
+- Supabase for database, authentication, and row-level security
+- Activepieces for workflow execution
+- OpenRouter and OpenAI for language model access
+- Bedrock for guardrail checks
+- Gemini for embeddings and search
+- Redis for session caching
+- Razorpay and Stripe for pay-ins
+- RazorpayX, PayPal, and Stripe Connect for payouts
+- SMTP for email notifications
+- Sentry for error tracking
+- PostHog for product analytics
+- Crisp for support chat, when enabled
 
-- browser-to-API CORS allowance for `http://localhost:3000` in `apps/api/src/main.ts`
-- Google Fonts references in `apps/web/app/root.tsx`
-- GitHub Container Registry publishing in `.github/workflows/web.yml`, `.github/workflows/api.yml`, and `.github/workflows/ai-service.yml`
-
-Not present today:
-
-- model provider APIs
-- databases
-- caches
-- queues
-- cloud object storage
-- email or SMS providers
-- payment providers
-- OAuth providers
-- observability or APM tooling
-- feature flag systems
+See the Integrations page for details on each integration.
 
 ## Build, release, and deployment tooling
 
@@ -278,39 +210,21 @@ Those workflows handle build and verification steps, version generation, Docker 
 
 A few repo details can mislead an architectural review unless they are called out directly.
 
-### Shared packages are planned but absent
-
-`pnpm-workspace.yaml` includes `packages/*`, and the README describes shared packages for types, UI, and config. The actual file tree does not contain a `packages/` directory.
-
-That gap matters because the intended contract-sharing architecture does not exist yet in code. No current module should be assumed to share types or UI primitives through a workspace package.
-
 ### Script and naming drift around the Python service
 
 The repository uses `apps/ai-service` as the actual Python service path, but some root-level references still point to `py-service`. The most concrete example is the root `package.json` script that targets `apps/py-service`.
 
 This inconsistency affects local development expectations and is a sign that repo documentation and scripts have not fully caught up with the current directory structure.
 
-### API route documentation mismatch
-
-The README references `/api/health`, but the implemented Nest app does not set a global prefix in `apps/api/src/main.ts`. The existing controller path in `apps/api/src/health/health.controller.ts` therefore resolves to `/health`.
-
-When evaluating the system, trust the source files over the README for current route shape.
-
-### Testing exists mostly as intent
-
-The Python service declares `pytest`, and the workflows reference verification steps, but the repository does not yet show a meaningful test suite. The CI layer is prepared for broader testing, while the codebase itself remains at an early implementation stage.
-
 <Callout kind="info">
 
-The strongest part of the current architecture is operational structure: app boundaries, runtime separation, containerization, and release automation. The weakest part is application depth: no domain modules, no persistence, no auth, and no implemented service-to-service flows.
+The architecture has matured from its initial scaffold into a feature-complete platform. The strongest aspects remain the operational structure: service boundaries, runtime separation, containerization, and release automation. The application layer now includes domain modules, persistence, authentication, and cross-service integration.
 
 </Callout>
 
 ## What this architecture means today
 
-Gravity already answers some important architectural questions. It has chosen service boundaries, runtimes, build tools, and release mechanics. That gives the repository a stable foundation for future feature work.
-
-What it has not answered yet are the application-level questions: where domain logic lives, how contracts are shared, how state is stored, how users authenticate, and how the API and AI service collaborate. Until those layers exist, the repo should be evaluated as a well-structured platform skeleton rather than as an implemented distributed system.
+Gravity has a stable foundation with clear service boundaries, mature operational tooling, and a feature-complete application layer. The API, web, and AI services are integrated through authentication, database access, and HTTP communication. Domain modules cover agents, marketplace, billing, earnings, payouts, and referrals.
 
 ## Related pages
 
@@ -328,10 +242,10 @@ What it has not answered yet are the application-level questions: where domain l
 
   <Card title="Features" href="/features" icon="code">
 
-    Review the documented capabilities and compare them with the current implementation state.
+    Review the platform capabilities and feature inventory.
 
   </Card>
-  <Card title="Help center" href="/help-center/help-center" icon="help-circle">
+  <Card title="Help center" href="/help-center" icon="help-circle">
 
     Find troubleshooting and support-oriented guidance for common setup and usage issues.
 

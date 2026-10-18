@@ -1,164 +1,243 @@
 ---
 title: Integrations
-description: Connect documentation content and tooling workflows to your development process.
+description: Connect Gravity to Activepieces for workflow execution, OAuth providers for app connections, and payment providers for billing and payouts.
 ---
 
-## Why integrations matter
+## Overview
 
-Documentation works better when it connects to the systems that already run your workflow. Git repositories, CI jobs, event handlers, and content tooling keep docs closer to the code they describe and make changes easier to verify.
+Gravity integrates with external services that power its agent marketplace, billing, workflow execution, authentication, and observability.
 
-## Integration categories
+The core integrations are:
+
+- **Activepieces:** Workflow execution, scheduling, and approval waitpoints
+- **OAuth providers:** Third-party app connections for workflow steps, including Google, Slack, Notion, and GitHub
+- **Payment providers:** Razorpay and Stripe for pay-ins, plus RazorpayX, PayPal, and Stripe Connect for payouts
+- **Supabase:** PostgreSQL database hosting, authentication, and row-level security
+- **AI service:** Agent verification, quality review, and AI-assisted content generation
+- **Observability services:** Sentry for error tracking and PostHog for product analytics
+
+## Activepieces integration
+
+Activepieces is the workflow engine behind Gravity's agent marketplace. Builders create automation workflows in Activepieces, Gravity publishes those workflows as marketplace agents, and consumers run the agents through Gravity's API.
+
+Gravity handles the integration boundary between marketplace requests and Activepieces workflow runs:
+
+- Workflow runs execute through Activepieces. Gravity resolves connections and normalizes execution results.
+- Approval waitpoints pause runs until a human approves them. Gravity retains the run handle while it polls for completion.
+- Gravity probes the Activepieces version and caches the result for 10 minutes to select compatible behavior.
+- Schedule piece compatibility is version-gated. Gravity skips the schedule pin on Activepieces 0.87.0 and later, but retains it for older versions.
+- AI provider objects exported from Activepieces Cloud are flattened to the configured provider string.
+- Email addresses used during user provisioning are trimmed and lowercased to prevent account-matching failures.
+- The file proxy only forwards URLs whose host matches the configured Activepieces instance URL.
 
 <Callout kind="info">
 
-The categories below are intentionally generic. Exact integration names, providers, and setup steps are not sourced here, so treat them as patterns rather than product-specific instructions.
+Activepieces maintains a separate PostgreSQL database for workflow execution state, including flows, runs, and connections. Activepieces manages this schema independently from the Gravity application database.
 
 </Callout>
 
-Use integrations to:
+### Configuration
 
-- sync content from Git-based sources
-- verify documentation builds in CI
-- react to events from publishing or content pipelines
-- connect Markdown and MDX files to local editor and build tooling
+<ParamField body="ACTIVEPIECES_INSTANCE_URL" param-type="string" required="true" show-location="false">
+The URL of the Activepieces server that Gravity uses for workflow execution and file proxy validation.
+</ParamField>
 
-## Git-based content sync
+<ParamField body="AP_JWT_SECRET" param-type="string" required="true" show-location="false">
+The shared JWT secret used for provisioning users in Activepieces.
+</ParamField>
 
-Git-based sync keeps documentation in the same review and versioning flow as application code. In practice, that means docs live in a repository, changes move through pull requests, and merges become the source of truth for published content.
+<ParamField body="AP_POSTGRES_*" param-type="string" required="true" show-location="false">
+The Activepieces PostgreSQL connection variables.
+</ParamField>
 
-This pattern works well when you want review history, branch-based editing, and traceable rollbacks. It also keeps documentation changes visible to the same people who already review code and release work.
+<ParamField body="GRAVITY_OAUTH_STATE_SECRET" param-type="string" required="false" show-location="false">
+The secret used to sign OAuth state JWTs. Gravity falls back to `AP_JWT_SECRET` when this value is not configured.
+</ParamField>
 
-### Typical workflow
+## OAuth provider connections
 
-<Steps>
+Gravity supports OAuth connections for third-party applications used by workflow steps. Each provider requires a client ID and client secret configured through environment variables. Gravity enables a provider only when both values are present.
 
-<Step title="Edit content in the repository" icon="edit">
+### Supported providers
 
-Update Markdown or MDX files in the branch you are already using for the change.
+<Columns cols={3}>
 
-</Step>
+<Card title="Communication" icon="users">
 
-<Step title="Review the diff" icon="check">
+Google, including Gmail, Sheets, Calendar, and Drive; Microsoft, including Outlook and Teams; and Slack.
 
-Confirm the content change, metadata, and links before merge. The review should show the exact files that changed.
+</Card>
 
-</Step>
+<Card title="Productivity" icon="settings">
 
-<Step title="Publish from the approved branch" icon="upload">
+Notion, Asana, ClickUp, Monday, Todoist, GitHub, and GitLab.
 
-Merge the branch into the publishing branch or trigger your normal release flow. The published docs should reflect the reviewed commit.
+</Card>
 
-</Step>
+<Card title="CRM and sales" icon="bar-chart">
 
-</Steps>
+HubSpot, Salesforce, Pipedrive, and Zoho.
 
-## CI build verification
+</Card>
 
-CI verification catches broken documentation before it reaches readers. A docs build usually checks parsing, component usage, link integrity, and any site-specific transforms that your toolchain applies.
+<Card title="Marketing" icon="zap">
 
-<Callout kind="tip">
+Mailchimp, Constant Contact, LinkedIn, and Reddit.
 
-If your docs rely on custom MDX components, keep the build check close to the editor workflow so syntax errors surface before merge.
+</Card>
+
+<Card title="Finance" icon="database">
+
+Stripe, QuickBooks, Xero, and Square.
+
+</Card>
+
+<Card title="Creative and web" icon="cloud">
+
+Figma, Webflow, Dropbox, and Box.
+
+</Card>
+
+</Columns>
+
+<Callout kind="info">
+
+OAuth providers are configured dynamically. When both `OAUTH_PROVIDER_CLIENT_ID` and `OAUTH_PROVIDER_CLIENT_SECRET` are set for a provider, Gravity makes that provider available for workflow connections. Gravity brokers OAuth flows through its API and supports both cloud and custom OAuth completion.
 
 </Callout>
 
-### Example setup
+## Payment providers
 
-Use the same source content for local preview and CI validation, but run them in different places for different reasons.
+Gravity uses separate payment integrations for pay-ins and payouts. Pay-ins add credits or create subscriptions, while payouts transfer creator earnings to an external account.
 
-<Tabs>
-  <Tab title="Local preview" icon="monitor">
-
-Local preview helps you catch layout problems, MDX syntax issues, and broken links while you edit.
-
-<CodeGroup tabs="npm,pnpm" show-lines={true}>
-
-```bash
-npm run docs:dev
-```
-
-```bash
-pnpm docs:dev
-```
-
-</CodeGroup>
-
-  </Tab>
-  <Tab title="CI check" icon="shield">
-
-CI verification runs the docs build after install and before deployment.
-
-<CodeGroup tabs="npm,pnpm" show-lines={true}>
-
-```bash
-npm run docs:build
-```
-
-```bash
-pnpm docs:build
-```
-
-</CodeGroup>
-
-  </Tab>
-</Tabs>
-
-## Webhooks and events
-
-Webhook and event integrations connect documentation workflows to other systems when something changes. Common uses include notifying a build system, triggering a sync job, or handing off a publishing event to another service.
-
-Because exact event names are not sourced here, define your own event contract around the actions you already need, such as content updated, page published, or build completed. Keep the payload stable and small so downstream automation stays predictable.
-
-### What to keep in the payload
-
-- the content identifier
-- the action that occurred
-- a timestamp
-- the source branch or environment, when relevant
-
-## Markdown and MDX toolchain integration
-
-Markdown and MDX usually fit into the same editing stack as the rest of a documentation site. Editors, formatters, linters, and site builds can all work from the same files as long as they agree on syntax and component support.
-
-Use the toolchain to enforce consistency, not to add complexity. A good setup catches malformed frontmatter, invalid component usage, and broken links before a page is published.
-
-### Toolchain checks to enable
-
-- frontmatter parsing
-- MDX syntax validation
-- markdown formatting
-- link checking
-- component availability checks
-
-## Troubleshooting
-
-<ExpandableGroup>
-  <Expandable title="Build fails during docs validation">
-
-Build failures usually come from invalid MDX, missing component imports in a custom pipeline, or a link that points to a page that does not exist. Start with the first error in the build log, then fix one issue at a time.
-
-Check that any page path used in navigation or links matches a file that exists in the repository. If the build fails after a content change, compare the failing file against the last known good commit.
-
-  </Expandable>
-  <Expandable title="A page is missing after sync">
-
-A missing page usually means the file did not sync, the route path does not match the filename, or the page was excluded by your build rules. Confirm that the source file exists, the route is still wired correctly, and the page is included in the publish step.
-
-If the page moved, update every internal link that still points to the old path so readers do not hit a dead end.
-
-  </Expandable>
-</ExpandableGroup>
-
-## Next steps
+### Pay-in providers
 
 <Columns cols={2}>
 
-<Card title="Docs workflow" href="/docs" icon="book-open" horizontal={true}>
-See how documentation pages fit into the broader documentation workflow.
+<Card title="Razorpay" icon="credit-card">
+
+Razorpay handles credit purchases and subscription checkout for users in India. Gravity verifies Razorpay webhooks with an HMAC signature.
+
 </Card>
 
-<Card title="Content tooling" href="/docs/tooling" icon="settings" horizontal={true}>
-Review the editor and build patterns that support docs authoring.
+<Card title="Stripe" icon="credit-card">
+
+Stripe handles credit purchases and subscription checkout for international users. Gravity uses separate webhook secrets for payments, Connect, and subscriptions.
+
+</Card>
+
+</Columns>
+
+Gravity selects the pay-in provider automatically using geographic information from request headers. Configure `PAYMENTS_GEO_DEFAULT_COUNTRY` to provide the fallback country when the request does not include a country header. The default fallback is `IN`.
+
+### Payout providers
+
+<Columns cols={3}>
+
+<Card title="RazorpayX" icon="upload">
+
+RazorpayX handles bank transfers and UPI payouts for creators in India. Gravity rejects placeholder webhook secrets.
+
+</Card>
+
+<Card title="PayPal" icon="cloud">
+
+PayPal handles international creator payouts and supports both sandbox and live modes.
+
+</Card>
+
+<Card title="Stripe Connect" icon="link">
+
+Stripe Connect handles onboarding for international creators and processes their payouts.
+
+</Card>
+
+</Columns>
+
+<Callout kind="alert">
+
+Gravity protects payout creation with database-level advisory locks and guarded operations to prevent duplicate withdrawals. Duplicate requests return a conflict response, and requests that exceed available earnings return a structured error.
+
+</Callout>
+
+## Supabase
+
+Gravity uses Supabase for PostgreSQL hosting, authentication, and row-level security. The API accesses the database through the Supabase client and the `pg` library.
+
+### Configuration
+
+<ParamField body="SUPABASE_URL" param-type="string" required="true" show-location="false">
+The Supabase project URL.
+</ParamField>
+
+<ParamField body="SUPABASE_ANON_KEY" param-type="string" required="true" show-location="false">
+The public Supabase client key.
+</ParamField>
+
+<ParamField body="SUPABASE_SERVICE_ROLE_KEY" param-type="string" required="true" show-location="false">
+The administrative Supabase key. This key bypasses row-level security and must remain server-side.
+</ParamField>
+
+<ParamField body="SUPABASE_DB_URL" param-type="string" required="true" show-location="false">
+The direct PostgreSQL connection URL used by migration scripts.
+</ParamField>
+
+Gravity authenticates API requests with Supabase JWT bearer tokens. Most API endpoints require a valid token, and administrative endpoints additionally require an administrator role.
+
+## AI service integration
+
+Gravity communicates with a Python FastAPI service over HTTP for agent verification, quality review, and AI-assisted content generation.
+
+### Configuration
+
+<ParamField body="AI_SERVICE_URL" param-type="string" required="false" show-location="false">
+The base URL of the AI service. The default is `http://localhost:8001`.
+</ParamField>
+
+<ParamField body="AI_SERVICE_TIMEOUT_MS" param-type="integer" required="false" show-location="false">
+The HTTP request timeout in milliseconds. The default is `10000`.
+</ParamField>
+
+The AI service uses OpenRouter or OpenAI for language model access, Bedrock for guardrail checks, Gemini for embeddings and search, and Redis for session caching.
+
+## Observability
+
+<Columns cols={2}>
+
+<Card title="Sentry" icon="alert-triangle">
+
+Sentry tracks errors and performance across browser and server integrations. Configure it separately for each environment.
+
+</Card>
+
+<Card title="PostHog" icon="bar-chart">
+
+PostHog collects product analytics. Gravity sends server-side events only when `POSTHOG_ENVIRONMENT` is set to `production`.
+
+</Card>
+
+</Columns>
+
+## Related docs
+
+<Columns cols={3}>
+
+<Card title="API Reference" href="/api-reference/nestjs-api" icon="code">
+
+Browse integration-related API endpoints.
+
+</Card>
+
+<Card title="Configuration" href="/configuration-reference" icon="settings">
+
+Review environment variables for integrations.
+
+</Card>
+
+<Card title="Features" href="/features" icon="zap">
+
+See how integrations support Gravity platform features.
+
 </Card>
 
 </Columns>

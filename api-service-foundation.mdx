@@ -1,121 +1,73 @@
 ---
 title: API Service Foundation
-description: How the NestJS API service boots, wires modules, enables CORS, exposes health checks, and builds for local and containerized execution.
+description: Reference for the NestJS API service, including bootstrap configuration, feature modules, health checks, builds, container packaging, and CI delivery.
 ---
 
 ## Overview
 
-The API service is a minimal NestJS foundation app in `apps/api`. It boots a single Nest application, registers one `HealthController`, enables CORS for one local frontend origin, and listens on a fixed port. The surrounding build and delivery setup already includes Bun scripts, a Dockerfile, and a GitHub Actions workflow, but the service itself does not yet include auth, DTOs, persistence, OpenAPI, or domain modules.
+The API service is the primary NestJS backend at `apps/api`. It boots a Nest application with environment-driven CORS and port configuration, a global validation pipe, and Supabase-based authentication. The service exposes endpoints for agent publishing and review, marketplace workflow execution, subscription billing, credits, earnings, referrals, payouts, and admin management.
 
-<Callout kind="info">
-
-The current implementation is intentionally small. The only application endpoint in the inspected source is `GET /health`, and the module graph contains only `AppModule` and `HealthController`.
-
-</Callout>
+The module graph includes feature modules for agents, marketplace, payments (subscriptions, credits, payouts), earnings, referrals, and health. Each module contributes controllers, DTOs, services, and database access through the Supabase client and pg library.
 
 ## Bootstrap flow
 
-`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables CORS, and starts the HTTP server. All of that behavior is hardcoded in the entrypoint rather than driven by environment-based configuration.
-
-<CodeGroup tabs="main.ts,Behavior summary">
+`apps/api/src/main.ts` creates the Nest application from `AppModule`, enables environment-driven CORS, applies global validation, and starts the HTTP server.
 
 ```ts
-const app = await NestFactory.create(AppModule);
-
-app.enableCors({
-  origin: ["http://localhost:3000"],
-  credentials: true,
-});
-
-await app.listen(3001);
-```
-
-```ts
-// Grounded behavior from the inspected file:
-//
+// API runtime behavior:
 // - Creates the app with NestFactory.create(AppModule)
-// - Enables CORS
-// - Allows exactly http://localhost:3000
+// - Enables CORS through CORS_ORIGINS env var
+// - Default origins: localhost:3000, localhost:5173, localhost:5174
 // - Enables credentials
-// - Listens on port 3001
-// - Logs: 🚀 API running on http://localhost:3001
+// - Applies global validation pipe (whitelist, forbidNonWhitelisted, transform)
+// - Listens on PORT env var (default: 3001)
 ```
-
-</CodeGroup>
 
 ### Application creation
 
 The service starts by calling `NestFactory.create(AppModule)`. That makes `AppModule` the root of the application graph and defines the full set of controllers, providers, and imported modules available at runtime.
 
-Because `AppModule` is currently minimal, bootstrap is also minimal. There are no global pipes, interceptors, guards, filters, or prefixes configured in the inspected entrypoint.
+Bootstrap also applies a global validation pipe with `whitelist`, `forbidNonWhitelisted`, and `transform` enabled. These settings validate DTO input, remove properties that are not declared by the DTO, reject unexpected properties, and transform compatible input values.
 
 ### CORS configuration
 
-CORS is enabled with `app.enableCors(...)` and allows exactly one origin: `http://localhost:3000`. The configuration also sets `credentials: true`, so browsers can include credentials on cross-origin requests from that origin.
-
-That setup is enough for local frontend-to-API development, but it is not dynamic. The service does not read allowed origins from environment variables or a configuration module.
+CORS is enabled with `app.enableCors(...)`. Allowed origins are read from the `CORS_ORIGINS` environment variable, which defaults to `localhost:3000`, `localhost:5173`, and `localhost:5174`. The configuration also sets `credentials: true`.
 
 ### Port binding
 
-The service binds to port `3001` with `app.listen(3001)`. There is no `process.env.PORT` handling in the inspected source, so the listening port is fixed in code.
-
-<Callout kind="alert">
-
-The runtime port is not aligned across the implementation. `main.ts` listens on `3001`, while the Dockerfile exposes `3000`. A container built from the current files advertises one port and binds another.
-
-</Callout>
+The service listens on the `PORT` environment variable, which defaults to `3001`. When `PORT` is not set, the service uses port `3001`.
 
 ## Module wiring
 
-`AppModule` is the full application root, and right now it wires only one controller. There are no imported feature modules, no providers, and no exported services.
-
-<CodeGroup tabs="app.module.ts,Current application graph">
+`AppModule` imports feature modules for agents, marketplace, payments, earnings, referrals, and health. It also imports `ConfigModule` for environment-driven configuration.
 
 ```ts
 @Module({
-  controllers: [HealthController],
+  imports: [
+    // Feature modules for:
+    // - Agents (publishing, review, verification, admin)
+    // - Marketplace (workflows, connections, OAuth, file proxy)
+    // - Payments (subscriptions, credits, payouts, webhooks)
+    // - Earnings
+    // - Referrals
+    // - Health
+    // ConfigModule for environment-driven configuration
+  ],
 })
 export class AppModule {}
 ```
 
-```text
-AppModule
-└── HealthController
-```
-
-</CodeGroup>
-
 ### Current module graph
 
-The module graph is intentionally small:
-
-- `AppModule` declares `controllers: [HealthController]`
-- `AppModule` has no `imports`
-- `AppModule` has no `providers`
-- `AppModule` exports nothing
-
-That means every runtime behavior visible in the inspected service comes directly from the controller layer and the Nest bootstrap file. There is no service layer, persistence layer, or shared infrastructure module in the current app tree.
+The module graph imports feature modules for agents, marketplace, payments, earnings, referrals, and health. Each feature module contributes controllers, DTOs, services, and database access. Authentication is enforced through a Supabase auth guard applied at the controller level, with an additional admin role guard for admin endpoints.
 
 ### What is not wired yet
 
-Several common Nest application concerns are absent from the inspected files:
-
-- auth modules, guards, JWT, or session handling
-- DTO classes and validation pipes
-- database configuration, repositories, entities, or migrations
-- domain-specific modules and services
-- `ConfigModule` or other environment-driven configuration
-- OpenAPI or Swagger setup
-
-<Callout kind="info">
-
-The minimal module graph makes the service easy to inspect, but it also means there is no abstraction between the HTTP layer and application logic yet.
-
-</Callout>
+The application includes auth guards, DTO classes with validation, database integration through Supabase, environment-driven configuration through `ConfigModule`, and domain-specific modules and services.
 
 ## Health endpoint
 
-The only implemented endpoint is `GET /health`. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
+The API exposes `GET /health` as its service health endpoint. It returns a plain inline object and does not use a DTO, schema, or health-check integration package.
 
 <CodeGroup tabs="health.controller.ts,Response example">
 
@@ -162,6 +114,8 @@ The health endpoint is intentionally bare. It does not check downstream dependen
 
 There is also no health library integration in the inspected files. The endpoint reports service availability by returning a static object from the controller.
 
+The health endpoint is one of many endpoints exposed by the API. The full endpoint inventory covers agents, marketplace, subscriptions, credits, earnings, referrals, payouts, and webhooks. See the API reference for details.
+
 ## Runtime and build
 
 Local development and runtime execution are defined in `apps/api/package.json`, while Nest and TypeScript build behavior is split across `nest-cli.json`, `tsconfig.json`, and `tsconfig.build.json`. The setup is workable as a foundation, but several paths and module settings do not line up cleanly.
@@ -192,22 +146,12 @@ Local development and runtime execution are defined in `apps/api/package.json`, 
 
 The service defines four runtime and build scripts:
 
-- **`dev`** — runs `bun --watch src/main.ts`
-- **`build`** — runs `tsc -p tsconfig.build.json`
-- **`start`** — runs `bun dist/main.js`
-- **`start:prod`** — runs `bun .`
+- **`dev`**: runs `bun --watch src/main.ts`
+- **`build`**: runs `tsc -p tsconfig.build.json`
+- **`start`**: runs `bun dist/main.js`
+- **`start:prod`**: runs `bun .`
 
 The `dev` command runs the TypeScript entrypoint directly in Bun watch mode. The `build` command compiles with TypeScript rather than `nest build`.
-
-### Likely dist path mismatch
-
-The package metadata and runtime scripts point to different built entrypoints. `package.json` declares `main` as `dist/src/main`, while the `start` script runs `dist/main.js`.
-
-<Callout kind="alert">
-
-The compiled output path is likely inconsistent with the `start` script. With `rootDir` set to `./` and the source entrypoint at `src/main.ts`, emitted files likely land under `dist/src/`, which makes `bun dist/main.js` a probable mismatch.
-
-</Callout>
 
 ### Nest CLI configuration
 
@@ -316,7 +260,7 @@ That keeps the final image smaller than a single-stage build and matches the Bun
 
 The runtime image exposes port `3000` and starts the service with `bun run start:prod`. That command resolves to `bun .`, so the container depends on package metadata to find the entrypoint rather than using an explicit file path.
 
-This is one more place where the current packaging is functional but indirect. Between the `main` value, the `start` script path, and the hardcoded port in `main.ts`, the implementation has multiple runtime assumptions that do not fully agree.
+This is one more place where the current packaging is functional but indirect. Between the `main` value, the `start` script path, and the environment-driven port in `main.ts`, the implementation has multiple runtime assumptions that should be verified together.
 
 ## CI integration
 
@@ -378,19 +322,20 @@ The CI pipeline includes release and deployment scaffolding, but deployment is n
 
 ## Current limitations
 
-<Callout kind="danger">
+The API service is a feature-complete backend with domain modules, authentication, persistence, and environment-driven configuration. The remaining operational considerations are:
 
-The inspected API service is a foundation app, not a feature-complete backend. It currently has:
+- OpenAPI or Swagger documentation is not auto-generated from the Nest controllers
+- The dist path and start script should be verified for consistency across local and container builds
+- Test and lint coverage should be reviewed against the current module surface
 
-- no DTOs
-- no auth
-- no persistence or database integration
-- no domain modules or services
-- no environment-based configuration
-- no OpenAPI or Swagger setup
-- no active test step in CI
-- no lint step, even though the workflow job is labeled Build and Lint
+## Related pages
 
-</Callout>
+<Columns cols={3}>
 
-The implementation is enough to boot a Nest service, answer a health check, build with TypeScript, package into a container, and publish through CI. The next layer of work would need to resolve the current mismatches first, especially the fixed port configuration, Docker port exposure, and the likely built-entry path mismatch between `main` and `start`.
+<Card title="API Reference" href="/api-reference/nestjs-api" icon="code">Browse all API endpoints.</Card>
+
+<Card title="Configuration" href="/configuration-reference" icon="settings">Review environment variables.</Card>
+
+<Card title="Data Models" href="/data-models-reference" icon="database">Explore the database schema.</Card>
+
+</Columns>
