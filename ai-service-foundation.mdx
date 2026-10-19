@@ -1,76 +1,64 @@
 ---
 title: AI Service Foundation
-description: How the FastAPI-based AI service currently starts, manages dependencies with uv, exposes health status, and packages for container deployment.
+description: How the FastAPI AI service boots, exposes chat, guardrail, embedding, verification, agent review, and metering endpoints, manages dependencies with uv, and packages for container deployment.
 ---
 
 ## Overview
 
-The AI service is currently a minimal FastAPI application with one health check endpoint, uv-based dependency management, and a container build path. It establishes the service foundation, but the inspected implementation does not yet include AI-specific runtime behavior.
-
-<Callout kind="alert">
-
-No model orchestration, inference pipelines, authentication, or persistence are implemented in the analyzed files.
-
-</Callout>
+The AI service is a FastAPI application that provides the platform's AI capabilities, including chat interactions, content guardrails, text embeddings, agent indexing, requested-agent management, agent verification with server-sent event streaming, agent review analysis, and credit metering. It runs on port `8001` and organizes endpoints into structured router groups.
 
 ## Current scope
 
-This service is a FastAPI foundation rather than a feature-rich AI system. The inspected code shows a direct app bootstrap, one custom route, Python 3.14 tooling, and automation for linting, versioning, tagging, and container publishing.
+The AI service provides a feature-rich set of AI platform capabilities. It supports chat interactions backed by language model providers, content safety guardrails for input and output evaluation, vector embeddings for agent indexing and retrieval, requested-agent management, structured agent verification with server-sent event streaming, agent review analysis with findings and evidence scoring, and credit metering for execution usage tracking.
 
-That narrow scope matters when you evaluate what the service does today. The current implementation provides operational scaffolding, not application logic beyond a basic liveness-style endpoint.
+The service uses Pydantic models for request validation and organizes related endpoints into structured router groups for `/verification`, `/agent-review`, and `/credits`. Internal service-to-service endpoints use the `/internal` path prefix, while the admin pricing endpoint uses the `/admin` prefix.
 
-## Bootstrap in main.py
+## Bootstrap
 
-The application starts directly in `apps/ai-service/main.py`. App creation happens at module import time, and route registration happens inline with a decorator on the FastAPI app instance.
+The application starts from the service entry point. The bootstrap creates the FastAPI application, registers the health endpoint, mounts structured router groups for `/verification`, `/agent-review`, and `/credits`, and starts serving requests on port `8001`.
 
-<CodeGroup tabs="main.py,Notes">
+The router groups are composed at application startup, making related endpoints available under their respective path prefixes. Internal service-to-service endpoints under `/internal` and the admin pricing endpoint under `/admin` are also registered during bootstrap.
 
-```python
-from fastapi import FastAPI
-
-app = FastAPI()
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
-
-```text
-Grounded bootstrap details:
-
-- app = FastAPI() is defined at the top level
-- /health is registered with @app.get("/health")
-- the handler is synchronous: def health()
-- no APIRouter usage appears in the analyzed files
-- no middleware, startup hooks, shutdown hooks, or dependency wiring appear
-```
-
-</CodeGroup>
-
-The startup path is easy to understand because very little happens during initialization. The same minimalism also means there is no service layer, router composition, or application lifecycle logic in the current foundation.
+Pydantic models validate request bodies for each endpoint group, providing structured request validation before route handlers process incoming data.
 
 ## Health endpoint
 
-The only custom endpoint implemented in the analyzed service code is `GET /health`. It returns a plain JSON object with one field.
-
-<CodeGroup tabs="Route,Response">
-
-```python
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
+The `GET /health` endpoint reports the service health status, the running version, and whether chat functionality is available.
 
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "service": "ai-service",
+  "version": "1.0.0",
+  "chat_available": true
 }
 ```
 
-</CodeGroup>
+The `chat_available` field indicates whether the service has the required language model configuration to handle chat requests. When the LLM key is not configured, the field returns `false` and chat requests will fail with a `503 Service Unavailable` response.
 
-The endpoint does not define a response model, custom status code, tags, auth requirement, or explicit error handling. It is best understood as a basic process health check because no downstream dependencies are wired into the service.
+<ResponseField name="status" field-type="string" required="true">
+
+Returns `ok` when the AI service is healthy and responding.
+
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Identifies the AI service.
+
+</ResponseField>
+
+<ResponseField name="version" field-type="string" required="true">
+
+Reports the running AI service version.
+
+</ResponseField>
+
+<ResponseField name="chat_available" field-type="boolean" required="true">
+
+Indicates whether chat functionality is available based on language model configuration.
+
+</ResponseField>
 
 ## Python environment and dependency management
 
@@ -130,9 +118,7 @@ version = "0.41.0"
 
 </CodeGroup>
 
-The declared runtime dependencies are FastAPI, Pydantic, and Uvicorn. The dev dependency group adds Ruff and pytest, while the lockfile confirms uv-based locking and resolved versions for FastAPI `0.135.0`, Pydantic `2.12.5`, and Uvicorn `0.41.0`.
-
-No database, auth, model provider, background job, or migration packages appear in the analyzed files. That absence lines up with the service's current role as a minimal foundation.
+The declared runtime dependencies include FastAPI, Pydantic, and Uvicorn, along with additional packages for language model provider integrations, vector search, database connectivity, and other AI-specific libraries. The dev dependency group adds Ruff and pytest for code quality and testing.
 
 ## Run locally
 
@@ -153,7 +139,7 @@ uv run ruff check .
 
 </CodeGroup>
 
-If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns `{"status": "ok"}`.
+If startup succeeds, Uvicorn listens on port `8001`. A successful request to `GET /health` returns a JSON object with `status`, `service`, `version`, and `chat_available` fields.
 
 Tests are not part of the active CI path today. The workflow includes a commented-out pytest step, so pytest is declared as a dev dependency but is not currently enforced in automation.
 
@@ -183,7 +169,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 
 A few runtime details are explicit in the Dockerfile. The image exposes port `8001`, prepends `/app/.venv/bin` to `PATH`, and starts the app with `uvicorn main:app --host 0.0.0.0 --port 8001`.
 
-The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the current minimal service as-is.
+The Dockerfile does not define a non-root user, healthcheck instruction, environment-specific configuration, or deployment-time setup. It packages and runs the AI service as-is.
 
 ## CI workflow
 

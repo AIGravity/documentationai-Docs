@@ -1,105 +1,81 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Explore NestJS API endpoints for authentication, chat, agents, marketplace, payments, and health, including parameters, response shapes, and error codes.
 ---
 
 ## Overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API is the primary backend service and listens on port `3001`. Application routes use the global `/api` prefix, while health endpoints remain available at the root.
+
+Authentication uses Supabase bearer tokens through the `SupabaseAuthGuard`. Routes that require administrator privileges also use the `AdminGuard`. A global validation pipe enforces whitelisted properties, rejects unknown properties, and transforms request values to their declared types.
+
+Swagger documentation is available at [`/api/docs`](/api/docs). See the [OpenAPI specification](/api-reference/openapi) for complete schemas and generated details.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Send bearer tokens in the `Authorization` header using the format `Bearer <token>`. Public endpoints do not require authentication.
 
 </Callout>
 
 <Callout kind="alert">
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+Credit and subscription endpoints depend on billing feature flags. When billing is disabled, plan and checkout routes may return `404 Not Found`.
 
 </Callout>
 
-## Endpoint
+## Health
 
 ### GET `/health`
 
-Use this endpoint to verify that the NestJS backend is running and responding.
+Returns the current API health status. This public endpoint does not require authentication.
 
-<ParamField body="method" param-type="string" required="true" show-location="false">
+**Auth:** Public
 
-`GET`
-
-</ParamField>
-
-<ParamField body="path" param-type="string" required="true" show-location="false">
-
-`/health`
-
-</ParamField>
-
-<ParamField body="auth" param-type="string" required="true" show-location="false">
-
-No authentication requirements were found in the analyzed code.
-
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
-
-<ParamField body="path parameters" param-type="none" required="false" show-location="false">
-
-None. The route is fixed at `GET /health`.
-
-</ParamField>
-
-### Query parameters
-
-<ParamField body="query parameters" param-type="none" required="false" show-location="false">
-
-None. The handler does not define or consume query string values.
-
-</ParamField>
-
-### Headers
-
-<ParamField body="custom headers" param-type="none" required="false" show-location="false">
-
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
-
-</ParamField>
-
-### Request body
-
-<ParamField body="request body" param-type="none" required="false" show-location="false">
-
-None. `GET /health` does not accept a request body.
-
-</ParamField>
-
-### Example request
-
-<CodeGroup tabs="cURL">
+<CodeGroup tabs="cURL,Response">
 
 ```bash
 curl -i http://localhost:3001/health
 ```
 
+```json
+{
+  "status": "ok",
+  "service": "api",
+  "timestamp": "2025-01-15T12:00:00.000Z"
+}
+```
+
 </CodeGroup>
 
-## Response
+<ResponseField name="status" field-type="string" required="true">
 
-A successful request returns a JSON object that identifies the service and reports its status.
+Health state. The value is `ok` when the API is running.
 
-<CodeGroup tabs="JSON">
+</ResponseField>
+
+<ResponseField name="service" field-type="string" required="true">
+
+Service identifier. The value is `api`.
+
+</ResponseField>
+
+<ResponseField name="timestamp" field-type="string" required="true">
+
+ISO 8601 timestamp for the health check response.
+
+</ResponseField>
+
+### GET `/`
+
+Returns a basic API status response. This public endpoint does not require authentication.
+
+**Auth:** Public
+
+<CodeGroup tabs="cURL,Response">
+
+```bash
+curl -i http://localhost:3001/
+```
 
 ```json
 {
@@ -110,32 +86,932 @@ A successful request returns a JSON object that identifies the service and repor
 
 </CodeGroup>
 
-### Response fields
-
 <ResponseField name="status" field-type="string" required="true">
 
-Health state returned by the endpoint. The implemented handler returns `ok`.
+Health state. The value is `ok` when the API is running.
 
 </ResponseField>
 
 <ResponseField name="service" field-type="string" required="true">
 
-Service identifier returned by the endpoint. The implemented handler returns `api`.
+Service identifier. The value is `api`.
 
 </ResponseField>
 
-## Likely error responses
+## Authentication
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+Authentication routes are available under `/api/auth`.
 
-### 404 not found
+### POST `/api/auth/signup`
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
+Creates a user account and returns the user profile with authentication tokens.
 
-### 500 internal server error
+**Auth:** Public
 
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
+#### Request body
 
-## Notes
+<ParamField body="email" param-type="string" required="true">
 
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+Email address for the new account.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+Password for the new account.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="true">
+
+Account user type.
+
+</ParamField>
+
+<ParamField body="fullName" param-type="string" required="false">
+
+Full name associated with the account.
+
+</ParamField>
+
+<ParamField body="industry" param-type="string" required="false">
+
+Industry associated with the account.
+
+</ParamField>
+
+<ParamField body="profession" param-type="string" required="false">
+
+Profession associated with the account.
+
+</ParamField>
+
+#### Response
+
+Returns a user object and authentication tokens.
+
+<ResponseField name="user" field-type="object" required="true">
+
+Created user profile.
+
+</ResponseField>
+
+<ResponseField name="accessToken" field-type="string" required="true">
+
+Bearer token for authenticated API requests.
+
+</ResponseField>
+
+<ResponseField name="refreshToken" field-type="string" required="true">
+
+Token used to obtain a refreshed access token.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Request validation failed.
+- `409 Conflict`: An account already exists for the email address.
+
+<CodeGroup tabs="cURL,Response">
+
+```bash
+curl -X POST http://localhost:3001/api/auth/signup \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "jane.chen@acme.test",
+    "password": "ExamplePassword_42",
+    "userType": "creator",
+    "fullName": "Jane Chen",
+    "industry": "Software",
+    "profession": "Product designer"
+  }'
+```
+
+```json
+{
+  "user": {
+    "id": "usr_a1b2c3d4",
+    "email": "jane.chen@acme.test",
+    "userType": "creator",
+    "fullName": "Jane Chen"
+  },
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example",
+  "refreshToken": "refresh_example_8f3k2m1q"
+}
+```
+
+</CodeGroup>
+
+### POST `/api/auth/login`
+
+Authenticates an existing user and returns access and refresh tokens.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="email" param-type="string" required="true">
+
+Account email address.
+
+</ParamField>
+
+<ParamField body="password" param-type="string" required="true">
+
+Account password.
+
+</ParamField>
+
+#### Response
+
+Returns the authenticated user and token pair.
+
+<ResponseField name="user" field-type="object" required="true">
+
+Authenticated user profile.
+
+</ResponseField>
+
+<ResponseField name="accessToken" field-type="string" required="true">
+
+Bearer token for authenticated API requests.
+
+</ResponseField>
+
+<ResponseField name="refreshToken" field-type="string" required="true">
+
+Token used to obtain a refreshed access token.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Email or password is invalid.
+
+### POST `/api/auth/otp/send`
+
+Sends a one-time password to an email address.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address that receives the one-time password.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="false">
+
+User type to associate with a newly created account.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="message" field-type="string" required="true">
+
+Result message for the OTP request.
+
+</ResponseField>
+
+<ResponseField name="isNewUser" field-type="boolean" required="true">
+
+Indicates whether the email is associated with a new user.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Email or user type is missing or invalid.
+
+### POST `/api/auth/otp/verify`
+
+Verifies a one-time password and returns authentication credentials.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="email" param-type="string" required="true">
+
+Email address associated with the OTP.
+
+</ParamField>
+
+<ParamField body="token" param-type="string" required="true">
+
+One-time password to verify.
+
+</ParamField>
+
+<ParamField body="userType" param-type="string" required="false">
+
+User type to associate with a newly created account.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="user" field-type="object" required="true">
+
+Authenticated user profile.
+
+</ResponseField>
+
+<ResponseField name="accessToken" field-type="string" required="true">
+
+Bearer token for authenticated API requests.
+
+</ResponseField>
+
+<ResponseField name="refreshToken" field-type="string" required="true">
+
+Token used to obtain a refreshed access token.
+
+</ResponseField>
+
+<ResponseField name="isNewUser" field-type="boolean" required="true">
+
+Indicates whether the verification created a new user.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: OTP is invalid or expired.
+
+### GET `/api/auth/me`
+
+Returns the profile for the authenticated user.
+
+**Auth:** Bearer
+
+#### Response
+
+<ResponseField name="user" field-type="object" required="true">
+
+Current user profile.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Bearer token is missing or invalid.
+
+### POST `/api/auth/refresh`
+
+Refreshes an access token using a refresh token.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="refreshToken" param-type="string" required="true">
+
+Refresh token issued during signup, login, or OTP verification.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="accessToken" field-type="string" required="true">
+
+New bearer token for authenticated API requests.
+
+</ResponseField>
+
+<ResponseField name="refreshToken" field-type="string" required="true">
+
+Refreshed token for future access-token requests.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Refresh token is missing, invalid, or expired.
+
+### POST `/api/auth/logout`
+
+Logs out the authenticated user.
+
+**Auth:** Bearer
+
+#### Response
+
+Returns the logout result.
+
+<ResponseField name="success" field-type="boolean" required="true">
+
+Indicates whether logout completed successfully.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Bearer token is missing or invalid.
+
+## Chat and sessions
+
+Chat routes are available under `/api/chat`.
+
+### POST `/api/chat/message`
+
+Sends a message to an AI chat session and returns the AI interaction result.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="userId" param-type="string" required="true">
+
+User identifier associated with the chat request.
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="true">
+
+Chat session identifier.
+
+</ParamField>
+
+<ParamField body="message" param-type="string" required="true">
+
+Message to send to the AI service.
+
+</ParamField>
+
+#### Response
+
+Returns the AI interaction response, including generated content and session metadata when available.
+
+<ResponseField name="response" field-type="object" required="true">
+
+AI interaction result.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Request fields are missing or invalid.
+- `502 Bad Gateway`: AI generation or upstream processing failed.
+- `503 Service Unavailable`: Chat service is unavailable because no LLM key is configured.
+
+<CodeGroup tabs="cURL,Response">
+
+```bash
+curl -X POST http://localhost:3001/api/chat/message \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "usr_a1b2c3d4",
+    "sessionId": "sess_7h4k2m9p",
+    "message": "Summarize the latest workflow results."
+  }'
+```
+
+```json
+{
+  "response": {
+    "message": "The latest workflow completed successfully and processed 24 records.",
+    "sessionId": "sess_7h4k2m9p"
+  }
+}
+```
+
+</CodeGroup>
+
+### GET `/api/chat/sessions/{userId}`
+
+Returns chat sessions for a user.
+
+**Auth:** Public
+
+#### Path parameters
+
+<ParamField path="userId" param-type="string" required="true">
+
+User identifier whose sessions should be returned.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="sessions" field-type="array" required="true">
+
+List of chat sessions associated with the user.
+
+</ResponseField>
+
+### GET `/api/chat/sessions/{sessionId}/messages`
+
+Returns messages for a chat session.
+
+**Auth:** Public
+
+#### Path parameters
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Chat session identifier.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="messages" field-type="array" required="true">
+
+Messages belonging to the session.
+
+</ResponseField>
+
+### DELETE `/api/chat/sessions/{sessionId}`
+
+Deletes a chat session.
+
+**Auth:** Public
+
+#### Path parameters
+
+<ParamField path="sessionId" param-type="string" required="true">
+
+Chat session identifier to delete.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="success" field-type="boolean" required="true">
+
+Indicates whether the session was deleted.
+
+</ResponseField>
+
+## Agents
+
+Agent routes are available under `/api/agents`.
+
+### POST `/api/agents/publish`
+
+Publishes an agent workflow for use in the marketplace.
+
+**Auth:** Bearer
+
+#### Request body
+
+<ParamField body="workflow" param-type="object" required="true">
+
+Workflow definition to publish.
+
+</ParamField>
+
+<ParamField body="name" param-type="string" required="true">
+
+Display name for the published agent.
+
+</ParamField>
+
+<ParamField body="description" param-type="string" required="true">
+
+Description of the agent's purpose and behavior.
+
+</ParamField>
+
+#### Response
+
+Returns the published agent result.
+
+<ResponseField name="agent" field-type="object" required="true">
+
+Published agent record.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Request validation failed.
+- `422 Unprocessable Entity`: Workflow cannot be published because it fails domain validation.
+
+### GET `/api/agents/mine`
+
+Returns agents owned by the authenticated user.
+
+**Auth:** Bearer
+
+#### Response
+
+<ResponseField name="agents" field-type="array" required="true">
+
+List of agents owned by the current user.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Bearer token is missing or invalid.
+
+### POST `/api/agents/verify-stream`
+
+Verifies an agent workflow and streams verification gate events using server-sent events.
+
+**Auth:** Bearer
+
+#### Request body
+
+<ParamField body="workflow" param-type="object" required="true">
+
+Workflow definition to verify.
+
+</ParamField>
+
+#### Response
+
+Returns an SSE stream containing verification gate events.
+
+<ResponseField name="event" field-type="object" required="true">
+
+Verification event emitted during workflow validation.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Verification request is invalid.
+- `401 Unauthorized`: Bearer token is missing or invalid.
+- `422 Unprocessable Entity`: Workflow fails domain validation.
+
+## Marketplace
+
+Marketplace routes are available under `/api/marketplace`.
+
+### GET `/api/marketplace/workflows`
+
+Returns workflows available in the marketplace.
+
+**Auth:** Public
+
+#### Response
+
+<ResponseField name="workflows" field-type="array" required="true">
+
+List of available published workflows.
+
+</ResponseField>
+
+### POST `/api/marketplace/run`
+
+Runs a published workflow with the supplied input values.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="publishedWorkflowId" param-type="string" required="true">
+
+Identifier of the published workflow to run.
+
+</ParamField>
+
+<ParamField body="input" param-type="object" required="true">
+
+Workflow input values.
+
+</ParamField>
+
+<ParamField body="fieldValues" param-type="object" required="true">
+
+Resolved values for workflow fields.
+
+</ParamField>
+
+<ParamField body="sessionId" param-type="string" required="false">
+
+Session identifier to associate with the workflow run.
+
+</ParamField>
+
+<ParamField body="idempotencyKey" param-type="string" required="false">
+
+Key used to prevent duplicate workflow runs.
+
+</ParamField>
+
+#### Response
+
+Returns the workflow run result. The response may include connection requirements, OAuth details, or a pending run.
+
+<ResponseField name="result" field-type="object" required="true">
+
+Workflow execution result.
+
+</ResponseField>
+
+<ResponseField name="needsConnections" field-type="array" required="false">
+
+Connections required before the workflow can run.
+
+</ResponseField>
+
+<ResponseField name="oauth" field-type="object" required="false">
+
+OAuth information required to authorize a connection.
+
+</ResponseField>
+
+<ResponseField name="pendingRun" field-type="object" required="false">
+
+Pending run details when execution is waiting for an external action.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Input or field values are missing or malformed.
+- `402 Payment Required`: The user does not have sufficient credits or an eligible billing state.
+- `422 Unprocessable Entity`: Workflow input is incompatible with the published workflow.
+
+<CodeGroup tabs="cURL,Response">
+
+```bash
+curl -X POST http://localhost:3001/api/marketplace/run \
+  -H "Content-Type: application/json" \
+  -d '{
+    "publishedWorkflowId": "workflow_pub_4k8m2n6q",
+    "input": {
+      "topic": "Quarterly product update"
+    },
+    "fieldValues": {
+      "audience": "Existing customers"
+    },
+    "sessionId": "sess_7h4k2m9p",
+    "idempotencyKey": "run_20250115_product_update"
+  }'
+```
+
+```json
+{
+  "result": {
+    "status": "completed",
+    "gravityRunId": "gravity_run_6d2f8a1c"
+  },
+  "needsConnections": [],
+  "pendingRun": null
+}
+```
+
+</CodeGroup>
+
+### POST `/api/marketplace/run-result`
+
+Returns a normalized result for a marketplace workflow run.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="consumerCopyId" param-type="string" required="true">
+
+Consumer copy identifier associated with the run.
+
+</ParamField>
+
+<ParamField body="gravityRunId" param-type="string" required="false">
+
+Gravity run identifier.
+
+</ParamField>
+
+<ParamField body="apRunId" param-type="string" required="false">
+
+External automation platform run identifier.
+
+</ParamField>
+
+<ParamField body="startTimestamp" param-type="string" required="false">
+
+Run start timestamp.
+
+</ParamField>
+
+#### Response
+
+Returns the normalized marketplace run result.
+
+<ResponseField name="result" field-type="object" required="true">
+
+Normalized workflow result.
+
+</ResponseField>
+
+#### Errors
+
+- `404 Not Found`: The requested run or consumer copy does not exist.
+
+## Payments: credits
+
+Credit routes are available under `/api/credits`.
+
+### GET `/api/credits/balance`
+
+Returns the authenticated user's credit balance.
+
+**Auth:** Bearer
+
+#### Response
+
+<ResponseField name="balance" field-type="object" required="true">
+
+Current credit balance and related account information.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Bearer token is missing or invalid.
+
+### GET `/api/credits/packages`
+
+Returns available credit packages.
+
+**Auth:** Public
+
+#### Response
+
+<ResponseField name="packages" field-type="array" required="true">
+
+Available credit packages and their pricing details.
+
+</ResponseField>
+
+### POST `/api/credits/orders`
+
+Creates a provider order for a credit package.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="packageId" param-type="string" required="true">
+
+Credit package identifier.
+
+</ParamField>
+
+<ParamField body="currency" param-type="string" required="true">
+
+Currency for the order.
+
+</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false">
+
+Country code used to override billing-country detection.
+
+</ParamField>
+
+#### Response
+
+Returns the payment provider order.
+
+<ResponseField name="order" field-type="object" required="true">
+
+Provider order details.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Package or currency values are invalid.
+- `402 Payment Required`: Payment provider rejected the order or billing requirements were not met.
+- `422 Unprocessable Entity`: Package is unavailable for the selected billing context.
+
+## Payments: subscriptions
+
+Subscription routes are available under `/api/subscriptions`.
+
+### GET `/api/subscriptions/plans`
+
+Returns available subscription plans.
+
+**Auth:** Public
+
+#### Response
+
+<ResponseField name="plans" field-type="array" required="true">
+
+Available subscription plans.
+
+</ResponseField>
+
+#### Errors
+
+- `404 Not Found`: Billing is disabled or subscription plans are unavailable.
+
+### GET `/api/subscriptions/current`
+
+Returns the authenticated user's current subscription.
+
+**Auth:** Bearer
+
+#### Response
+
+<ResponseField name="status" field-type="string" required="true">
+
+Current subscription status.
+
+</ResponseField>
+
+<ResponseField name="plan" field-type="object" required="true">
+
+Current subscription plan.
+
+</ResponseField>
+
+<ResponseField name="renewsAt" field-type="string" required="false">
+
+Timestamp when the subscription renews.
+
+</ResponseField>
+
+<ResponseField name="cancelAtPeriodEnd" field-type="boolean" required="true">
+
+Indicates whether the subscription will cancel at the end of the current billing period.
+
+</ResponseField>
+
+#### Errors
+
+- `401 Unauthorized`: Bearer token is missing or invalid.
+- `404 Not Found`: No subscription exists or billing is unavailable.
+
+### POST `/api/subscriptions/checkout`
+
+Creates a checkout session for a subscription plan.
+
+**Auth:** Public
+
+#### Request body
+
+<ParamField body="planId" param-type="string" required="true">
+
+Subscription plan identifier.
+
+</ParamField>
+
+<ParamField body="countryOverride" param-type="string" required="false">
+
+Country code used to override billing-country detection.
+
+</ParamField>
+
+#### Response
+
+<ResponseField name="checkoutUrl" field-type="string" required="true">
+
+URL where the customer completes checkout.
+
+</ResponseField>
+
+<ResponseField name="providerSessionId" field-type="string" required="true">
+
+Payment provider checkout session identifier.
+
+</ResponseField>
+
+<ResponseField name="expiresAt" field-type="string" required="true">
+
+Timestamp when the checkout session expires.
+
+</ResponseField>
+
+#### Errors
+
+- `400 Bad Request`: Plan or country values are invalid.
+- `404 Not Found`: The plan does not exist or billing is disabled.
+
+## Common error responses
+
+The API uses these status codes across endpoint groups.
+
+| Status | Meaning | Common causes |
+| --- | --- | --- |
+| `400 Bad Request` | Request is invalid. | DTO validation failure, missing value, or malformed value. |
+| `401 Unauthorized` | Authentication failed. | Missing or invalid bearer token, or invalid webhook signature. |
+| `403 Forbidden` | Authenticated caller lacks permission. | Admin-only route, ownership restriction, or user-type restriction. |
+| `404 Not Found` | Requested resource or feature is unavailable. | Missing resource or disabled billing feature. |
+| `409 Conflict` | Request conflicts with existing data. | Duplicate signup or another resource conflict. |
+| `422 Unprocessable Entity` | Request is syntactically valid but fails domain validation. | Workflow incompatibility or business-rule violation. |
+| `500 Internal Server Error` | Unexpected server failure. | Unhandled server error. Response details are masked. |
+| `502 Bad Gateway` | An upstream service failed. | AI generation or embedding failure. |
+| `503 Service Unavailable` | A required service is unavailable. | AI chat is unavailable because no LLM key is configured. |
+
+<Callout kind="info">
+
+Error responses may include a message and additional validation details. Do not rely on internal error details being returned in production.
+
+</Callout>
+
+## Explore the full schema
+
+Use the [OpenAPI specification](/api-reference/openapi) for complete request models, response schemas, authentication definitions, and endpoint metadata.

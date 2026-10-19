@@ -3,11 +3,11 @@ info:
   version: 1.0.0
   title: AIGravity Core API Service
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    This specification documents the NestJS API service and FastAPI AI service for the AIGravity/core monorepo.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
+    The NestJS API is available at `http://localhost:3001`, with application routes under `/api` and health routes at the root. The FastAPI AI service is available at `http://localhost:8001`.
 
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    Authenticated endpoints use a bearer token in the `Authorization` header.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -16,53 +16,1378 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
-    description: API service local development server
+  - url: http://localhost:3001
+    description: NestJS API service
+  - url: http://localhost:8001
+    description: FastAPI AI service
 tags:
   - name: Health
-    description: Service health and readiness operations for the API service
+    description: Service health and readiness operations
+  - name: Authentication
+    description: User registration, authentication, and session management
+  - name: Chat & Sessions
+    description: Chat interactions and conversation sessions
+  - name: Agents
+    description: Agent publishing and verification
+  - name: Marketplace
+    description: Published workflow discovery and execution
+  - name: Payments
+    description: Credits, orders, and subscription billing
+  - name: AI Service
+    description: AI chat, guardrail, and embedding operations
 paths:
   /health:
     get:
       tags:
         - Health
       summary: Get API service health
-      description: Returns a simple health response for the AIGravity/core API service.
-      operationId: getHealth
+      description: |
+        Returns the health status of the NestJS API service (port 3001).
+
+        The FastAPI AI service (port 8001) also exposes `GET /health` with a
+        different response shape — see the AIHealthResponse schema.
+      operationId: getApiHealth
+      servers:
+        - url: http://localhost:3001
       security: []
       responses:
         '200':
-          description: API service is reachable and healthy
+          description: API service is healthy
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
               example:
                 status: ok
+                service: api
+                timestamp: '2025-01-15T12:00:00.000Z'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /:
+    get:
+      tags:
+        - Health
+      summary: Get API root status
+      description: Returns a basic status response for the NestJS API service.
+      operationId: getApiRootStatus
+      servers:
+        - url: http://localhost:3001
+      security: []
+      responses:
+        '200':
+          description: API service is reachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                service: api
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Create an account
+      description: Registers a new user and creates an authenticated session.
+      operationId: signUp
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignUpRequest'
+            example:
+              email: user@example.org
+              password: SecurePassword123!
+              userType: creator
+              fullName: Alex User
+              industry: Technology
+              profession: Software Engineer
+      responses:
+        '201':
+          description: User account created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Log in
+      description: Authenticates a user with an email address and password.
+      operationId: login
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: user@example.org
+              password: SecurePassword123!
+      responses:
+        '200':
+          description: User authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/otp/send:
+    post:
+      tags:
+        - Authentication
+      summary: Send an authentication OTP
+      description: Sends a one-time password to the specified email address.
+      operationId: sendOtp
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpSendRequest'
+            example:
+              email: user@example.org
+              userType: creator
+      responses:
+        '200':
+          description: OTP request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpSendResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/otp/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify an authentication OTP
+      description: Verifies an OTP and creates an authenticated session.
+      operationId: verifyOtp
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpVerifyRequest'
+            example:
+              email: user@example.org
+              token: '123456'
+              userType: creator
+      responses:
+        '200':
+          description: OTP verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get the current user
+      description: Returns the profile associated with the bearer token.
+      operationId: getCurrentUser
+      servers:
+        - url: http://localhost:3001
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh an authentication session
+      description: Exchanges a refresh token for refreshed session tokens.
+      operationId: refreshSession
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refreshToken: refresh-token-value
+      responses:
+        '200':
+          description: Session tokens refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Log out
+      description: Invalidates the current authenticated session.
+      operationId: logout
+      servers:
+        - url: http://localhost:3001
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User logged out
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              example:
+                success: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/chat/message:
+    post:
+      tags:
+        - Chat & Sessions
+      summary: Send a chat message
+      description: Sends a user message to the AI interaction service.
+      operationId: sendChatMessage
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            example:
+              userId: user-123
+              sessionId: session-123
+              message: Help me find a workflow
+      responses:
+        '200':
+          description: AI interaction response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InteractionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/chat/sessions/{userId}:
+    get:
+      tags:
+        - Chat & Sessions
+      summary: List user chat sessions
+      description: Returns all chat sessions belonging to a user.
+      operationId: listChatSessions
+      servers:
+        - url: http://localhost:3001
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: User chat sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatSessionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/chat/sessions/{sessionId}/messages:
+    get:
+      tags:
+        - Chat & Sessions
+      summary: Get session messages
+      description: Returns the messages in a chat session.
+      operationId: getChatSessionMessages
+      servers:
+        - url: http://localhost:3001
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session messages
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - messages
+                properties:
+                  messages:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/chat/sessions/{sessionId}:
+    delete:
+      tags:
+        - Chat & Sessions
+      summary: Delete a chat session
+      description: Deletes the specified chat session.
+      operationId: deleteChatSession
+      servers:
+        - url: http://localhost:3001
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Session deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/agents/publish:
+    post:
+      tags:
+        - Agents
+      summary: Publish an agent
+      description: Publishes an agent workflow to the marketplace.
+      operationId: publishAgent
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishAgentRequest'
+            example:
+              name: Research Assistant
+              description: Finds and summarizes research.
+              workflow:
+                nodes: []
+                edges: []
+      responses:
+        '201':
+          description: Agent published
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/agents/mine:
+    get:
+      tags:
+        - Agents
+      summary: List owned agents
+      description: Returns agents owned by the authenticated user.
+      operationId: listMyAgents
+      servers:
+        - url: http://localhost:3001
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User-owned agents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/agents/verify-stream:
+    post:
+      tags:
+        - Agents
+      summary: Verify an agent workflow
+      description: Streams server-sent verification gate events for an agent workflow.
+      operationId: verifyAgentStream
+      servers:
+        - url: http://localhost:3001
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+            example:
+              workflow:
+                nodes: []
+                edges: []
+      responses:
+        '200':
+          description: Verification event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/marketplace/workflows:
+    get:
+      tags:
+        - Marketplace
+      summary: List marketplace workflows
+      description: Returns workflows available in the marketplace.
+      operationId: listMarketplaceWorkflows
+      servers:
+        - url: http://localhost:3001
+      security: []
+      responses:
+        '200':
+          description: Available workflows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+  /api/marketplace/run:
+    post:
+      tags:
+        - Marketplace
+      summary: Run a marketplace workflow
+      description: Starts a marketplace workflow run and may request external connections or OAuth authorization.
+      operationId: runMarketplaceWorkflow
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunWorkflowRequest'
+            example:
+              publishedWorkflowId: workflow-123
+              input: Summarize this document
+              fieldValues: {}
+              sessionId: session-123
+              idempotencyKey: request-123
+      responses:
+        '200':
+          description: Workflow run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResultResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/marketplace/run-result:
+    post:
+      tags:
+        - Marketplace
+      summary: Get a normalized workflow result
+      description: Returns the normalized result for a consumer workflow run.
+      operationId: getMarketplaceRunResult
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - consumerCopyId
+              properties:
+                consumerCopyId:
+                  type: string
+                gravityRunId:
+                  type: string
+                apRunId:
+                  type: string
+                startTimestamp:
+                  type: string
+                  format: date-time
+            example:
+              consumerCopyId: copy-123
+              gravityRunId: gravity-123
+      responses:
+        '200':
+          description: Normalized consumer run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResultResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/balance:
+    get:
+      tags:
+        - Payments
+      summary: Get credit balance
+      description: Returns the credit balance for the authenticated user.
+      operationId: getCreditBalance
+      servers:
+        - url: http://localhost:3001
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Credit balance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditBalance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/credits/packages:
+    get:
+      tags:
+        - Payments
+      summary: List credit packages
+      description: Returns available credit packages.
+      operationId: listCreditPackages
+      servers:
+        - url: http://localhost:3001
+      security: []
+      responses:
+        '200':
+          description: Available credit packages
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - packages
+                properties:
+                  packages:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+  /api/credits/orders:
+    post:
+      tags:
+        - Payments
+      summary: Create a credit order
+      description: Creates a provider order or checkout session for a credit package.
+      operationId: createCreditOrder
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditOrderRequest'
+            example:
+              packageId: credits-100
+              currency: USD
+              countryOverride: US
+      responses:
+        '201':
+          description: Provider order created
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '402':
+          $ref: '#/components/responses/PaymentRequired'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /api/subscriptions/plans:
+    get:
+      tags:
+        - Payments
+      summary: List subscription plans
+      description: Returns available subscription plans.
+      operationId: listSubscriptionPlans
+      servers:
+        - url: http://localhost:3001
+      security: []
+      responses:
+        '200':
+          description: Available subscription plans
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - plans
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/current:
+    get:
+      tags:
+        - Payments
+      summary: Get current subscription
+      description: Returns the authenticated user's active subscription.
+      operationId: getCurrentSubscription
+      servers:
+        - url: http://localhost:3001
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionCurrent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/checkout:
+    post:
+      tags:
+        - Payments
+      summary: Create subscription checkout
+      description: Creates a provider checkout session for a subscription plan.
+      operationId: createSubscriptionCheckout
+      servers:
+        - url: http://localhost:3001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CheckoutRequest'
+            example:
+              planId: pro
+              countryOverride: US
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /chat:
+    post:
+      tags:
+        - AI Service
+      summary: Send an AI chat message
+      description: Sends a message to the FastAPI AI service.
+      operationId: createAiChat
+      servers:
+        - url: http://localhost:8001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            example:
+              user_id: 123e4567-e89b-12d3-a456-426614174000
+              session_id: 123e4567-e89b-12d3-a456-426614174001
+              message: Find a workflow for market research
+              selected_tools:
+                - web_search
+              submit_tools: false
+              agent_id: agent-123
+      responses:
+        '200':
+          description: AI interaction response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InteractionResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /internal/guardrail/check:
+    post:
+      tags:
+        - AI Service
+      summary: Check content with guardrails
+      description: Evaluates input or output content against AI safety guardrails.
+      operationId: checkGuardrail
+      servers:
+        - url: http://localhost:8001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuardrailCheckRequest'
+            example:
+              content: User-provided content
+              source: INPUT
+              context:
+                feature: chat
+      responses:
+        '200':
+          description: Guardrail evaluation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuardrailCheckResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /internal/embed:
+    post:
+      tags:
+        - AI Service
+      summary: Generate an embedding
+      description: Generates a vector embedding for the supplied text.
+      operationId: createEmbedding
+      servers:
+        - url: http://localhost:8001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedRequest'
+            example:
+              text: Text to embed
+      responses:
+        '200':
+          description: Text embedding
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbedResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer access token supplied in the Authorization header.
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Identifier of the user whose sessions should be returned.
+      schema:
+        type: string
+      example: user-123
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      description: Identifier of the chat session.
+      schema:
+        type: string
+      example: session-123
   responses:
-    InternalServerError:
-      description: Unexpected server error
+    BadRequest:
+      description: Invalid request or validation error.
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing, invalid, or expired authentication credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: The authenticated user is not permitted to perform this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Resource conflicts with an existing resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Request is syntactically valid but semantically invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PaymentRequired:
+      description: Payment or sufficient credits are required.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    BadGateway:
+      description: An upstream service returned an invalid or unsuccessful response.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: Required service configuration or dependency is unavailable.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
     HealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
-      additionalProperties: true
-      example:
-        status: ok
-    Error:
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: api
+        timestamp:
+          type: string
+          format: date-time
+          example: '2025-01-15T12:00:00.000Z'
+    AIHealthResponse:
       type: object
-      description: Generic error response.
+      required:
+        - status
+        - service
+        - version
+        - chat_available
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: ai
+        version:
+          type: string
+          example: 1.0.0
+        chat_available:
+          type: boolean
+          example: true
+    ErrorResponse:
+      type: object
       required:
         - message
       properties:
         message:
           type: string
-          description: Human-readable error message.
-          example: Internal server error
+          example: Invalid request
+        statusCode:
+          type: integer
+          format: int32
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+    User:
+      type: object
+      required:
+        - id
+        - email
+      properties:
+        id:
+          type: string
+          example: user-123
+        email:
+          type: string
+          format: email
+          example: user@example.org
+        userType:
+          type: string
+          example: creator
+        fullName:
+          type: string
+          example: Alex User
+        industry:
+          type: string
+          example: Technology
+        profession:
+          type: string
+          example: Software Engineer
+    SignUpRequest:
+      type: object
+      required:
+        - email
+        - password
+        - userType
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 8
+        userType:
+          type: string
+        fullName:
+          type: string
+        industry:
+          type: string
+        profession:
+          type: string
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+    OtpSendRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+        userType:
+          type: string
+    OtpVerifyRequest:
+      type: object
+      required:
+        - email
+        - token
+      properties:
+        email:
+          type: string
+          format: email
+        token:
+          type: string
+        userType:
+          type: string
+    RefreshRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    TokenResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          format: int64
+          example: 3600
+    AuthResponse:
+      type: object
+      required:
+        - user
+        - accessToken
+        - refreshToken
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        isNewUser:
+          type: boolean
+    OtpSendResponse:
+      type: object
+      required:
+        - message
+        - isNewUser
+      properties:
+        message:
+          type: string
+        isNewUser:
+          type: boolean
+    ChatRequest:
+      type: object
+      required:
+        - user_id
+        - session_id
+        - message
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+          maxLength: 4000
+        selected_tools:
+          type: array
+          items:
+            type: string
+        submit_tools:
+          type: boolean
+        agent_id:
+          type: string
+    InteractionResponse:
+      type: object
+      required:
+        - session_id
+        - reply
+      properties:
+        session_id:
+          type: string
+        reply:
+          type: string
+        question:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        mode:
+          type: string
+        info_json:
+          type: object
+          additionalProperties: true
+        ready_to_query:
+          type: boolean
+        search_query:
+          type: string
+        memories:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        guardrail_log:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        redis_history:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        typesense_payload:
+          type: object
+          additionalProperties: true
+        top_agents:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        suggested_tools:
+          type: array
+          items:
+            type: string
+        show_tool_selection:
+          type: boolean
+        llm_calls:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        execution_id:
+          type: string
+    GuardrailCheckRequest:
+      type: object
+      required:
+        - content
+        - source
+      properties:
+        content:
+          type: string
+        source:
+          type: string
+          enum:
+            - INPUT
+            - OUTPUT
+        context:
+          type: object
+          additionalProperties: true
+    GuardrailCheckResponse:
+      type: object
+      required:
+        - safe
+        - reason
+        - tier
+        - output
+      properties:
+        safe:
+          type: boolean
+        reason:
+          type: string
+        tier:
+          type: string
+        output:
+          type: string
+    EmbedRequest:
+      type: object
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 20000
+    EmbedResponse:
+      type: object
+      required:
+        - embedding
+        - dims
+      properties:
+        embedding:
+          type: array
+          items:
+            type: number
+            format: double
+        dims:
+          type: integer
+          format: int32
+    SendMessageRequest:
+      type: object
+      required:
+        - userId
+        - sessionId
+        - message
+      properties:
+        userId:
+          type: string
+        sessionId:
+          type: string
+        message:
+          type: string
+    ChatSessionResponse:
+      type: object
+      required:
+        - sessions
+      properties:
+        sessions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    PublishAgentRequest:
+      type: object
+      required:
+        - workflow
+        - name
+        - description
+      properties:
+        workflow:
+          type: object
+          additionalProperties: true
+        name:
+          type: string
+        description:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+    RunWorkflowRequest:
+      type: object
+      required:
+        - publishedWorkflowId
+        - input
+        - fieldValues
+      properties:
+        publishedWorkflowId:
+          type: string
+        input:
+          type: string
+        fieldValues:
+          type: object
+          additionalProperties: true
+        sessionId:
+          type: string
+        idempotencyKey:
+          type: string
+    RunResultResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        result:
+          type: object
+          additionalProperties: true
+        needsConnections:
+          type: boolean
+        oauth:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        pendingRun:
+          type: boolean
+        executionId:
+          type: string
+    CreditBalance:
+      type: object
+      required:
+        - balance
+      properties:
+        balance:
+          type: number
+          format: double
+        currency:
+          type: string
+          example: credits
+    CreditOrderRequest:
+      type: object
+      required:
+        - packageId
+        - currency
+      properties:
+        packageId:
+          type: string
+        currency:
+          type: string
+          example: USD
+        countryOverride:
+          type: string
+          example: US
+    SubscriptionPlan:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+        currency:
+          type: string
+    SubscriptionCurrent:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+        plan:
+          $ref: '#/components/schemas/SubscriptionPlan'
+        renewsAt:
+          type: string
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+    CheckoutRequest:
+      type: object
+      required:
+        - planId
+      properties:
+        planId:
+          type: string
+        countryOverride:
+          type: string
+    CheckoutResponse:
+      type: object
+      required:
+        - checkoutUrl
+        - providerSessionId
+        - expiresAt
+      properties:
+        checkoutUrl:
+          type: string
+          format: uri
+        providerSessionId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          example: true
