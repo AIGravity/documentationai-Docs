@@ -1,58 +1,58 @@
 ---
 title: Features
-description: Key capabilities for building and maintaining MDX documentation sites.
+description: Configure marketplace agents, run them with credits, track results, and manage submissions, earnings, payouts, and connection failures.
 ---
 
 ## Overview
 
-This page summarizes the core building blocks for an MDX documentation site and shows how they work together from authoring through publishing.
+Gravity connects guided agent configuration, paid runs, submission review, and payout management in one marketplace workflow.
 
 <Callout kind="info">
 
-Keep pages small and focused so each document answers one reader need well.
+A run waiting for approval is shown as waiting, not failed. Long-running runs remain available for tracking after the initial request.
 
 </Callout>
 
 ## Feature grid
 
 <Columns cols={2}>
-  <Card title="MDX page authoring" icon="code" href="/help-center">
-    Write documentation pages in MDX so content, structure, and components live in one file.
+  <Card title="Guided agent configuration" icon="settings" href="/help-center">
+    Configure marketplace agents through sequential questions with text, date, file, selection, and dynamic-option inputs when required.
   </Card>
-  <Card title="Navigation-driven IA" icon="folder" href="/help-center">
-    Organize pages through navigation so readers can find the right topic without hunting across the site.
+  <Card title="Run tracking and guidance" icon="bar-chart" href="/help-center">
+    Review useful outputs and failure guidance while tracking runs that are waiting for approval or continue beyond the initial request.
   </Card>
-  <Card title="Reusable MDX components" icon="settings" href="/help-center">
-    Use shared components to present callouts, cards, layouts, and structured content consistently.
+  <Card title="Agent customization and review" icon="edit" href="/help-center">
+    Choose which values consumers provide, reuse answers across related fields, test submissions, and review submissions before publication.
   </Card>
-  <Card title="Integration hooks" icon="plug" href="/help-center">
-    Connect documentation to external tooling, publishing workflows, and site-level behavior where needed.
+  <Card title="Earnings and payouts" icon="download" href="/help-center">
+    View earnings and payout history, configure a payout account, check payout status, and withdraw eligible funds.
   </Card>
-  <Card title="Help center organization" icon="help-circle" href="/help-center">
-    Group task-based articles so support content stays easy to scan and maintain.
+  <Card title="Credits for agent runs" icon="plus" href="/help-center">
+    Purchase credits for agent runs, with completed payments verified before balances are updated.
   </Card>
-  <Card title="Release notes" icon="book-open" href="/help-center">
-    Record changes in a focused format so readers can quickly see what changed and whether they need to act.
+  <Card title="Connection failure notifications" icon="alert-triangle" href="/help-center">
+    Receive a notification when a scheduled agent run fails because a connection is broken, then reconnect the service.
   </Card>
 </Columns>
 
 ## How the pieces fit together
 
-Author a page in MDX, wire it into navigation, and use reusable components to make the content clear and scannable. Integration hooks extend the site where needed, while the help center and release notes keep operational content organized around reader tasks and change history.
+Consumers answer an agent's guided questions, purchase credits when needed, and submit a run. Gravity verifies completed payments, presents the result or failure guidance, and keeps waiting or long-running runs visible for follow-up. Builders customize the questions, test submissions, review them before publication, and manage earnings and payouts.
 
 ```mermaid
 graph LR
-  A[Author MDX] --> B[Add navigation]
-  B --> C[Use shared components]
-  C --> D[Preview and refine]
-  D --> E[Publish site]
+  A[Configure agent] --> B[Purchase credits]
+  B --> C[Submit a run]
+  C --> D[Track result or guidance]
+  D --> E[Reconnect broken connection]
 ```
 
 ## Recommended workflow
 
-- **Author** the page in MDX with one clear topic and a structure that matches the reader's task.
-- **Preview** the page to confirm links, components, and navigation placement.
-- **Publish** once the page is concise, accurate, and easy to scan.
+- **Configure** the agent by answering each guided question and providing the requested values.
+- **Purchase credits** when the run requires them, then submit the agent run after payment is verified.
+- **Track** the run and follow its result or failure guidance. If a scheduled run reports a broken connection, reconnect the service before the next run.
 
 ## Related links
 
@@ -61,6 +61,6 @@ graph LR
     Find task-oriented articles for setup, troubleshooting, and maintenance.
   </Card>
   <Card title="Help articles" icon="book-open" href="/help-center">
-    Browse focused guidance for common documentation workflows.
+    Browse focused guidance for configuring agents, using credits, managing payouts, and reconnecting services.
   </Card>
 </Columns>
