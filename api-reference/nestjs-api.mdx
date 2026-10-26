@@ -1,25 +1,144 @@
 ---
 title: NestJS API
-description: API reference for the NestJS backend health endpoint implemented in the AIGravity core repository.
+description: Integrate NestJS API clients with bearer authentication, marketplace and billing workflows, sanitized errors, and the local health probe.
 ---
 
-## Overview
+## API overview
 
-This page documents the NestJS backend service route currently implemented in the AIGravity core repository. The code analysis found a single public endpoint: `GET /health`.
+The NestJS API uses bearer-token authentication for protected routes. The public marketplace workflow-detail route, the OAuth callback, and the health probe are exceptions to the general authentication rule.
 
 <Callout kind="info">
 
-Implementation details on this page were derived from code analysis of `apps/api/src/main.ts`, `apps/api/src/app.module.ts`, and `apps/api/src/health/health.controller.ts`, rather than direct file reads through the docs repository tool.
+Send protected requests with an `Authorization` header using the `Bearer` scheme. Do not treat one public route as evidence that the entire API is unauthenticated.
 
 </Callout>
 
-<Callout kind="alert">
+### Endpoint families
 
-The repository README mentions `GET /api/health`, but the code currently implements `GET /health`. No global prefix is configured, so the `/api` path is not active.
+- **Marketplace:** Start marketplace runs, retrieve public workflow details, and poll run status through `POST /api/marketplace/run-result`.
+- **Credits:** Create custom credit orders and verify provider orders. Verification accepts `providerOrderId` and `razorpayOrderId`; when both are present, `razorpayOrderId` takes precedence.
+- **Payouts:** Create payouts as an administrator, look up FX rates, synchronize payout data, and refresh payout state.
+- **Subscriptions:** Manage plans, the current subscription, entitlements, history, checkout, cancellation, and plan activation.
+- **OAuth:** Handle the OAuth callback without bearer-token authentication.
+- **Health:** Check local API availability with `GET /health`.
 
-</Callout>
+A marketplace run can return a successful `running` result rather than a completed result. Poll `POST /api/marketplace/run-result` until the run reaches its terminal state.
 
-## Endpoint
+Workflow validation and import failures can return `422 Unprocessable Entity`. Subscription routes return `404 Not Found` when billing is disabled, so clients should treat a missing subscription route as a feature-state response rather than assuming the route was removed.
+
+## Authentication
+
+Protected endpoint families require a bearer token.
+
+<ParamField header="Authorization" param-type="string" required="true">
+
+Use the format `Bearer access-token` for authenticated routes.
+
+</ParamField>
+
+The marketplace workflow-detail route and OAuth callback are public exceptions. The health endpoint is documented separately because it is an operational probe, not a representative authentication example for the rest of the API.
+
+## Common error responses
+
+The API returns sanitized error bodies with a consistent set of fields.
+
+<ResponseField name="statusCode" field-type="integer" required="true">
+
+HTTP status code for the failure.
+
+</ResponseField>
+
+<ResponseField name="error" field-type="string" required="true">
+
+Short HTTP error name, such as `Unprocessable Entity`.
+
+</ResponseField>
+
+<ResponseField name="message" field-type="string" required="true">
+
+Human-readable description of the failure.
+
+</ResponseField>
+
+<ResponseField name="path" field-type="string" required="true">
+
+Request path that produced the error.
+
+</ResponseField>
+
+<ResponseField name="timestamp" field-type="string" required="true">
+
+Timestamp for the error response.
+
+</ResponseField>
+
+<ResponseField name="requestId" field-type="string" required="false">
+
+Request identifier when the server assigns one.
+
+</ResponseField>
+
+For unexpected server failures, the API uses `InternalError` as the error name and `Internal server error` as the message. Subscription failure bodies may include endpoint-specific condition codes only when those codes survive the error filter. Do not assume that every error response contains a code field.
+
+### Workflow validation error
+
+```json
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "message": "Workflow validation failed",
+  "path": "/api/marketplace/run",
+  "timestamp": "2025-02-14T10:30:00.000Z",
+  "requestId": "req_7f3c9a21"
+}
+```
+
+## Credit order examples
+
+Create a custom credit order at `POST /api/credits/orders/custom` with a bearer token.
+
+<CodeGroup tabs="cURL">
+
+```bash
+curl -X POST http://localhost:3001/api/credits/orders/custom \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example" \
+  -H "Content-Type: application/json" \
+  --data '{
+    "amountUsdMinor": 2500,
+    "currency": "INR"
+  }'
+```
+
+</CodeGroup>
+
+When verifying a credit order, send `providerOrderId` when that is the provider identifier available to your client.
+
+<CodeGroup tabs="JSON">
+
+```json
+{
+  "providerOrderId": "order_N8m4Q2r7Kp1L",
+  "razorpayOrderId": "order_Rz9c3Vt6Lm2A"
+}
+```
+
+</CodeGroup>
+
+If both identifiers are present, the API uses `razorpayOrderId` for verification.
+
+## Marketplace run behavior
+
+A successful marketplace run request can report `running` while processing continues. Poll `POST /api/marketplace/run-result` to retrieve the current result instead of treating the initial response as terminal.
+
+Workflow validation and import failures use HTTP status `422`. Clients should surface the returned `message` and preserve the `requestId` when present so support teams can trace the failed request.
+
+## Subscription behavior
+
+Subscription endpoints cover plans, the current subscription, entitlements, history, checkout, cancellation, and plan activation. When billing is disabled, these routes are hidden behind `404 Not Found`.
+
+Handle the `404` response as a billing-availability condition when calling subscription routes. Do not retry the request as though it were a transient server failure.
+
+## Health endpoint
 
 ### GET `/health`
 
@@ -37,23 +156,11 @@ Use this endpoint to verify that the NestJS backend is running and responding.
 
 </ParamField>
 
-<ParamField body="auth" param-type="string" required="true" show-location="false">
+### Request details
 
-No authentication requirements were found in the analyzed code.
+The endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
 
-</ParamField>
-
-<Callout kind="info">
-
-No auth guards, bearer authentication, middleware-based auth, or other access controls were found in the analyzed files for this endpoint.
-
-</Callout>
-
-## Request details
-
-This endpoint does not accept request-specific inputs beyond a standard `GET` request to the route.
-
-### Path parameters
+#### Path parameters
 
 <ParamField body="path parameters" param-type="none" required="false" show-location="false">
 
@@ -61,7 +168,7 @@ None. The route is fixed at `GET /health`.
 
 </ParamField>
 
-### Query parameters
+#### Query parameters
 
 <ParamField body="query parameters" param-type="none" required="false" show-location="false">
 
@@ -69,15 +176,15 @@ None. The handler does not define or consume query string values.
 
 </ParamField>
 
-### Headers
+#### Headers
 
 <ParamField body="custom headers" param-type="none" required="false" show-location="false">
 
-None. No custom request headers were found in the analyzed code beyond standard HTTP headers handled by the framework.
+None. No custom request headers are required for the health probe.
 
 </ParamField>
 
-### Request body
+#### Request body
 
 <ParamField body="request body" param-type="none" required="false" show-location="false">
 
@@ -95,7 +202,7 @@ curl -i http://localhost:3001/health
 
 </CodeGroup>
 
-## Response
+## Health response
 
 A successful request returns a JSON object that identifies the service and reports its status.
 
@@ -124,18 +231,10 @@ Service identifier returned by the endpoint. The implemented handler returns `ap
 
 </ResponseField>
 
-## Likely error responses
+### Likely error responses
 
-The analyzed code does not define custom error handling for this route. The most likely responses are framework-level errors.
+The health route does not define custom error responses. A `404` response indicates that the requested path or HTTP method does not match the route, such as `GET /api/health` or `POST /health`.
 
-### 404 not found
+An unexpected runtime or framework failure can return a `500` response using the common sanitized error format.
 
-A `404` response is likely when you request the wrong path or use the wrong HTTP method. For example, `GET /api/health` or `POST /health` would not match the implemented route.
-
-### 500 internal server error
-
-A `500` response is only likely if the NestJS framework or runtime fails while serving the request. No route-specific error branches were found in the analyzed handler.
-
-## Notes
-
-The NestJS bootstrap code enables CORS for origin `http://localhost:3000` and sets `credentials` to `true`. The application listens on port `3001`, so the health endpoint is available at `http://localhost:3001/health` in the current local configuration.
+The application listens on port `3001` in the current local configuration, so the health endpoint is available at `http://localhost:3001/health`.

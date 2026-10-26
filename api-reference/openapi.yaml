@@ -3,11 +3,9 @@ info:
   version: 1.0.0
   title: AIGravity Core API Service
   description: |
-    This specification documents the API service for the AIGravity/core monorepo.
+    This specification documents the user-facing NestJS API service for the AIGravity/core application.
 
-    Currently, it covers the NestJS API service health endpoint exposed at `GET /health`.
-
-    The repository also contains a separate AI service implemented with FastAPI that exposes its own `GET /health` endpoint. That endpoint is not described in this API reference specification.
+    It includes health, marketplace, OAuth, builder connection, credits, payout, subscription, agent, and administrative review operations. Authenticated operations require a bearer token unless explicitly marked public. Billing and subscription operations may be unavailable when the billing feature is disabled.
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
@@ -16,11 +14,31 @@ info:
     url: https://aigravity.dev
     email: support@aigravity.dev
 servers:
-  - url: http://localhost:3000
+  - url: http://localhost:3001
     description: API service local development server
 tags:
   - name: Health
     description: Service health and readiness operations for the API service
+  - name: Marketplace
+    description: Marketplace workflow, execution, and feedback operations
+  - name: OAuth
+    description: Marketplace OAuth connection operations
+  - name: Builder Connections
+    description: Builder connection and application catalog operations
+  - name: Credits
+    description: Credit packages, balances, orders, and charges
+  - name: Payout Accounts
+    description: Payout account management
+  - name: Payouts
+    description: Payout creation and reconciliation
+  - name: Subscriptions
+    description: Subscription plans, checkout, and entitlement operations
+  - name: Agents
+    description: Agent verification and preview operations
+  - name: Admin Agents
+    description: Administrative agent review and automation operations
+  - name: Billing
+    description: Billing plan operations
 paths:
   /health:
     get:
@@ -37,14 +55,832 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HealthResponse'
-              example:
-                status: ok
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/credits/packages:
+    get:
+      tags:
+        - Credits
+      summary: List credit packages
+      description: Returns the available credit packages.
+      operationId: listCreditPackages
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Credit packages
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - packages
+                properties:
+                  packages:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/balance:
+    get:
+      tags:
+        - Credits
+      summary: Get credit balance
+      description: Returns the authenticated user's credit balance.
+      operationId: getCreditBalance
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenObject'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/orders:
+    get:
+      tags:
+        - Credits
+      summary: List credit orders
+      description: Returns credit orders for the authenticated user.
+      operationId: listCreditOrders
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Credit orders
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - orders
+                properties:
+                  orders:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Credits
+      summary: Create a credit order
+      description: Creates an order for a predefined credit package.
+      operationId: createCreditOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCreditOrderRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/OpenObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/orders/custom:
+    post:
+      tags:
+        - Credits
+      summary: Create a custom credit order
+      description: Creates a credit order for a custom USD minor-unit amount.
+      operationId: createCustomCreditOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCustomCreditOrderRequest'
+            example:
+              amountUsdMinor: 2500
+              currency: INR
+              countryOverride: IN
+      responses:
+        '201':
+          $ref: '#/components/responses/OpenObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/orders/verify:
+    post:
+      tags:
+        - Credits
+      summary: Verify a credit order
+      description: Verifies a credit order payment. razorpayOrderId takes precedence over providerOrderId when both are provided.
+      operationId: verifyCreditOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyCreditOrderRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/credits/charges:
+    get:
+      tags:
+        - Credits
+      summary: List credit charges
+      description: Returns credit charges for the authenticated user.
+      operationId: listCreditCharges
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Credit charges
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - charges
+                properties:
+                  charges:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payout-accounts/region:
+    get:
+      tags:
+        - Payout Accounts
+      summary: Get payout account region
+      description: Returns the payout region and country for the authenticated user.
+      operationId: getPayoutAccountRegion
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payout region
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - region
+                  - country
+                properties:
+                  region:
+                    type: string
+                  country:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payout-accounts:
+    get:
+      tags:
+        - Payout Accounts
+      summary: List payout accounts
+      description: Returns payout accounts for the authenticated user.
+      operationId: listPayoutAccounts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payout accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - accounts
+                properties:
+                  accounts:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Payout Accounts
+      summary: Create a payout account
+      description: Creates a payout account for the authenticated user.
+      operationId: createPayoutAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayoutAccountRequest'
+      responses:
+        '201':
+          description: Created payout account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/payout-accounts/connect-paypal:
+    post:
+      tags:
+        - Payout Accounts
+      summary: Connect a PayPal payout account
+      description: This is a demo stub for connecting a PayPal payout account and is not production PayPal onboarding.
+      operationId: connectPayPalPayoutAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectPayPalRequest'
+      responses:
+        '201':
+          description: Created PayPal payout account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/payout-accounts/connect-stripe:
+    post:
+      tags:
+        - Payout Accounts
+      summary: Connect a Stripe payout account
+      description: Connects a Stripe payout account for the authenticated user.
+      operationId: connectStripePayoutAccount
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConnectStripeRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenObject'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/payout-accounts/{id}:
+    patch:
+      tags:
+        - Payout Accounts
+      summary: Update a payout account
+      description: Updates selected properties of a payout account.
+      operationId: updatePayoutAccount
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/StringId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayoutAccountUpdateRequest'
+      responses:
+        '200':
+          description: Updated payout account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Payout Accounts
+      summary: Delete a payout account
+      description: Deletes a payout account.
+      operationId: deletePayoutAccount
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/StringId'
+      responses:
+        '200':
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payouts:
+    get:
+      tags:
+        - Payouts
+      summary: List payouts
+      description: Returns payouts for the authenticated user.
+      operationId: listPayouts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payouts
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - payouts
+                properties:
+                  payouts:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags:
+        - Payouts
+      summary: Create a payout
+      description: Creates a payout for the authenticated user.
+      operationId: createPayout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayoutRequest'
+      responses:
+        '201':
+          description: Created payout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payouts/admin:
+    post:
+      tags:
+        - Payouts
+      summary: Create an administrative payout
+      description: Creates a payout for a specified user. Administrator authorization is required.
+      operationId: createAdminPayout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePayoutRequest'
+      responses:
+        '201':
+          description: Created payout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payouts/fx-rate:
+    get:
+      tags:
+        - Payouts
+      summary: Get a payout foreign exchange rate
+      description: Returns the current payout exchange rate for the requested target currency.
+      operationId: getPayoutFxRate
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: target
+          in: query
+          required: false
+          description: Target currency.
+          schema:
+            type: string
+            default: INR
+      responses:
+        '200':
+          description: Foreign exchange rate
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - target
+                  - rate
+                properties:
+                  target:
+                    type: string
+                  rate:
+                    type: number
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payouts/sync:
+    post:
+      tags:
+        - Payouts
+      summary: Synchronize payouts
+      description: Synchronizes payout records with the configured provider.
+      operationId: syncPayouts
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Synchronized payouts
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - payouts
+                properties:
+                  payouts:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payouts/{id}:
+    get:
+      tags:
+        - Payouts
+      summary: Get a payout
+      description: Returns a payout by identifier.
+      operationId: getPayout
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/StringId'
+      responses:
+        '200':
+          $ref: '#/components/responses/OpenObject'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/payouts/{id}/refresh:
+    post:
+      tags:
+        - Payouts
+      summary: Refresh a payout
+      description: Refreshes a payout.
+      operationId: refreshPayout
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/StringId'
+      responses:
+        '200':
+          description: Refreshed payout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayoutResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/plans:
+    get:
+      tags:
+        - Subscriptions
+      summary: List subscription plans
+      description: Returns subscription plans. Returns 404 while billing is disabled.
+      operationId: listSubscriptionPlans
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription plans
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - plans
+                properties:
+                  plans:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/entitlement:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription entitlement
+      description: Returns the authenticated user's subscription entitlement. Returns 404 while billing is disabled.
+      operationId: getSubscriptionEntitlement
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription entitlement
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/history:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription history
+      description: Returns subscription history. Returns 404 while billing is disabled.
+      operationId: getSubscriptionHistory
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionHistoryItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/checkout:
+    post:
+      tags:
+        - Subscriptions
+      summary: Create subscription checkout
+      description: Creates a checkout session. Returns 404 while billing is disabled.
+      operationId: createSubscriptionCheckout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionCheckoutRequest'
+      responses:
+        '201':
+          description: Subscription checkout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionCheckoutResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/cancel:
+    post:
+      tags:
+        - Subscriptions
+      summary: Cancel the current subscription
+      description: Cancels the current subscription. Returns 404 while billing is disabled.
+      operationId: cancelSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription cancellation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionCancelResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/current:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get the current subscription
+      description: Returns the active subscription. Returns 404 while billing is disabled.
+      operationId: getCurrentSubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentSubscriptionResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/{planId}:
+    post:
+      tags:
+        - Subscriptions
+      summary: Subscribe to a plan
+      description: Creates a subscription for a plan. Paid plans must be purchased through checkout. Returns 404 while billing is disabled.
+      operationId: subscribeToPlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: planId
+          in: path
+          required: true
+          description: Subscription plan identifier.
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          $ref: '#/components/responses/PaidPlanRequiresCheckout'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/webhook/razorpay:
+    post:
+      tags:
+        - Subscriptions
+      summary: Receive a Razorpay subscription webhook
+      description: Receives a Razorpay provider webhook. Returns 404 while billing is disabled.
+      operationId: receiveRazorpaySubscriptionWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed; response shape unspecified.
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/subscriptions/webhook/stripe:
+    post:
+      tags:
+        - Subscriptions
+      summary: Receive a Stripe subscription webhook
+      description: Receives a Stripe provider webhook. Returns 404 while billing is disabled.
+      operationId: receiveStripeSubscriptionWebhook
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed; response shape unspecified.
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/billing/plans:
+    get:
+      tags:
+        - Billing
+      summary: List billing plans
+      description: Returns billing plans. Returns 404 while billing is disabled.
+      operationId: listBillingPlans
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Billing plans
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - plans
+                properties:
+                  plans:
+                    type: array
+                    items: {}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    StringId:
+      name: id
+      in: path
+      required: true
+      description: Resource identifier.
+      schema:
+        type: string
   responses:
+    OpenObject:
+      description: Successful response shape is delegated and is not specified here.
+      content:
+        application/json:
+          schema:
+            type: object
+            description: The public response shape is not specified here.
+            additionalProperties: true
+    BadRequest:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication is missing or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: The authenticated user is not authorized to perform this operation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: The requested resource was not found or the feature is disabled.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: The request conflicts with the current resource state.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalServerError:
-      description: Unexpected server error
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    PaidPlanRequiresCheckout:
+      description: A paid plan must be purchased through checkout.
       content:
         application/json:
           schema:
@@ -52,17 +888,305 @@ components:
   schemas:
     HealthResponse:
       type: object
-      description: Permissive health response payload for the API service.
-      additionalProperties: true
-      example:
-        status: ok
+      required:
+        - status
+        - service
+      properties:
+        status:
+          type: string
+        service:
+          type: string
     Error:
       type: object
-      description: Generic error response.
       required:
+        - statusCode
+        - error
         - message
+        - path
+        - timestamp
       properties:
+        statusCode:
+          type: integer
+        error:
+          type: string
         message:
           type: string
-          description: Human-readable error message.
-          example: Internal server error
+        path:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+    CreateCreditOrderRequest:
+      type: object
+      required:
+        - packageId
+        - currency
+      properties:
+        packageId:
+          type: string
+        currency:
+          type: string
+          enum:
+            - INR
+            - USD
+            - EUR
+            - GBP
+        countryOverride:
+          type: string
+          minLength: 2
+          maxLength: 2
+    CreateCustomCreditOrderRequest:
+      type: object
+      required:
+        - amountUsdMinor
+        - currency
+      properties:
+        amountUsdMinor:
+          type: integer
+          minimum: 100
+          maximum: 500000
+        currency:
+          type: string
+          enum:
+            - INR
+            - USD
+            - EUR
+            - GBP
+        countryOverride:
+          type: string
+          minLength: 2
+          maxLength: 2
+    VerifyCreditOrderRequest:
+      type: object
+      properties:
+        razorpayOrderId:
+          type: string
+        razorpayPaymentId:
+          type: string
+        razorpaySignature:
+          type: string
+        providerOrderId:
+          type: string
+    CreatePayoutAccountRequest:
+      type: object
+      required:
+        - kind
+        - countryCode
+      properties:
+        kind:
+          type: string
+          enum:
+            - razorpayx_bank
+            - razorpayx_upi
+            - paypal_email
+            - stripe_connect
+        countryCode:
+          type: string
+          minLength: 2
+          maxLength: 2
+        bankAccountNo:
+          type: string
+        bankIfsc:
+          type: string
+          minLength: 11
+          maxLength: 11
+        bankHolder:
+          type: string
+        upiHandle:
+          type: string
+        paypalEmail:
+          type: string
+        isDefault:
+          type: boolean
+    ConnectPayPalRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+        countryCode:
+          type: string
+    ConnectStripeRequest:
+      type: object
+      required:
+        - countryCode
+      properties:
+        countryCode:
+          type: string
+    PayoutAccountUpdateRequest:
+      type: object
+      properties:
+        isDefault:
+          type: boolean
+        bankAccountNo:
+          type: string
+        bankIfsc:
+          type: string
+          minLength: 11
+          maxLength: 11
+        bankHolder:
+          type: string
+        upiHandle:
+          type: string
+        paypalEmail:
+          type: string
+    CreatePayoutRequest:
+      type: object
+      required:
+        - userId
+        - amountMinor
+        - currency
+      properties:
+        userId:
+          type: string
+          format: uuid
+        amountMinor:
+          type: integer
+          minimum: 1
+          maximum: 5000000
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        note:
+          type: string
+        payoutAccountId:
+          type: string
+          format: uuid
+    AccountResponse:
+      type: object
+      required:
+        - account
+      properties:
+        account:
+          type: object
+          additionalProperties: true
+    PayoutResponse:
+      type: object
+      required:
+        - payout
+      properties:
+        payout:
+          type: object
+          additionalProperties: true
+    SuccessResponse:
+      type: object
+      required:
+        - success
+      properties:
+        success:
+          type: boolean
+          enum:
+            - true
+    SubscriptionResponse:
+      type: object
+      required:
+        - subscriptionId
+        - plan
+        - status
+        - cycleId
+      properties:
+        subscriptionId:
+          type: string
+        plan:
+          type: string
+        status:
+          type: string
+        cycleId:
+          type: string
+    CurrentSubscriptionResponse:
+      type: object
+      required:
+        - status
+        - plan
+        - renewsAt
+        - cancelAtPeriodEnd
+      properties:
+        status:
+          type: string
+        plan:
+          type: string
+        renewsAt:
+          type: string
+          nullable: true
+        cancelAtPeriodEnd:
+          type: boolean
+    EntitlementResponse:
+      type: object
+      required:
+        - ledgerCredits
+        - outstandingHolds
+        - safetyNet
+        - spendableCredits
+        - activeBudget
+        - reservedBudget
+      properties:
+        ledgerCredits:
+          type: number
+        outstandingHolds:
+          type: number
+        safetyNet:
+          type: number
+        spendableCredits:
+          type: number
+        activeBudget:
+          type: number
+        reservedBudget:
+          type: number
+    SubscriptionHistoryItem:
+      type: object
+      required:
+        - plan
+        - status
+        - startedAt
+        - canceledAt
+      properties:
+        plan:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+        canceledAt:
+          type: string
+          nullable: true
+    SubscriptionCheckoutRequest:
+      type: object
+      required:
+        - planId
+      properties:
+        planId:
+          type: string
+        countryOverride:
+          type: string
+    SubscriptionCheckoutResponse:
+      type: object
+      required:
+        - checkoutUrl
+        - providerSessionId
+        - expiresAt
+      properties:
+        checkoutUrl:
+          type: string
+        providerSessionId:
+          type: string
+        expiresAt:
+          type: string
+          nullable: true
+    SubscriptionCancelResponse:
+      type: object
+      required:
+        - status
+        - effectiveDate
+        - message
+      properties:
+        status:
+          type: string
+        effectiveDate:
+          type: string
+          nullable: true
+        message:
+          type: string
