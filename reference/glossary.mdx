@@ -1,0 +1,22 @@
+---
+title: Glossary
+description: The words you will meet while building for Gravity, in plain language.
+---
+
+| Word | Plain meaning |
+|---|---|
+| **Agent** | A program that does a whole job for a person |
+| **Run** | One go of an agent, from question to result |
+| **Tool** | One thing an agent can do in an app, such as "read Gmail" or "search the web" |
+| **Capability** | In a v2 manifest, what the agent does (such as `message.send`) without naming the app. The person picks the app |
+| **Manifest** | `manifest.yaml`, the agent's permission slip and order form |
+| **Gateway** | Gravity's gatekeeper. Every tool and model call goes through it and is checked against the manifest |
+| **Run token** | The only key an agent ever holds. It allows exactly the tools that run may use, within its budget |
+| **Approval** | A moment where the person says yes or no before something goes out |
+| **Action** | One of the things an agent can do, shown as a button under a result |
+| **Slot** | A choice that decides which tools an agent gets, such as "deliver by Gmail or keep in Gravity" |
+| **Memory** | What an agent keeps between runs: a small notebook and lists of records |
+| **Corpus** | The structured document an agent returns when the person may want the result as a file |
+| **GenUI** | The part of Gravity that turns a result into a screen |
+| **Budget** | The most one run may spend on models and paid tools |
+| **Review** | The Gravity team's check before a new version is listed for people |

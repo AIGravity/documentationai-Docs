@@ -1,0 +1,48 @@
+---
+title: Publish and review
+description: How a version gets from your folder onto Gravity, and how it is reviewed before people can find it.
+---
+
+## Publishing a version
+
+```bash
+gravity validate
+gravity build      # packs build/agent.zip
+gravity push       # uploads it and waits for the build
+```
+
+When you push, Gravity checks the agent again with the same rules as `gravity validate`, scans it for secrets, builds it and starts it. `gravity push` waits until the build is ready, or tells you why it failed. `gravity agents` shows each version as queued, building, ready or failed, with the reason.
+
+<Callout kind="danger">
+
+Never put keys, tokens or passwords in any file, test fixtures included. The build's secret scanner refuses the upload on any hit. A secret a person must supply is a `secret` question in the form.
+
+</Callout>
+
+## Versions are frozen
+
+- The first builder to push a name owns it.
+- A pushed version never changes. To fix something, raise `version` in `manifest.yaml` and push again.
+- Pushing the same version with the same code does nothing. The same version with different code is refused.
+- Only your newest versions keep running on Gravity. Older ones are retired and cannot be pushed again.
+
+## Review
+
+A new version stays **private** until the Gravity team approves it. An agent is listed for people only while its newest version is ready and approved, so pushing a new version takes the agent off the shelf until that version is approved too.
+
+There is no submit command. Tell the Gravity team:
+
+- what the agent does,
+- example inputs,
+- which accounts it needs,
+- what a good result looks like.
+
+`gravity agents` shows the review status, the team's notes, and why an agent is switched off if it is.
+
+The team may try your version with different connected accounts from yours. An optional tool that is not connected should cost the agent one refused call and one line in the result, not a run full of errors.
+
+<Callout kind="tip">
+
+You can run your own version from the web app before it is approved. It is the best check that the agent works the way a person will use it.
+
+</Callout>

@@ -1,0 +1,102 @@
+---
+title: What Gravity gives every agent
+description: Questions, memory, actions, approvals, schedules, files and the spending budget, and how to declare each.
+---
+
+Everything on this page is declared in `manifest.yaml`. Gravity does the work; your code only reads the results. The [manifest reference](/reference/manifest) has the exact fields.
+
+## Questions
+
+The form a person fills in is built from the manifest's `inputs`. Ask few questions, each one changing the result, with a label that reads as a question plus a hint.
+
+| Type | The person gets |
+|---|---|
+| `text`, `textarea` | One line, or many lines |
+| `number`, `boolean` | A number, or a switch |
+| `static-dropdown`, `multi-select` | One, or several, of a list of options |
+| `email`, `url`, `date` | A checked field. A wrong answer is refused on the question, so your code never sees it |
+| `secret` | A masked field, sealed and never shown again. Use it for any key or password a person supplies |
+| `google-doc`, `google-sheet` | A link to one of their Google Docs or Sheets |
+| `file` | An upload, limited to the file types you accept |
+
+Ask only what applies. A question that depends on an earlier answer gets `show_if`, so it is hidden otherwise. "Upload or paste" is a `choose_one` group. Gravity applies these rules on every run, so a hidden question's answer never reaches your code.
+
+## Memory
+
+Between runs an agent can remember things, and each person's memory is their own.
+
+- **A small notebook**: whatever the last completed run returned under `memory`.
+- **Collections**: lists of records with limits and expiry, such as "people already contacted" or "posts already shown".
+
+```yaml
+memory:
+  notebook_kb: 64
+  collections:
+    contacted: { per: user, keep_days: 90, max_items: 5000 }
+```
+
+Always remember through Gravity, never in a file or a variable: nothing on disk survives between runs.
+
+## Actions
+
+One agent can do several things. Declare them as `actions`, and the person picks what to do next from buttons under a result, for example "find more", "write the emails", "send them".
+
+```yaml
+actions:
+  - name: find
+    label: "Find leads"
+    default: true
+  - name: write_emails
+    label: "Write the emails"
+    requires: [find]
+    per_row: true          # works on the rows the person selected
+```
+
+An action can also run again later for one item, for example "check for a reply in three days".
+
+## Approvals
+
+Before the agent does something that reaches other people or cannot be undone, the person sees exactly what will happen and says yes or no.
+
+```yaml
+approvals:
+  required_for: [gmail.send]
+```
+
+Each person sets how much they want to be asked, and Gravity also decides for itself which tools always ask. So never assume the person saw a send. Make the effect safe by design (drafts first, caps, a way to stop), and always write the fallback for a "no", such as keeping a draft.
+
+## Asking mid-run
+
+An agent can pause to ask the person a question, such as "Approve this scoring sheet?", and carry on with the answer. A run nobody is watching, such as a scheduled one, gets the default answer straight away.
+
+## Schedules and triggers
+
+An agent can run by itself:
+
+- **On a schedule**: India time, no more often than every five minutes. The person switches it on and, if you allow it, changes the time.
+- **When new mail arrives** that matches a Gmail search.
+- **From a webhook**, such as a GitHub push.
+
+```yaml
+triggers:
+  manual: true
+  schedule:
+    cron: "0 8 * * *"          # daily at 08:00 India time
+    consumer_can_change: true
+```
+
+A scheduled run whose result changed emails the person a one-line summary.
+
+## Files
+
+The person can ask for the result as a web page, Word document, slide deck or spreadsheet. The agent writes one structured document, and Gravity makes each format. Declare the formats under `outputs`. You write no renderer.
+
+## Spending budget
+
+Each run on Gravity has a budget, one dollar by default. It covers model calls and the tools that run on Gravity's account. Past it, calls are refused, so the agent should wrap up and say what it could not do.
+
+<Callout kind="info">
+
+Local runs are not metered, so a run on Gravity is the only real test of what your agent costs. `gravity runs my-agent` shows the cost of each run.
+
+</Callout>

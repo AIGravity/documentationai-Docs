@@ -21,132 +21,65 @@
             ]
           },
           {
-            "group": "Core Concepts",
+            "group": "How It Works",
             "icon": "layers",
             "pages": [
               {
-                "title": "Features",
-                "path": "features"
+                "title": "How an Agent Works",
+                "path": "concepts/how-agents-work"
               },
               {
-                "title": "Architecture Overview",
-                "path": "architecture-overview"
+                "title": "Tools and Models",
+                "path": "concepts/tools-and-models"
               },
               {
-                "title": "Monorepo Architecture",
-                "path": "monorepo-architecture"
+                "title": "What Gravity Gives Every Agent",
+                "path": "concepts/platform-features"
               },
               {
-                "title": "Frontend Application Shell",
-                "path": "frontend-application-shell"
-              },
-              {
-                "title": "API Service Foundation",
-                "path": "api-service-foundation"
-              },
-              {
-                "title": "AI Service Foundation",
-                "path": "ai-service-foundation"
-              }
-            ]
-          },
-          {
-            "group": "Advanced",
-            "icon": "compass",
-            "pages": [
-              {
-                "title": "Integrations",
-                "path": "integrations"
-              },
-              {
-                "title": "Health Checks",
-                "path": "health-checks"
-              },
-              {
-                "title": "Service Versioning",
-                "path": "service-versioning"
-              },
-              {
-                "title": "CI/CD Pipelines",
-                "path": "ci-cd-pipelines"
-              },
-              {
-                "title": "Docker Images and Packaging",
-                "path": "docker-images-and-packaging"
-              },
-              {
-                "title": "Repository Automation Scripts",
-                "path": "repository-automation-scripts"
-              },
-              {
-                "title": "Data Models Reference",
-                "path": "data-models-reference"
-              },
-              {
-                "title": "Configuration Reference",
-                "path": "configuration-reference"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API Reference",
-        "icon": "code",
-        "groups": [
-          {
-            "group": "Endpoints",
-            "pages": [
-              {
-                "title": "NestJS API",
-                "path": "api-reference/nestjs-api"
-              },
-              {
-                "title": "AI Service",
-                "path": "api-reference/ai-service"
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "Help Center",
-        "icon": "help-circle",
-        "pages": [
-          {
-            "title": "Help Center",
-            "path": "help-center"
-          },
-          {
-            "group": "FAQs",
-            "icon": "help-circle",
-            "expandable": false,
-            "pages": [
-              {
-                "title": "How to Create Project",
-                "path": "help-center/faq/how-to-create-project"
-              }
-            ]
-          },
-          {
-            "group": "Troubleshooting",
-            "icon": "alert-triangle",
-            "expandable": false,
-            "pages": [
-              {
-                "title": "Cannot Invite Team",
-                "path": "help-center/troubleshooting/cannot-invite-team"
+                "title": "How a Result Is Shown",
+                "path": "concepts/results"
               }
             ]
           },
           {
             "group": "Guides",
-            "icon": "book-open",
-            "expandable": false,
+            "icon": "compass",
             "pages": [
               {
-                "title": "Add Project Docs",
-                "path": "help-center/guides/add-project-docs"
+                "title": "From an Idea to an Agent",
+                "path": "guides/idea-to-agent"
+              },
+              {
+                "title": "Testing Your Agent",
+                "path": "guides/testing"
+              },
+              {
+                "title": "Publish and Review",
+                "path": "guides/publish-and-review"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "icon": "code",
+        "groups": [
+          {
+            "group": "Reference",
+            "pages": [
+              {
+                "title": "CLI",
+                "path": "reference/cli"
+              },
+              {
+                "title": "manifest.yaml",
+                "path": "reference/manifest"
+              },
+              {
+                "title": "Glossary",
+                "path": "reference/glossary"
               }
             ]
           }

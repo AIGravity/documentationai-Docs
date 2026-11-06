@@ -1,0 +1,73 @@
+---
+title: How an agent works
+description: The files an agent is made of, what happens when someone runs it, and the two kinds of manifest.
+---
+
+## What an agent is made of
+
+An agent is a folder with a few files. Your coding assistant writes most of them, but it helps to know what they are.
+
+```
+my-agent/
+  manifest.yaml       what the agent is and what it may do
+  requirements.txt    the Python libraries it needs
+  src/agent.py        its steps, as a LangGraph graph
+  tests/              checks that prove the logic works (optional, shipped if present)
+```
+
+| Piece | What it is, in plain words |
+|---|---|
+| `manifest.yaml` | The agent's **permission slip and order form**. It lists the questions to ask the person, the tools the agent may use, what needs approval, when it may run on its own, what it remembers and what files it can produce |
+| `src/agent.py` | The agent's **steps**, written in Python. Each step does one job and hands its work to the next |
+| `requirements.txt` | The libraries the code needs. Gravity runs agents on ARM64 Linux with Python 3.12, so every library needs a ready-made wheel for that |
+| `tests/` | Checks that prove the logic works before anyone relies on it |
+
+Only these ship. Data files, notebooks, `README.md` and your virtualenv stay on your machine, so put any data the agent reads under `src/`.
+
+<Callout kind="info">
+
+**The manifest is what keeps people safe.** Gravity only lets the agent use what the manifest declares, on every single call. If the code tries anything else, Gravity refuses it.
+
+</Callout>
+
+## Code decides the facts, the model writes the words
+
+Counting, ranking, money, dates and removing duplicates are done by ordinary code that can be tested. The AI model reads messy text into fields and writes sentences around numbers the code worked out. The model never owns a number, a name, a link or a quote.
+
+## What happens when someone runs your agent
+
+1. A person starts it: from the web app, a chat, a button under an earlier result, a schedule, or a webhook.
+2. Gravity builds the run's inputs from their answers, checks them against the manifest's rules, and queues the run. One conversation has one live run at a time.
+3. Gravity gives the run a **run token** that allows exactly the tools the manifest declares, the approvals it needs, and a spending budget.
+4. Your graph runs on Gravity. Every tool call and every model call goes through Gravity's **gateway**, which checks it against the token, holds it for the person's approval when needed, and counts its cost.
+5. When the graph ends, Gravity stores the result, draws it as a screen, makes any files the person asked for and delivers them.
+
+If an approval is needed, the run waits for the person's answer. A run that stops part way is started again from its last saved step, so each step should be safe to run twice.
+
+The agent never holds an API key. Gravity provides the tools and models; the agent only sees its run token.
+
+## Running on your machine and running on Gravity
+
+`gravity run` and `gravity dev` run your graph on your machine against the real gateway and models, using accounts **you** connected with `gravity connect`. A tool the manifest does not declare is refused locally just as it is on Gravity.
+
+Some things only happen on Gravity, so test them with a hosted run after you push:
+
+- pausing for approvals and questions (locally an approval waits a few minutes, then times out),
+- the run's spending budget,
+- memory between runs, the result screen and its buttons,
+- files and deliveries,
+- reading pages through a signed-in browser.
+
+## Two kinds of manifest: v1 and v2
+
+Gravity runs both. `gravity init` makes a **v1** agent unless you ask for v2.
+
+| | v1 (default) | v2 |
+|---|---|---|
+| What the manifest names | The tools the agent calls, such as `gmail.read` and `gmail.send` | **Capabilities**, such as `message.list` and `message.send` |
+| Who picks the app | You, the builder | The person using the agent picks the app (Gmail or Outlook, Linear or Jira) and the place in it when they set it up |
+| How the code calls them | Tools from the gateway, by name | `gravity.read("inbox")` and `gravity.act("send", ...)`, by the names the manifest gives |
+| Start one | `gravity init my-agent` | `gravity init my-agent --contract v2` |
+| Browse what exists | `gravity tools` | `gravity capabilities` |
+
+Build on v1 unless the people using your agent need to choose their own apps. The [manifest reference](/reference/manifest) covers both.

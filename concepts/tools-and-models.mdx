@@ -1,0 +1,78 @@
+---
+title: Tools and models
+description: What your agent can use, whose account each tool runs on, and how it calls AI models.
+---
+
+## Tools
+
+A tool is one thing an agent can do in an app or on the web, such as "read Gmail" or "search the web". You do not wire up accounts, keys or servers. You name the tool in the manifest and Gravity does the rest.
+
+```yaml
+permissions:
+  tools:
+    - gmail.read
+    - gmail.draft
+    - gmail.send
+```
+
+Tool names are `app.action`, lowercase, Gravity's own names. In Python, use an underscore instead of the dot: `gmail_read`.
+
+The list changes as tools are added, so look it up live rather than from a page:
+
+```bash
+gravity tools            # every tool, grouped by app
+gravity tools slack      # search the list
+```
+
+| What you want | Examples |
+|---|---|
+| Search and read the web | Search, read a page, read a page that needs a real browser, read pages that block normal visits through Gravity's proxies |
+| Look up people and companies | Company search, work emails and email checks, public LinkedIn and X profiles, Reddit, YouTube transcripts |
+| Email | Read, draft, send and reply in the person's Gmail |
+| Calendar, documents and data | Free and busy times, create events, Drive files, Sheets, Notion |
+| Teams | Slack, Linear, GitHub, Jira and more |
+| Forms | Google Forms, and Byteforms for public forms with a close date |
+| Signed-in browsing | Read pages and send messages as the person on LinkedIn or X, after they sign in once on Gravity. The agent never sees the password |
+| Post | A post on the person's LinkedIn |
+
+### Whose account a tool runs on
+
+- **Gravity's own account.** The person connects nothing, and the cost counts against the run's budget. Web reading and some data tools work this way.
+- **The person's own account.** Gmail, Slack, Notion and the like act as the person. Gravity asks them to connect the app when they set the agent up.
+
+For your own local runs, connect your accounts with `gravity connect gmail`. `gravity connect` on its own lists what is connected.
+
+### Curated and imported tools
+
+**Curated** tools are reviewed by Gravity: prefer them. **Imported** tools are the same apps' other actions, synced from the vendor and not reviewed. Their names are longer (`github.create_an_issue`), so search for them with `gravity tools`. An imported tool that changes something must be listed under `approvals.required_for`, or Gravity refuses it.
+
+<Callout kind="tip">
+
+Need a tool that is not on the list? Describe it in a `tools_needed.yaml` file in your agent's folder and send it to the Gravity team. Once it is added, update the CLI and declare it.
+
+</Callout>
+
+## Models
+
+The agent uses AI models through Gravity. There are no keys to manage: the run token is the key, and every call counts against the run's spending budget. The starter templates show the setup:
+
+```python
+model = ChatOpenAI(
+    model="openai/gpt-6-luna",
+    base_url=os.environ["GRAVITY_LLM_URL"],
+    api_key=os.environ["GRAVITY_RUN_TOKEN"],
+    max_tokens=2500,
+)
+```
+
+Embeddings and image generation go through the same address. `Gravity.agent.md` in your agent's folder lists the models that are known to work.
+
+Good habits on every model call:
+
+- Set `max_tokens`.
+- Ask for structured output, and send only the fields the model needs.
+- Keep at most two calls in flight, and have a fallback when a call fails. A failed model call should drop a sentence, not the run.
+
+## Reading the web directly
+
+Outbound HTTPS is open, so your code can read public pages and APIs itself. Anything that acts on an account still goes through a tool, so the person's connection and approvals apply. Some sites refuse visits from cloud servers, so a source that works from your laptop is not proven until a run on Gravity reads it.
