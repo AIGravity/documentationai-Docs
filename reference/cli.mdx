@@ -1,0 +1,72 @@
+---
+title: CLI reference
+description: Every gravity command, grouped the way gravity -h groups them.
+---
+
+Install with `uv tool install gravity-cli` (Python 3.12 or newer). Add `-h` to any command to see all of its options, and run `gravity help` followed by a question in plain words ("which app can send email") to search the help.
+
+## Build an agent
+
+| Command | What it does |
+|---|---|
+| `gravity init <name>` | Create a new agent from a template: `--template minimal`, `structured`, `deepagent` or `chat`. `--contract v2` makes a v2 agent. `--here` writes only a `manifest.yaml` into the current folder |
+| `gravity validate [path]` | Check your agent for mistakes before it runs: the same checks Gravity runs when you publish, all problems at once. It also compiles `requirements.lock` for Gravity |
+| `gravity run [path]` | Run your agent on your machine against the real tools and models. See the options below |
+| `gravity dev [path]` | Open a local page to run and watch your agent: the form, a live timeline, approvals, the result and history |
+| `gravity schedule [path]` | Run your agent's schedule locally. `--now` fires it at once. Approvals are answered "no" |
+| `gravity memory [ls\|show\|clear]` | See or clear what your agent remembered between local runs |
+| `gravity check <capability>` | v2: try a capability on your own account, for example `gravity check issue.list --app linear` |
+| `gravity capabilities [text]` | v2: browse the capabilities a manifest can name, and which apps serve each |
+| `gravity adapt <slot> <name> --tools a,b` | v1: an AI model writes a slot adapter, kept only if its tests pass |
+
+### Options for `gravity run`
+
+| Option | What it does |
+|---|---|
+| `--input name=value` | Answer one question of the form. `name=@file` reads the answer from a file. Repeat for each question |
+| `--action name` | Run one action instead of the defaults. `--action-input k=v` gives it its own inputs |
+| `--answer "question=answer"` | Answer a mid-run question |
+| `--reply "text"` | Continue a chat with the agent |
+| `--use name=app` | v2: pick the app for a source or write, or `name=none` to leave an optional one out |
+
+## Publish
+
+| Command | What it does |
+|---|---|
+| `gravity build [path]` | Package your agent into `build/agent.zip`. It validates first |
+| `gravity push [path]` | Publish your built agent to Gravity, and wait until it is ready or has failed |
+
+## Your agents
+
+| Command | What it does |
+|---|---|
+| `gravity agents` | List your published agents: versions, build status, review status, the team's notes, and why one is off |
+| `gravity runs <agent>` | Show recent runs of one agent on Gravity |
+| `gravity logs <run id>` | Show the timeline of one run |
+| `gravity tools [text]` | Browse the tools a v1 manifest can name, live from Gravity, for example `gravity tools gmail`. Needs no sign-in |
+
+## Account
+
+| Command | What it does |
+|---|---|
+| `gravity login` | Sign in with Google in your browser. `--no-browser` prints a link and a code for another device |
+| `gravity logout` | Sign out |
+| `gravity whoami` | Show who you are signed in as |
+| `gravity connect [app]` | Connect your own account (Gmail, Slack and others) for local runs. On its own, it lists what is connected |
+
+## Help and the CLI itself
+
+| Command | What it does |
+|---|---|
+| `gravity help [question]` | The command list, or help on a command or a question |
+| `gravity guide` | Read the builder guide. `--save` writes it to a file, `--contract v2` shows the v2 guide |
+| `gravity docs` | Write the Gravity guides into this folder: `Gravity.getting-started.md`, `Gravity.agent.md` and `problem-to-agent.md`. `--force` replaces copies you edited |
+| `gravity update` | Update to the latest release and see what is new. `--check` only checks |
+| `gravity changelog` | What changed in each release. `--all` shows every release |
+| `gravity --version` | Show the installed version |
+
+<Callout kind="info">
+
+The guides the CLI writes into your folder are rewritten on every update, so they always match your version. Do not edit them: an edited copy stops getting updates. Keep your own notes in a separate file such as `AGENTS.md` or `CLAUDE.md`.
+
+</Callout>

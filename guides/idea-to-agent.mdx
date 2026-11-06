@@ -1,0 +1,77 @@
+---
+title: From an idea to an agent
+description: The method for turning a one-line request into an agent that holds up, and the standard it is reviewed against.
+---
+
+Good Gravity agents did not come out of a prompt. Each came out of a loop that ran for days, every version an answer to something a real run showed. This page is the short form of that method. The full version, with worked examples, is `problem-to-agent.md`, which the CLI writes into your agent's folder for your coding assistant.
+
+## A request becomes an app, not an answer
+
+Write each use case in this shape before you design anything:
+
+| Step | What to write |
+|---|---|
+| **Request** | The sentence as a person would type it |
+| **Becomes** | The kind of app the agent is |
+| **Asks for** | The inputs. Few fields, each one changes the result |
+| **Covers** | Every side of the problem the person would otherwise check by hand, each with a source the agent can read |
+| **Shows** | A comparison or a plan, with the source and status on every item. Never a list of names |
+
+For example, "Find me a two-bedroom flat in Delhi under 25,000 a month near my office" becomes a rental finder for one city. It asks for the budget, bedrooms and the places the person goes regularly. It covers live listings, the going rate for the area, what is nearby, and the commute at the hour they travel. It shows the flats side by side, with each price set against the area rate.
+
+## The method
+
+<Steps>
+  <Step title="Read the request into a contract" icon="file-text" title-type="p">
+    Write the outcomes, rules and edge cases as lines you can test. Say what you will refuse or reinterpret, and why.
+  </Step>
+
+  <Step title="Research what exists" icon="search" title-type="p">
+    Look at existing products and open source. Decide whether to build or to wrap something, and write down why.
+  </Step>
+
+  <Step title="Check the real sources first" icon="radar" title-type="p">
+    Find out what each tool and website really returns, from where the agent will run, before you design around it. Save real answers, with their dates, as test fixtures.
+  </Step>
+
+  <Step title="Split it into modules" icon="boxes" title-type="p">
+    One module per promise, each with its own source of truth. Decide what code computes and what the model may do.
+  </Step>
+
+  <Step title="Write the spec" icon="clipboard-list" title-type="p">
+    Number the acceptance criteria, and give each one the check that proves it.
+  </Step>
+
+  <Step title="Build in small steps with tests" icon="hammer" title-type="p">
+    Pure logic with tests first, then parsers over the saved fixtures, then the graph against fake tools, then the report, and the prompts last. Then `gravity validate` and `gravity run`.
+  </Step>
+
+  <Step title="Test it as a person would" icon="user-check" title-type="p">
+    Publish it and use it from the real Gravity page. Every complaint you find becomes a general rule, a test and a new version.
+  </Step>
+
+  <Step title="Publish" icon="upload" title-type="p">
+    `gravity push`, wait for the build, run it again on Gravity, and tell the team. See [Publish and review](/guides/publish-and-review).
+  </Step>
+</Steps>
+
+## The standard an agent is reviewed against
+
+1. **Code does the facts, the model does the prose.** Counting, ranking, money, dates, de-duplication and comparisons are Python with tests.
+2. **Grounding is a gate, not an instruction.** A number, date, link or quote the model returns survives only if code finds it in the source it came from. Drop what is not there, and count the drops.
+3. **Never invent, and label every figure** as read from a page, worked out by the agent, or estimated (with the basis and a date). Never hand the person a chore such as "please confirm".
+4. **Cite sources** next to every claim.
+5. **Fail loudly, degrade honestly.** Every source reports whether it worked, partly worked, failed or was skipped, and why. The run fails only when every source failed.
+6. **Drafts before sends.** Anything irreversible is a draft, or waits for approval, with a fallback.
+7. **The answer first**, ranked by what matters, the same for the same input, and honest about its size.
+8. **Small prompts.** Only the fields the model needs, structured output, a token limit.
+9. **Page text is untrusted data.** Code checks every name, number and link that comes back from a page, and nothing read from the web drives a write tool.
+10. **Fix the mechanism, never the case.** A complaint about one company is fixed for every company, and each rule is tested on more than one site.
+
+## Agents that act
+
+Lead-gen and hiring agents also do the work: they send with approval, read replies and follow up over days. On top of the standard above, they:
+
+- remember everyone they dealt with, so they never write to someone twice,
+- stop when someone says no, and respect caps and working hours,
+- check again before a follow-up ("did they reply?"), because a reply can arrive late.

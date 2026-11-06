@@ -1,0 +1,185 @@
+---
+title: manifest.yaml
+description: Every field of an agent's manifest, for v1 and v2, and the rules gravity validate checks.
+---
+
+The manifest declares everything the agent may touch: its questions, tools, approvals, triggers, memory and outputs. Gravity enforces it on every call.
+
+Only `name` and `runtime` are required. Unknown fields are refused, so a typo is reported, not ignored. `gravity validate` lists every problem at once.
+
+<Callout kind="info">
+
+If `gravity push` refuses a field that `gravity validate` accepted, your CLI is newer than Gravity: remove the field and push again.
+
+</Callout>
+
+## A v1 manifest, field by field
+
+```yaml
+contract: v1                       # v1 names tools; see v2 below
+name: inbox-digest                 # lowercase letters, digits, single hyphens; at most 64; appears in URLs
+version: 1.0.0                     # strict semver; raise it to publish again
+description: One line a person reads before running it.   # at most 500 characters
+kind: interactive                  # transform | interactive (default) | monitor
+
+runtime:
+  framework: langgraph             # the only framework
+  python: "3.12"                   # quoted
+  entrypoint: src/agent.py:graph   # file:object, relative
+  timeout_seconds: 300             # 10 to 28800
+
+dependencies:
+  lockfile: requirements.lock      # leave as is; gravity validate writes it
+
+inputs:                            # the person's form; arrives as state["inputs"]
+  - name: send_to                  # lowercase letters, digits, underscores
+    type: email                    # text | textarea | number | boolean | static-dropdown | multi-select | action-choice | email | url | date | secret | file | google-doc | google-sheet
+    label: "Where to send the digest"   # a question plus a hint; at most 200
+    required: true                 # required only while it is asked
+    show_if: { deliver: gmail }    # asked only when the "deliver" slot is gmail
+    # options: [a, b]              # static-dropdown and multi-select only
+    # accept: [pdf, csv]           # file only: extensions without the dot
+    # default: "..."               # matches the type; never on file or secret
+  - name: labels
+    type: multi-select
+    label: "Which labels to read"
+    options: [work, personal, promotions]
+    min: 1
+
+# choose_one:                      # "either / or": once one is filled the others are not asked
+#   - label: "Your notes"
+#     inputs: [notes_file, notes_text]
+#     required: true
+
+permissions:
+  tools:                           # every tool the code calls, by Gravity name; at most 50
+    - gmail.read
+    - gmail.draft
+    - gmail.send
+  models:
+    tier: standard                 # standard | premium
+
+approvals:
+  required_for: [gmail.send]       # each must also be declared under tools
+
+triggers:                          # at least one way to start the agent
+  manual: true
+  schedule:
+    cron: "0 8 * * *"              # five fields, India time
+    consumer_can_change: true
+  # webhook: [github.push]
+
+memory:                            # memory across runs; leave out for none
+  notebook_kb: 64                  # the small notebook, 1 to 256
+  notebook_per: user               # user | thread
+  collections:                     # keyed records; at most 20
+    seen: { per: user, keep_days: 90, max_items: 5000, max_item_kb: 4 }
+
+slots:                             # a choice that decides which tools the run gets
+  deliver:
+    label: "Deliver the digest to"
+    default: gravity
+    adapters:
+      gravity: []                  # kept in Gravity
+      gmail: [gmail.draft]
+
+actions:                           # what the agent can do; leave out for one entry point
+  - name: digest
+    label: "Make the digest"
+    default: true
+  - name: reply_drafts
+    label: "Draft replies"
+    requires: [digest]             # offered only once these ran in the conversation
+    per_row: true                  # works on the rows the person selects
+offer_as: buttons                  # buttons (default) | question
+offer_label: "What next?"
+
+# accounts:                        # a site the person signs in to once on Gravity, for signed-in browsing
+#   - { name: linkedin, site: linkedin.com, label: "Your LinkedIn", purpose: "send messages you approve" }
+
+outputs:                           # what the result may become; at most 8
+  summary: { renderer: markdown, label: "Summary", destinations: [download, gmail.draft, gmail.send] }
+  report:  { renderer: docx, label: "Report (Word)" }
+
+display:                           # optional hint for how the result shows; never fails a push
+  view: report                     # document | report | table | chart | code | files
+  field: summary
+```
+
+## Rules `gravity validate` checks
+
+- **Inputs**: names are unique and differ from slot names. Dropdowns and multi-selects need `options`, and no other type may have them. A default matches its type. `file` and `secret` never have a default.
+- **Tools**: Gravity's own `app.action` names, which must exist in `gravity tools`. An imported tool that changes something must also be under `approvals.required_for`.
+- **Schedule**: five fields of digits, `*`, `/`, `-` and commas. Not both a day of the month and a weekday, and never more often than every five minutes. `"0 9 * * 1-5"` is weekdays at 09:00 India time; `"*/30 * * * *"` is every 30 minutes.
+- **Conditions**: a `show_if` names a slot or an input declared above it, with values that input can take. A hidden question is never asked and its answer is dropped.
+- **Actions**: names are unique, `requires` never loops, and at least one action is `default: true`.
+- **Quoting**: quote `python: "3.12"`, and write `version: 1.0.0` in full (`1.0` is read as a number and refused).
+- **Limits**: 50 inputs, 50 tools, 8 outputs, 20 actions, 20 memory collections; the manifest at most 64 KB and the zip at most 30 MB.
+
+## What `kind` changes
+
+| Kind | Use it for |
+|---|---|
+| `transform` | All input at the start, a result at the end. Gravity can deliver the result, so the agent usually needs no write tools |
+| `interactive` (default) | Calls tools along the way and may continue over several turns. Only this kind gets follow-up runs and chat "do more" |
+| `monitor` | Runs on a schedule or a webhook. To compare with the last run, declare `memory` |
+
+## A v2 manifest
+
+In v2 the manifest never names an app or a tool. It names **capabilities**, and the person picks the app and the place in it when they set the agent up. Records come back in the same fields whichever app they picked. Start one with `gravity init my-agent --contract v2`, and browse what exists with `gravity capabilities`.
+
+```yaml
+contract: v2
+name: inbox-digest
+version: 1.0.0
+description: Summarises your unread email from the last day and sends you a short digest.
+kind: monitor
+runtime:
+  framework: langgraph
+  python: "3.12"
+  entrypoint: src/agent.py:graph
+  timeout_seconds: 300
+dependencies:
+  lockfile: requirements.lock
+models:
+  tier: standard                    # top-level in v2
+inputs:
+  - { name: send_to, type: email, label: "Where to send the digest", required: true }
+sources:                            # what it reads: gravity.read("inbox")
+  inbox:
+    capability: message.list
+    default_app: gmail              # the app it is built for; the person may pick another
+    label: "Your email"
+    window: 24h
+    filters: { unread: true }
+writes:                             # what it changes: gravity.act("send", draft=...)
+  send:
+    capability: message.send
+    default_app: gmail
+    label: "The account to send the digest from"
+  draft:
+    capability: message.create      # the fallback when sending is not approved
+    label: "Drafts, in the same account"
+    same_as: send                   # the same app and place: the person is asked once
+outputs:
+  digest:
+    renderer: markdown
+    label: "The digest"
+    destinations: [download, document.create]
+    default: { destination: download }
+approvals:
+  required_for: [message.send]
+triggers:
+  manual: true
+  schedule: { cron: "0 8 * * *", consumer_can_change: true }
+memory: { notebook_kb: 64 }
+```
+
+What changes from v1:
+
+- There are no `permissions`, `slots` or `accounts`. What the agent reads goes under `sources`, what it changes under `writes`, and output `destinations` are capabilities too.
+- `models.tier` is top-level.
+- `actions`, `choose_one`, `display`, `offer_as` and `offer_label` work as in v1.
+- The code reads and writes through the `gravity` package by the names the manifest gives: `gravity.read("inbox")`, `gravity.act("send", draft=...)`.
+
+`gravity guide --contract v2` is the full v2 guide.

@@ -1,49 +1,75 @@
 ---
 title: Introduction
-description: Understand the Gravity codebase and use this documentation set to navigate local setup, architecture, services, operations, and configuration.
+description: What Gravity is, what an agent is, and what we expect from one before it goes on the shelf.
 ---
 
-## Overview
+## Gravity in one minute
 
-Gravity is a polyglot monorepo that brings together a Remix frontend, a NestJS API, and a FastAPI AI service. This documentation set stays close to the repository so you can move from reading to running, debugging, and changing the system without guessing how the pieces fit together.
+Gravity is a place where **agents** live. An agent is a small piece of software that does a whole job for a person, not just answers a question. A person types what they need, Gravity asks them the few things it still has to know, and the agent does the work: it reads websites, looks people up, writes drafts, books times, keeps track of what it did and shows the result as a clear screen the person can act on.
 
-<Callout kind="info">
+If you build an agent, you decide what it does. Gravity runs it, keeps it safe, pays for the tools it uses, shows its result and lets people find it.
 
-These docs are grounded in the current implementation. When a document and the repository drift, follow the repository behavior first and treat older references as suspect until they are updated.
+| Who | What they do |
+|---|---|
+| **A person using agents** | Opens Gravity, picks or describes what they need, answers a few questions, gets a result they can act on |
+| **A builder** (you) | Designs an agent, builds it with the help of a coding assistant, tests it and publishes it |
+| **Your coding assistant** | An AI helper such as Claude Code or Codex that writes the agent's code from your description, using the guides the CLI puts in your folder |
+| **The Gravity CLI** | A program called `gravity` that you run in a terminal. It sets up, checks, tests and publishes your agent |
+| **The Gravity platform** | Runs the agent, gives it tools, asks the person before risky steps, keeps its memory and shows the result |
+
+## What an agent is, and what it is not
+
+Ask a chat assistant for "a two-bedroom flat in Delhi under 25,000 near my office" and you get a list of names from memory. You then check prices, listings, commute and the neighbourhood yourself, one website at a time.
+
+An agent does that checking for you. It asks for the facts the request left out, looks at the problem from every side you would have checked, uses real sources, and shows a comparison you can act on.
+
+We do not list an agent that anyone could rebuild by pasting a prompt into a chat assistant. We look for:
+
+- **A real job, done from end to end.** Several steps, several kinds of information, one clear outcome.
+- **Real data.** Every name, number, price, link and quote comes from a source the agent read, and the source is shown. If something could not be found, the agent says so.
+- **Fact-checked.** The agent checks its own claims in code before it shows them. A made-up number is worse than a missing one.
+- **Personal to the request.** Country, budget, role, industry, writing style: what the person typed changes what comes back.
+- **Honest about limits.** What it could not read, what is an estimate, and how it estimated.
+- **Safe to leave alone.** Anything that cannot be undone (sending an email, posting, booking) waits for the person's OK.
+
+<Callout kind="tip">
+
+A good test: if the agent's whole value is a clever prompt, it is not an agent for Gravity yet.
 
 </Callout>
 
-## What this documentation covers
+## Two kinds of agent
 
-Use these docs to get oriented quickly and then drill into the part of Gravity you need to work on. Most pages fall into one of these areas:
+| | Research agents | Acting agents |
+|---|---|---|
+| Examples | job-scout, study-abroad-advisor, pain-point-discovery | lead-gen, hiring |
+| What they do | Gather and compare information, then report | Do the work too: write messages, send them with approval, read replies, follow up, book interviews |
+| Memory | Mostly none | Remember every person they contacted, so they never write twice and stop when someone says no |
+| Runs | One run, one report | Several steps over days, some on a schedule |
 
-- **Getting started** for local setup, prerequisites, and first-run workflows
-- **Architecture** for how the frontend, API, and AI services connect
-- **Service foundations** for the core patterns, boundaries, and responsibilities inside each service
-- **Operations** for running, configuring, and troubleshooting the system in different environments
-- **Reference material** for configuration details, interfaces, and implementation-specific facts
+Acting agents are the direction we want new agents to go in.
 
-Start with the shortest path that matches your goal, then follow the linked pages for deeper detail.
+## Where to go next
 
 <Columns cols={2}>
   <Card title="Quickstart" href="/quickstart" icon="rocket">
 
-    Set up the repository locally and verify that the main services start correctly.
+    Install the CLI, make an agent and run it in ten minutes.
 
   </Card>
-  <Card title="Architecture Overview" href="/architecture-overview" icon="book-open">
+  <Card title="How an agent works" href="/concepts/how-agents-work" icon="layers">
 
-    Understand how the Remix frontend, NestJS API, and FastAPI AI service fit together.
-
-  </Card>
-  <Card title="API Service Foundation" href="/api-service-foundation" icon="code">
-
-    Review the core structure, patterns, and responsibilities of the API service.
+    The files an agent is made of and what happens when someone runs it.
 
   </Card>
-  <Card title="Configuration Reference" href="/configuration-reference" icon="settings">
+  <Card title="From an idea to an agent" href="/guides/idea-to-agent" icon="compass">
 
-    Look up environment variables, configuration surfaces, and behavior that depends on runtime settings.
+    The method that turns a one-line request into an agent that holds up.
+
+  </Card>
+  <Card title="CLI reference" href="/reference/cli" icon="terminal">
+
+    Every `gravity` command and what it does.
 
   </Card>
 </Columns>

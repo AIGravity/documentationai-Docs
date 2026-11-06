@@ -1,214 +1,84 @@
 ---
-title: Getting Started
-description: >-
-  Set up the Gravity monorepo locally, run each service, and verify the stack
-  with the actual commands and configuration from the repository.
+title: Quickstart
+description: Install the Gravity CLI, sign in, create an agent, run it and publish it.
 ---
-## Overview
 
-Gravity is a polyglot monorepo with three apps:
+## Before you start
 
-- `apps/web` — Remix frontend
+You need **Python 3.12 or newer** and [uv](https://docs.astral.sh/uv/), which installs the CLI without fuss. A coding assistant (Claude Code, Codex or similar) does most of the writing.
 
-- `apps/api` — NestJS API running on Bun
-
-- `apps/ai-service` — FastAPI service managed with `uv`
-
-<Callout kind="info" collapsed="false">
-  This page reflects the current repository state. A few repo files are inconsistent with each other, so the commands below use the paths and runtime behavior that actually exist in the codebase.
-</Callout>
-
-## Prerequisites
-
-Before you install anything, make sure these tools are available locally.
-
-<Callout kind="info" collapsed="false">
-  Required by the repository:
-
-  - Node.js 18+
-
-  - `pnpm`
-
-  - `bun`
-
-  - `uv`
-
-  - Python 3.14+
-</Callout>
-
-Use these commands to verify your local toolchain:
-
-<CodeGroup show-lines="true" tabs={[]}>
-  ```bash
-  node -v
-  pnpm -v
-  bun -v
-  uv -v
-  python -V
-  ```
-</CodeGroup>
-
-## Install dependencies
-
-The repository includes a bootstrap script that installs dependencies for all three runtimes.
+## The first ten minutes
 
 <Steps>
-  <Step title="Clone the repository" icon="git-branch" title-type="p">
+  <Step title="Install the CLI" icon="download" title-type="p">
     ```bash
-    git clone <your-repo-url>
-    cd core
+    uv tool install gravity-cli
     ```
+
+    The CLI keeps itself current. When a new release comes out it updates itself, rewrites the guides in your agent's folder and shows what is new.
   </Step>
 
-  <Step title="Run the bootstrap script" icon="play-circle" title-type="p">
+  <Step title="Sign in" icon="log-in" title-type="p">
     ```bash
-    ./scripts/bootstrap.sh
+    gravity login
     ```
 
-    The script does the following:
+    Your browser opens on a Google sign-in. Over SSH or on a machine without a browser, `gravity login --no-browser` prints a link and a code to use on any device.
+  </Step>
 
+  <Step title="Make an agent" icon="folder-plus" title-type="p">
     ```bash
-    pnpm install
-    cd apps/api && bun install
-    cd apps/ai-service && uv sync
+    gravity init my-agent
+    cd my-agent
     ```
+
+    This creates a working starter agent in a new folder, with the guides your coding assistant reads. Pick a different starting point with `--template minimal|structured|deepagent|chat`.
+  </Step>
+
+  <Step title="Build it with your coding assistant" icon="sparkles" title-type="p">
+    Open the folder in your assistant and describe the agent you want. Tell it to read `Gravity.agent.md` first: it is the full technical reference, and `problem-to-agent.md` is the method it should follow.
+  </Step>
+
+  <Step title="Check it" icon="check-circle" title-type="p">
+    ```bash
+    gravity validate
+    ```
+
+    Runs the same checks Gravity runs when you publish, and lists every problem at once.
+  </Step>
+
+  <Step title="Try it" icon="play" title-type="p">
+    ```bash
+    gravity run --input query="hi"
+    ```
+
+    The starter agent asks one question, `query`. Each `--input` answers one question of your agent's form. This runs your agent on your machine against the real tools and models, so you see what a person would see. `gravity dev` opens a local page with the form, a live timeline and the result instead.
+  </Step>
+
+  <Step title="Publish" icon="upload" title-type="p">
+    ```bash
+    gravity build
+    gravity push
+    ```
+
+    Packages the agent, uploads it and builds it on Gravity. `gravity push` waits until the build is ready or says what went wrong. `gravity agents` lists your agents, their versions and their review status.
   </Step>
 </Steps>
 
-<Callout kind="tip" collapsed="false">
-  The root `README.md` mentions `pnpm setup`, but that script does not exist in the current root `package.json`. Use `./scripts/bootstrap.sh` instead.
+<Callout kind="info">
+
+A new version stays private until the Gravity team approves it. See [Publish and review](/guides/publish-and-review).
+
 </Callout>
 
-## Environment variables
+## Commands you will use next
 
-There are currently no repository-provided environment example files for local development.
+| Command | What it does |
+|---|---|
+| `gravity tools` | The tools an agent can use, live from Gravity. `gravity tools slack` searches the list |
+| `gravity connect gmail` | Connect your own account so local runs can use it |
+| `gravity runs my-agent`, `gravity logs <run id>` | What happened when your agent ran on Gravity |
+| `gravity docs` | Refresh the guides in your folder |
+| `gravity update`, `gravity changelog` | Update the CLI and see what changed |
 
-- No `.env.example` file is present
-
-- No `docker-compose.yml`, `compose.yml`, or `compose.yaml` file is present
-
-- No repo-defined environment variables appear required for the current minimal local setup
-
-That means you can start the project without creating an `.env` file.
-
-## Run the project locally
-
-You can start everything together from the repository root.
-
-<Steps>
-  <Step title="Run all services" icon="rocket" title-type="p">
-    ```bash
-    pnpm dev
-    ```
-
-    This runs `turbo run dev --parallel` from the root `package.json`.
-  </Step>
-
-  <Step title="Run a single service when needed" icon="terminal" title-type="p">
-    Use the app-level dev commands below if you want to work on one service at a time.
-
-    <CodeGroup show-lines="true" tabs={[]}>
-      ```bash
-      pnpm --filter @repo/web dev
-      ```
-
-      ```bash
-      pnpm --filter @repo/api dev
-      ```
-
-      ```bash
-      cd apps/ai-service
-      uv run uvicorn main:app --reload --port 8001
-      ```
-    </CodeGroup>
-  </Step>
-</Steps>
-
-## Local URLs and ports
-
-The current repository points to these local services:
-
-- Web app: check the URL printed by the Remix dev server
-
-- API: `http://localhost:3001`
-
-- AI service: `http://localhost:8001`
-
-<Callout kind="alert" collapsed="false">
-  The repo currently contains a few port and naming mismatches:
-
-  - The root `README.md` and API CORS config expect the frontend on `http://localhost:3000`
-
-  - `apps/web/README.md` says the web app is available at `http://localhost:5173`
-
-  - `apps/api/src/main.ts` exposes the API on port `3001`
-
-  - The root script `dev:py` points to `apps/py-service`, but the actual directory is `apps/ai-service`
-
-  Because of this, the safest way to confirm the web URL is to use the address printed in the `apps/web` dev server output.
-</Callout>
-
-## Verify everything is working
-
-After the services start, verify each backend service directly.
-
-<Steps>
-  <Step title="Check the API health endpoint" icon="heart-pulse" title-type="p">
-    ```bash
-    curl http://localhost:3001/health
-    ```
-
-    Expected response:
-
-    ```json
-    {"status":"ok","service":"api"}
-    ```
-  </Step>
-
-  <Step title="Check the AI service health endpoint" icon="cpu" title-type="p">
-    ```bash
-    curl http://localhost:8001/health
-    ```
-
-    Expected response:
-
-    ```json
-    {"status":"ok"}
-    ```
-  </Step>
-
-  <Step title="Open the web app" icon="globe" title-type="p">
-    Open the local URL printed by the Remix dev server and confirm the starter UI loads.
-  </Step>
-</Steps>
-
-## Repository notes to keep in mind
-
-The current codebase is still scaffold-level, so a few repo details are worth calling out while setting up the project:
-
-- `apps/ai-service/pyproject.toml` requires Python `>=3.14`
-
-- The API route implemented in code is `GET /health`, not `GET /api/health`
-
-- The repo includes Dockerfiles for each app, but no compose-based local orchestration file
-
-- The root README references shared `packages/*` paths that are not present yet
-
-## Next steps
-
-Once the stack is running locally, continue with the rest of the docs:
-
-<Columns cols="2">
-  <Card title="Introduction" href="/introduction" icon="book" horizontal="false">
-    Read the high-level overview of the repository and its current product scope.
-  </Card>
-
-  <Card title="Features" href="/features" icon="zap" horizontal="false">
-    Review the currently implemented capabilities across the web, API, and AI service.
-  </Card>
-
-  <Card title="Integrations" href="/integrations" icon="cloud" horizontal="false">
-    Explore how the services, tooling, and deployment pieces connect.
-  </Card>
-</Columns>
-
+Add `-h` to any command to see its options. The [CLI reference](/reference/cli) lists them all.

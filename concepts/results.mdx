@@ -1,0 +1,58 @@
+---
+title: How a result is shown
+description: Your agent returns data; Gravity turns it into the result screen and into every file format.
+---
+
+## Your agent returns data, not screens
+
+An agent does not build screens. It returns its result as plain, well-named data, and Gravity's result screen (GenUI) turns it into something a person enjoys reading: a headline, key numbers, ranked cards that open for detail, tables, charts, timelines, side-by-side comparisons, sources with their logos, drafts with a Copy button, and a "What next?" bar with the agent's actions.
+
+The same result is drawn in the web app, in chat and in run history, so it has to read well everywhere without code of its own. Nothing in a result runs as code, and you ship no HTML or CSS.
+
+## Shape the result for a reader
+
+Every run sets `result`, a small set of named fields:
+
+```python
+return {"result": {
+    "headline": "3 of 14 unread emails need a reply today",
+    "needs_reply": [
+        {"from": "acme.com", "subject": "Contract renewal", "why": "Asks for a signed copy by Friday"},
+    ],
+    "unread": 14,
+    "unavailable": [{"source": "Outlook", "reason": "not connected"}],
+}}
+```
+
+- **Name things for a reader**: `shortlist`, `why`, `deadline`, never `x1`. Names become headings.
+- **Numbers as numbers**: `14`, not `"14 emails"`.
+- **The answer first**: one sentence in `headline` or `verdict`, a longer one in `summary`.
+- **Rows as lists** with the same keys in every row.
+- **Say what did not work**, and give every empty case a sentence instead of a missing section.
+
+An agent can also add a small hint about which parts to feature and what to call them. It never ships screen code.
+
+## Files: one document, every format
+
+When the person may want the result as a file, the agent also returns a `corpus`: one structured document with a title, a summary, sections, tables and sources. Gravity makes each format from it.
+
+| Renderer | The person gets |
+|---|---|
+| `markdown` | A formatted page; also what is emailed |
+| `docx` | A Word document |
+| `pptx` | A slide deck |
+| `pdf` | A PDF |
+| `rows` | A CSV of the first table |
+| `xlsx` | An Excel workbook, one sheet per table |
+
+```yaml
+outputs:
+  summary: { renderer: markdown, label: "Summary", destinations: [download, gmail.draft] }
+  report:  { renderer: docx, label: "Report (Word)" }
+```
+
+Gravity can deliver an output for the person, for example as a download, an email or a new Google Doc or Sheet, on their own connected account. Your agent needs no Gmail or Docs tool for that.
+
+## Edits after the run
+
+When the person asks for a change such as "shorter", "as bullets" or "in Spanish", Gravity rewrites the stored output itself and checks that no number, date or link changed. Your agent does not run again, so it needs no "rewrite" step. A request for new work becomes a new run, started only after the person confirms it.

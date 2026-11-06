@@ -1,0 +1,56 @@
+---
+title: Testing your agent
+description: What to check on your machine, and what only a run on Gravity can show.
+---
+
+## The order to test in
+
+| What | How |
+|---|---|
+| The manifest and the build's checks | `gravity validate`: the same checks Gravity runs when you publish. It also compiles the lockfile Gravity installs from |
+| Your logic | `pytest tests/` on plain functions, with fixtures saved from real answers and no network |
+| The whole graph | Fake tools and a fake model, with one test that runs the graph end to end and checks every rule |
+| A real run | `gravity run --input name=value`, or `gravity dev`, against the real tools and models |
+| As a person would | Push, then run it from the real Gravity page, on every surface: the web app, chat and run history |
+
+Run `pytest` as its own step before `gravity validate`, `gravity build` and `gravity push`.
+
+## Local runs
+
+```bash
+gravity run --input query="hi"                       # answer the form's questions
+gravity run --input notes=@notes.txt                 # read an answer from a file
+gravity run --action write_emails --action-input k=v # run one action
+gravity run --answer "Approve this?=approve"         # answer a mid-run question
+gravity dev                                          # a local page with the form, timeline and result
+```
+
+Local runs use the accounts you connected with `gravity connect`. A tool your manifest does not declare is refused, just as on Gravity.
+
+Test each action with `gravity run --action`, and each `show_if` with answers that hide and show the question.
+
+## What only a run on Gravity shows
+
+A local run is not the whole story. These only happen once the agent is pushed:
+
+- pausing for approvals and mid-run questions, and resuming afterwards,
+- the spending budget (local runs are not metered),
+- memory between runs,
+- the result screen, its action buttons, files and deliveries,
+- signed-in browsing on LinkedIn or X,
+- checking answers against their type: locally, `--input n=5` arrives as the text `"5"`, while on Gravity it arrives as the number `5`.
+
+The `gravity` Python package, which handles approvals, memory and mid-run questions, exists only on Gravity and cannot be installed on your machine. Import it behind a guard and test those paths with a hosted run. `Gravity.agent.md` shows the guard.
+
+<Callout kind="tip">
+
+You can run your own version from the web app before it is approved. Use it the way a person would, and turn each thing that looks wrong into a rule, a test and a new version.
+
+</Callout>
+
+## Seeing what happened
+
+```bash
+gravity runs my-agent      # recent runs of your agent on Gravity, with their cost
+gravity logs <run id>      # the timeline of one run
+```
