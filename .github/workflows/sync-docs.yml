@@ -1,0 +1,61 @@
+name: Publish documentation.ai's updates
+
+# documentation.ai's automations write their updates to automation/... branches and never publish
+# them. Every 3 days this merges each such branch into main, oldest first, once it passes the
+# checks below; a push to main deploys docs.gravity.fast. A branch that fails a check or clashes
+# with main is left alone and the run fails, so GitHub emails whoever set this up.
+
+on:
+  schedule:
+    # ponytail: 07:00 IST on the 1st, 4th, 7th... so the 31st and the 1st run back to back
+    - cron: "30 1 */3 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-docs
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install the page check
+        run: |
+          mkdir "$RUNNER_TEMP/mdx" && cp .github/docs-sync/check.mjs "$RUNNER_TEMP/mdx/"
+          (cd "$RUNNER_TEMP/mdx" && npm i --silent --no-audit --no-fund @mdx-js/mdx@3.1.0 remark-gfm@4.0.0)
+
+      - name: Merge each automation branch that passes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          failed=0
+          for b in $(git for-each-ref --sort=committerdate --format='%(refname:lstrip=3)' refs/remotes/origin/automation/); do
+            if ! git merge --no-ff --no-edit "origin/$b"; then
+              git merge --abort
+              echo "::error::$b clashes with main; left alone"; failed=1; continue
+            fi
+            if [ -n "$(git diff --name-only HEAD~1 HEAD -- .github)" ]; then
+              problem="it changes .github/"
+            elif grep -rniE 'amazonaws|arn:aws|sk-ant-|AKIA|supabase|agentcore|openrouter|nonprod|gravity\.fast' --include='*.mdx' .; then
+              problem="a page names Gravity's internals"
+            elif ! node "$RUNNER_TEMP/mdx/check.mjs" .; then
+              problem="a page doesn't compile, a link is broken or a page is missing from the navigation"
+            else
+              problem=""
+            fi
+            if [ -n "$problem" ]; then
+              git reset --hard HEAD~1
+              echo "::error::$b not published: $problem"; failed=1; continue
+            fi
+            git push origin HEAD:main
+            git push origin --delete "$b"
+            echo "published $b"
+          done
+          exit $failed
