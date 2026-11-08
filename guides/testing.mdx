@@ -54,3 +54,7 @@ You can run your own version from the web app before it is approved. Use it the 
 gravity runs my-agent      # recent runs of your agent on Gravity, with their cost
 gravity logs <run id>      # the timeline of one run
 ```
+
+A run that fails tells you three things: what went wrong in one sentence, which step it failed on, and whose side the fix is on. A connection that needs reconnecting, a value still pointing at your own account, or a step to correct comes back as yours to fix, together with what to do about it. A failure on Gravity's side is labelled as one, so you do not go looking for a bug that is not in your agent. The app's own error message sits underneath, and the full technical text stays folded away for when you want to send it on.
+
+A run that hits a memory, log-size or time limit is reported the same way: as a failed run with the engine's own message, not as an internal error.

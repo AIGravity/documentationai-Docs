@@ -65,6 +65,8 @@ approvals:
 
 Each person sets how much they want to be asked, and Gravity also decides for itself which tools always ask. So never assume the person saw a send. Make the effect safe by design (drafts first, caps, a way to stop), and always write the fallback for a "no", such as keeping a draft.
 
+A waiting run says so: the step it is parked on, and why. The reason is either an approval, naming the app the request went to such as Slack or Gmail, or a wait on a timer rather than a person. So you never go looking for a message that was never sent.
+
 ## Asking mid-run
 
 An agent can pause to ask the person a question, such as "Approve this scoring sheet?", and carry on with the answer. A run nobody is watching, such as a scheduled one, gets the default answer straight away.
