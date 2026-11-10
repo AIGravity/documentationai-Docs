@@ -1,7 +1,39 @@
 ---
 title: Changelog
-description: Changes to these docs, and where to see what changed in each CLI release.
+description: What shipped in Gravity, what changed in these docs, and where to see each CLI release.
 ---
+
+## What's new
+
+What shipped in Gravity itself, grouped by release window.
+
+### August–September 2026
+
+#### New features
+
+- **Approvals reach the person.** A step that sends mail, posts, or cannot be undone pauses the run, shows exactly what will happen, and carries on when the person approves from the message they received. [What Gravity gives every agent](/concepts/platform-features)
+- **Review on a real run.** A submitted version is run end to end during review, and a version that is turned down comes back with specific notes on what to change. [Publish and review](/guides/publish-and-review)
+- **A word when a connection breaks.** People are told in the app and by email when a connected tool stops working, instead of finding out from a run that quietly fails.
+- **A builder area.** A new sidebar and earnings page: lifetime earnings, published and pending counts, the payout method with its verification status, and the amount in the builder's own currency before withdrawing.
+
+#### Updates
+
+- A failed test run keeps the answers given so far; a retry resumes at the first unanswered question. [Testing your agent](/guides/testing)
+- File, date and dependent questions are now asked one at a time, in the same place as every other question, instead of in a separate form.
+- Selectable options and clarifying questions appear only when the person needs to clarify, and a conversation no longer stops at a fixed number of turns.
+- Pasting a Google Docs, Sheets or Drive link into a document question now finds the file.
+- Chat replies are faster and more consistent.
+- Subscriptions show usage in runs and sizes, checkout follows the person's region, and creators are paid their exact share of a run instead of a rounded-down amount.
+
+#### Fixes
+
+- A paused run now says what it waits for — an approval, a delay or another agent — and no longer reads as a timeout. Approving resumes it.
+- Long runs are checked again instead of ending with a generic error.
+- A failed run keeps the tool's own explanation instead of a generic one.
+- Submitting an agent no longer fails with a misleading message that the environment is not configured.
+- Agents that use an AI step run even when they were built in the visual tool editor, instead of failing on an unrecognised provider.
+- An empty option list falls back to a built-in list, and plain-text questions no longer show a "couldn't load options" error.
+- A file link from another app is no longer rewritten into a link that serves nothing.
 
 ## CLI releases
 
